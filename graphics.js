@@ -1,3 +1,5 @@
+"use strict";
+
 function rgba(red, green, blue, alpha) {
     return {red, green, blue, alpha};
 }
@@ -22,28 +24,25 @@ function clear(imageData, color) {
 }
 
 function fillRect(imageData, x0, y0, x1, y1, color) {
-    let buffer = imageData.data;
     for (var y = y0; y < y1; ++y) {
         for (var x = x0; x < x1; ++x) {
             let offset = pixelOffset(imageData, x, y);
-            writeColor(buffer, offset, color);
+            writeColor(imageData.data, offset, color);
         }
     }
 }
 
 function drawHorizontalLine(imageData, x, y, length, color) {
-    let buffer = imageData.data;
     for (var current = x; current <= x + length; ++current) {
         let offset = pixelOffset(imageData, current, y);
-        writeColor(buffer, offset, color);
+        writeColor(imageData.data, offset, color);
     }
 }
 
 function drawVerticalLine(imageData, x, y, length, color) {
-    let buffer = imageData.data;
     for (var current = y; current <= y + length; ++current) {
         let offset = pixelOffset(imageData, x, current);
-        writeColor(buffer, offset, color);
+        writeColor(imageData.data, offset, color);
     }
 }
 
@@ -55,14 +54,67 @@ function drawRect(imageData, x0, y0, x1, y1, color) {
 }
 
 // Bresenham's line algorithm
-function drawLine(imageData, x0, y0, x1, y1, color) {
-    let buffer = imageData.data;
-    for (var y = y0; y < y1; ++y) {
-        for (var x = x0; x < x1; ++x) {
-            if (false) { // If on the line
-                let offset = pixelOffset(imageData, x, y);
-                writeColor(buffer, offset, color);
+function drawBresenhamLine(imageData, x0, y0, x1, y1, color) {
+    function drawBresenhamLineLow(imageData, x0, y0, x1, y1, color) {
+        let dx = x1 - x0,
+            dy = y1 - y0,
+            yi = 1;
+        if (dy < 0) {
+            yi = -1;
+            dy = -dy;
+        }
+        let D = (2 * dy) - dx,
+            y = y0;
+
+        for (let x = x0; x <= x1; ++x) {
+            let offset = pixelOffset(imageData, x, y);
+            writeColor(imageData.data, offset, color);
+            if (D > 0) {
+                y = y + yi;
+                D = D + (2 * (dy - dx));
+            } else {
+                D = D + 2 * dy;
             }
         }
     }
+    function drawBresenhamLineHigh(imageData, x0, y0, x1, y1, color) {
+        let dx = x1 - x0,
+            dy = y1 - y0,
+            xi = 1;
+        if (dx < 0) {
+            xi = -1;
+            dx = -dx;
+        }
+        let D = (2 * dx) - dy,
+            x = x0;
+
+        for (let y = y0; y <= y1; ++y) {
+            let offset = pixelOffset(imageData, x, y);
+            writeColor(imageData.data, offset, color);
+            if (D > 0) {
+                x = x + xi;
+                D = D + (2 * (dx - dy));
+            } else {
+                D = D + 2 * dx;
+            }
+        }
+    }
+    if (Math.abs(y1 - y0) < Math.abs(x1 - x0)) {
+        if (x0 > x1) {
+            drawBresenhamLineLow(imageData, x1, y1, x0, y0, color);
+        } else {
+            drawBresenhamLineLow(imageData, x0, y0, x1, y1, color);
+        }
+    } else {
+        if (y0 > y1) {
+            drawBresenhamLineHigh(imageData, x1, y1, x0, y0, color);
+        } else {
+            drawBresenhamLineHigh(imageData, x0, y0, x1, y1, color);
+        }
+    }
 }
+
+function drawCubicBezierCurve(imageData, x0, y0, x1, y1, tx0, ty0, tx1, ty1, steps, color) {
+    
+}
+
