@@ -114,6 +114,50 @@ function drawBresenhamLine(imageData, x0, y0, x1, y1, color) {
     }
 }
 
+// Xiaolin Wu's line algorithm
+function drawWuLine(imageData, x0, y0, x1, y1, color) {
+    function fpart(x) {
+        return x - Math.floor(x);
+    }
+    function rfpart(x) {
+        return 1 - fpart(x);
+    }
+    let steep = Math.abs(y1 - y0) > Math.abs(x1 - x0);
+    if (steep) { // Swap
+        [x0, y0] = [y0, x0];
+        [x1, y1] = [y1, x1];
+    }
+    if (x0 > x1) { // Swap
+        [x0, x1] = [x1, x0];
+        [y0, y1] = [y1, y0];
+    }
+
+    let dx = x1 - x0;
+    let dy = y1 - y0;
+    let gradient = (x1 == x0)? 1.0 : dy / dx;
+
+    let xend = Math.round(x0);
+    let yend = y0 + gradient * (xend - x0);
+    let xgap = fpart(x1 + 0.5);
+    let xpxl2 = xend;
+    let ypxl2 = Math.floor(yend);
+    if (steep) {
+        let offset = pixelOffset(imageData, x, y);
+        writeColor(imageData.data, offset, color);
+
+    } else {
+
+    }
+}
+
+// Gupta-Sproull's line algorithm
+function drawGuptaSproullLine(imageData, x0, y0, x1, y1, color) {
+}
+
+function drawBresenhamCircle(imageData, x, y, radius, color) {
+}
+
+// Cubic curve based on Control points
 function drawCubicBezierCurve(imageData, x0, y0, x1, y1, tx0, ty0, tx1, ty1, steps, color) {
     
 }
