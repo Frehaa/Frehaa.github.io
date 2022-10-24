@@ -56,7 +56,6 @@ function blendColor(imageData, x, y, color) {
 }
 
 function writeColorSim(imageData, x, y, pixelSize, color, writeColor) {
-    // console.log(color.red, color.green, color.blue, color.alpha)
     for (let xp = x * pixelSize; xp < (x+1) * pixelSize; ++xp) {
         for (let yp = y * pixelSize; yp < (y+1) * pixelSize; ++yp) {
             writeColor(imageData, xp, yp, color);
@@ -237,7 +236,26 @@ function drawWuLine(imageData, x0, y0, x1, y1, color, writeColor) {
 function drawGuptaSproullLine(imageData, x0, y0, x1, y1, color) {
 }
 
-function drawBresenhamCircle(imageData, x, y, radius, color) {
+function drawBresenhamCircle(imageData, xm, ym, radius, color, writeColor) {
+    let r = Math.round(radius);
+    let x = -radius;
+    let y = 0;
+    let err = 2 - 2 * radius;
+    while (x <= 0) {
+        writeColor(imageData, xm - x, ym + y, color);
+        writeColor(imageData, xm - x, ym - y, color);
+        writeColor(imageData, xm + x, ym + y, color);
+        writeColor(imageData, xm + x, ym - y, color);
+        r = err;
+        if (r <= y) { 
+            ++y;
+            err += y*2 + 1;
+        }
+        if (r > x || err > y) {
+            ++x;
+            err += x*2 + 1;
+        }
+    } 
 }
 
 // Cubic curve based on Control points

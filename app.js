@@ -70,12 +70,12 @@ function animateBrezenhamCircle(currentTimestamp) {
     let ctx = canvas.getContext("2d");
     let imageData = ctx.getImageData(0, 0, width, height);
 
-    clear(imageData, rgb(1,1, 1));
+    clear(imageData, rgb(1, 1, 1));
 
     // Calculate changing color based on timestamp
     let sin = Math.sin(currentTimestamp / 100);
     let val = 0.5 + 0.25 * sin;
-    let color = rgb(1, val, val);
+    let color = rgb(0, 0, 0);
 
     // Mouse stuff
     let x = clamp(mouseX - canvas.offsetLeft, 0, canvas.width - 1);
@@ -84,39 +84,23 @@ function animateBrezenhamCircle(currentTimestamp) {
     let centerX = canvas.width / 2, 
         centerY = canvas.height / 2;
 
-    let maxRadius = Math.min(canvas.width / 2, canvas.height / 2);
+    let maxRadius = Math.min(canvas.width / 2, canvas.height / 2) - 1;
     function dist(a,b,c,d) { // Placeholder
-        return 1;
+        let dx = Math.abs(a - c);
+        let dy = Math.abs(b - d);
+        return Math.sqrt(dx * dx + dy * dy);
     }
-    let radius = dist(centerX, centerY, x, y);
+    let radius = Math.round(dist(centerX, centerY, x, y));
 
-    drawBresenhamCircle(imageData, centerX, centerY, Math.min(maxRadius, radius), color);
+    drawBresenhamCircle(imageData, centerX, centerY, Math.min(maxRadius, radius), color, writeColor);
     
     ctx.putImageData(imageData, 0, 0);
 }
 
 function animate(currentTimestamp) {
     animateBrezenhamLine(currentTimestamp);
-    // animateBrezenhamCircle(currentTimestamp);
-    animateWuLine(currentTimestamp);
-    // setTimeout(() => requestAnimationFrame(animate), 10);
-
-    // let canvas = document.getElementById("scaledPixels");
-    // let width = canvas.width;
-    // let height = canvas.height;
-    // let ctx = canvas.getContext("2d");
-    // let imageData = ctx.getImageData(0, 0, width, height);
-
-    // let pixelSize = 20;
-
-    // let simWidth = width / pixelSize;
-    // let simHeight = height / pixelSize;
-
-    // writeColorSim(imageData, 1, 1, pixelSize, rgb(1,0,0), writeColor);
-
-    // ctx.putImageData(imageData, 0, 0);
-
-
+    animateBrezenhamCircle(currentTimestamp);
+    // animateWuLine(currentTimestamp);
     requestAnimationFrame(animate);
 }
 
