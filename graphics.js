@@ -232,6 +232,10 @@ function drawWuLine(imageData, x0, y0, x1, y1, color, writeColor) {
     }
 }
 
+function drawWuCircle(imageData, cx, cy, radius, color) {
+
+}
+
 // Gupta-Sproull's line algorithm
 function drawGuptaSproullLine(imageData, x0, y0, x1, y1, color) {
 }
