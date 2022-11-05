@@ -182,8 +182,23 @@ function animate(currentTimestamp) {
     // animateBrezenhamCircle(currentTimestamp);
     // animateWuLine(currentTimestamp);
     // animateWuCircle(currentTimestamp);
-    animateFunction(currentTimestamp);
+    // animateFunction(currentTimestamp);
     // requestAnimationFrame(animate);
+}
+
+function drawDynamic() {
+    let canvas = document.getElementById("dynamic");
+    let width = canvas.width;
+    let height = canvas.height;
+    let ctx = canvas.getContext("2d");
+    let imageData = ctx.getImageData(0, 0, width, height);
+
+    let textarea = document.getElementById("canvas-code");
+
+    let f = new Function('imageData', 'width', 'height', 'ctx', textarea.value);
+    f(imageData, width, height, ctx);
+    
+    // ctx.putImageData(imageData, 0, 0);
 }
 
 function initialize() {
@@ -192,5 +207,14 @@ function initialize() {
         mouseY = ev.pageY;
     });
 
-    requestAnimationFrame(animate);
+    drawDynamic();
+
+    document.addEventListener('keyup', e => {
+        let textarea = document.getElementById("canvas-code");
+        if (e.target === textarea && e.code === "Enter") {
+            drawDynamic();
+        }
+    });
+
+    // requestAnimationFrame(animate);
 }
