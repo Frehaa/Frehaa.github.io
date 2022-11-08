@@ -195,9 +195,10 @@ function drawDynamic() {
 
     let textarea = document.getElementById("canvas-code");
 
+    let painter = new CanvasPainter(canvas);
     try {
-        let f = new Function('imageData', 'width', 'height', 'ctx', textarea.value);
-        let res = f(imageData, width, height, ctx);
+        let f = new Function('painter', 'imageData', 'width', 'height', 'ctx', textarea.value);
+        let res = f(painter, imageData, width, height, ctx);
         // console.log(res)
     } catch (error) {
         // console.log("error");

@@ -267,3 +267,49 @@ function drawCubicBezierCurve(imageData, x0, y0, x1, y1, tx0, ty0, tx1, ty1, ste
     
 }
 
+
+class CanvasPainter {
+    constructor(canvas) {
+        this.canvas = canvas;
+        this.width = canvas.width;
+        this.height = canvas.height;
+        this.ctx = canvas.getContext("2d");
+        // this.imageData = this.ctx.getImageData(0, 0, this.width, this.height);
+    }
+
+    drawCircle(x, y, radius) {
+        let start_angle = 0;
+        let end_angle = 2 * Math.PI;
+        let counter_clockwise = true;
+
+        this.ctx.beginPath();
+        this.ctx.arc(x, y, radius, start_angle, end_angle, counter_clockwise);
+        this.ctx.stroke();
+    }
+
+    drawLine(x0, y0, x1, y1) {
+        this.ctx.beginPath();
+        this.ctx.moveTo(x0, y0);
+        this.ctx.lineTo(x1, y1);
+        this.ctx.stroke();
+    }
+
+    drawRect(x, y, width, height) {
+        let x0 = x;
+        let y0 = y;
+        let x1 = x + width;
+        let y1 = y + height;
+        this.ctx.beginPath();
+        this.ctx.moveTo(x0, y0);
+        this.ctx.lineTo(x0, y1);
+        this.ctx.lineTo(x1, y1);
+        this.ctx.lineTo(x1, y0);
+        this.ctx.lineTo(x0, y0);
+        this.ctx.stroke();
+    }
+
+    clear() {
+        this.ctx.fillStyle = 'white';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+    }
+};
