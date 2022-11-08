@@ -195,10 +195,15 @@ function drawDynamic() {
 
     let textarea = document.getElementById("canvas-code");
 
-    let f = new Function('imageData', 'width', 'height', 'ctx', textarea.value);
-    f(imageData, width, height, ctx);
-    
-    // ctx.putImageData(imageData, 0, 0);
+    try {
+        let f = new Function('imageData', 'width', 'height', 'ctx', textarea.value);
+        let res = f(imageData, width, height, ctx);
+        // console.log(res)
+    } catch (error) {
+        // console.log("error");
+    }
+
+    requestAnimationFrame(drawDynamic);
 }
 
 function initialize() {
@@ -209,12 +214,12 @@ function initialize() {
 
     drawDynamic();
 
-    document.addEventListener('keyup', e => {
-        let textarea = document.getElementById("canvas-code");
-        if (e.target === textarea && e.code === "Enter") {
-            drawDynamic();
-        }
-    });
+    // document.addEventListener('keyup', e => {
+    //     let textarea = document.getElementById("canvas-code");
+    //     if (e.target === textarea && e.code === "Enter") {
+    //         drawDynamic();
+    //     }
+    // });
 
     // requestAnimationFrame(animate);
 }
