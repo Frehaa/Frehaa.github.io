@@ -177,16 +177,8 @@ function animateFunction(currentTimestamp) {
 
 }
 
-function animate(currentTimestamp) {
-    // animateBrezenhamLine(currentTimestamp);
-    // animateBrezenhamCircle(currentTimestamp);
-    // animateWuLine(currentTimestamp);
-    // animateWuCircle(currentTimestamp);
-    // animateFunction(currentTimestamp);
-    // requestAnimationFrame(animate);
-}
+function drawDynamic(time, t) {
 
-function drawDynamic() {
     let canvas = document.getElementById("dynamic");
     let width = canvas.width;
     let height = canvas.height;
@@ -196,15 +188,16 @@ function drawDynamic() {
     let textarea = document.getElementById("canvas-code");
 
     let painter = new CanvasPainter(canvas);
-    try {
-        let f = new Function('painter', 'imageData', 'width', 'height', 'ctx', textarea.value);
-        let res = f(painter, imageData, width, height, ctx);
-        // console.log(res)
-    } catch (error) {
-        // console.log("error");
-    }
 
-    requestAnimationFrame(drawDynamic);
+    try {
+        let f = new Function('time', 't','painter', 'imageData', 'width', 'height', 'ctx', textarea.value);
+        let res = f(time, t, painter, imageData, width, height, ctx);
+        if (res !== undefined) {
+            t = res;
+        }
+    } catch (_ignored) {} // Who cares about a little error.
+
+    requestAnimationFrame(time => drawDynamic(time, t));
 }
 
 function initialize() {
@@ -213,14 +206,5 @@ function initialize() {
         mouseY = ev.pageY;
     });
 
-    drawDynamic();
-
-    // document.addEventListener('keyup', e => {
-    //     let textarea = document.getElementById("canvas-code");
-    //     if (e.target === textarea && e.code === "Enter") {
-    //         drawDynamic();
-    //     }
-    // });
-
-    // requestAnimationFrame(animate);
+    requestAnimationFrame(time => drawDynamic(time, undefined));
 }
