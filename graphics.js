@@ -274,7 +274,6 @@ class CanvasPainter {
         this.width = canvas.width;
         this.height = canvas.height;
         this.ctx = canvas.getContext("2d");
-        // this.imageData = this.ctx.getImageData(0, 0, this.width, this.height);
     }
 
     drawCircle(x, y, radius) {
