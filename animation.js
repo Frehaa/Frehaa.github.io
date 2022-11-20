@@ -1,16 +1,4 @@
-function animateCanvasCode() {
-    let textarea = document.getElementById("canvas-code");
-    let rangeInput = document.getElementById('time-range');
-    let animationList = document.getElementById('animation-list');
-
-    document.state = {
-        items: [],
-        animations: [],
-        durations: [],
-        totalAnimationDuration: 0,
-        lastTimestamp: 0,
-        playing: false
-    };
+function parseAnimationCode() {
     let state = document.state;
 
     function Circle(x, y, radius) {
@@ -79,12 +67,37 @@ function animateCanvasCode() {
         return animation;
     }
 
+    function RunConcurrently(...animations) {
+        let duration = 0;
+        animations.forEach(idx => {
+            // Remove duration from global state
+            let duration = state.durations[idx];
+            state.totalAnimationDuration - duration;
+
+
+        });
+
+        let animation = (elapsed) => {
+            return Math.max(elapsed - duration, 0);
+        }
+        state.totalAnimationDuration += duration;
+        state.durations.push(duration);
+        state.animations.push(animation);
+        return animation;
+    }
+
     try {
-        let f = new Function('Circle', 'FadeIn', 'Wait', 'FadeOut', textarea.value);
-        f(Circle, FadeIn, Wait, FadeOut);
+        let textarea = document.getElementById("canvas-code");
+        let f = new Function('Circle', 'FadeIn', 'Wait', 'FadeOut', 'RunConcurrently', textarea.value);
+        f(Circle, FadeIn, Wait, FadeOut, RunConcurrently);
     } catch (_ignored) {
         console.log(_ignored)
     } // Who cares about a little error.
+
+
+    // Update UI
+    let rangeInput = document.getElementById('time-range');
+    let animationList = document.getElementById('animation-list');
 
     rangeInput.max = state.totalAnimationDuration;
     for (let i in state.animations) {
@@ -95,6 +108,7 @@ function animateCanvasCode() {
 }
 
 function draw(time) {
+    console.log(time);
     let canvas = document.getElementById('canvas');
     let width = canvas.width;
     let height = canvas.height;
@@ -106,7 +120,6 @@ function draw(time) {
     // Handle animations
     let remainingDt = time;
     while (currentAnimationIndex != animationCount && remainingDt > 0) {
-        // console.log(remainingDt, currentAnimationIndex)
         let animation = state.animations[currentAnimationIndex];
         remainingDt = animation(remainingDt);
         // Go to next animation if current one is finished
@@ -116,7 +129,6 @@ function draw(time) {
     // Draw elements
     ctx.clearRect(0, 0, width, height);
     state.items.forEach(item => {
-        // console.log(item);
         if (item.visible) {
             item.draw(ctx);
         }
@@ -128,41 +140,61 @@ function startAnimation() {
     let durationText = document.getElementById('duration-text');
 
     let state = document.state;
-    state.playing = true;
+    state.setPlaying(true);
 
     function animate(time) {
         rangeInput.value = time;
         durationText.value = Math.round(Math.min(time, state.totalAnimationDuration)) + "ms";
-        let dt = time - state.lastTimestamp;
-        state.lastTimestamp = time;
         draw(time);
 
-        if (time >= state.totalAnimationDuration) state.playing = false;
-        if (state.playing) requestAnimationFrame(animate);
+        if (time >= state.totalAnimationDuration) state.setPlaying(false);
+        if (state.isPlaying) requestAnimationFrame(animate);
     }
-
-    // draw(1000);
 
     requestAnimationFrame(animate);
 }
 
 function initialize() {
-    animateCanvasCode();
+    let playButton = document.getElementById('play-button');
+    let rangeInput = document.getElementById('time-range');
+    let durationText = document.getElementById('duration-text');
 
+    document.state = {
+        items: [],
+        animations: [],
+        durations: [],
+        totalAnimationDuration: 0,
+        isPlaying: false,
+        setPlaying(playing) {
+            state.isPlaying = playing;
+            playButton.innerHTML = playing? "Stop" : "Play";
+        }
+    };
+    let state = document.state;
+
+    parseAnimationCode();
     startAnimation();
 
-    let state = document.state;
-    let rangeInput = document.getElementById('time-range');
     rangeInput.addEventListener('input', (e) => {
-        state.playing = false;
-        let durationText = document.getElementById('duration-text');
+        state.setPlaying(false);
         durationText.value = Math.round(e.target.value) + "ms";
         draw(e.target.value);
 
     });
 
-    rangeInput.addEventListener('onchange', (e) => {
-        console.log("change", e.target.value);
+    playButton.addEventListener('click', (e) => {
+        if (state.isPlaying) {
+            state.setPlaying(false);
+        } else if (rangeInput.value == state.totalAnimationDuration) { // Start from beginning
+            rangeInput.value = 0;
+            durationText.value = 0 + "ms";
+            state.setPlaying(true);
+            startAnimation();
+        } else {
+            startAnimation();
+        }
+        
+        
     });
     
 }
