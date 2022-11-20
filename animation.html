@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Playroom</title>
+<script src="queue.js"></script>
+<script src="animation.js"></script>
+<style>
+canvas {
+    outline: solid 1px black;
+}
+#canvas-code {
+    width: 500px;
+    height: 480px;
+}
+</style>
+</head>
+<body onload="initialize()">
+<canvas id="canvas" width="720" height="480"></canvas>
+<textarea id="canvas-code">
+let circle = Circle(300, 300, 100);
+Wait(500);
+FadeIn(circle, 2000);
+FadeOut(circle, 2000);
+</textarea>
+<br>
+<input id="time-range" type="range" min="0" max="100" value="0">
+<input id="duration-text" type="text" disabled value="hello">
+<button id="play-button">Play</button>
+<div id="animation-list"></div>
+</body>
+</html>
