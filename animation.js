@@ -110,13 +110,13 @@ function parseAnimationCode() {
 
     // Update UI
     let rangeInput = document.getElementById('time-range');
-    let animationList = document.getElementById('animation-list');
+    let animationButtonDiv = document.getElementById('animation-list');
 
     rangeInput.max = state.totalAnimationDuration;
     for (let i in state.animations) {
         let button = document.createElement('button');
         button.innerHTML = i;
-        animationList.appendChild(button);
+        animationButtonDiv.appendChild(button);
     }
 }
 
@@ -126,17 +126,14 @@ function draw(time) {
     let height = canvas.height;
     let ctx = canvas.getContext('2d'); 
 
-
-
     let state = document.state;
+
     // Handle animations
-    let current = state.animations.first;
     let remainingTime = time;
-    while (current !== null && remainingTime > 0) {
-        remainingTime = current.update(remainingTime);
-        // Go to next animation if current one is finished
-        if (remainingTime > 0) current = current.next;
-    }; 
+    for (let item of state.animationList.items()) {
+        remainingTime = item.update(remainingTime);
+        if (remainingTime == 0) break;
+    }
 
     // Draw elements
     ctx.clearRect(0, 0, width, height);
@@ -166,6 +163,7 @@ function startAnimation() {
     requestAnimationFrame(animate);
 }
 
+
 function initialize() {
     let playButton = document.getElementById('play-button');
     let rangeInput = document.getElementById('time-range');
@@ -173,88 +171,48 @@ function initialize() {
 
     document.state = {
         items: [],
-        animations: { first: null, last: null },
-        animationId: 0,
+        // NOTE: An animation is an object with an update function and a duration value
+        animationList: new LinkedList(), 
         totalAnimationDuration: 0,
+        elapsed: 0,
         isPlaying: false,
         setPlaying(playing) {
-            state.isPlaying = playing;
-            playButton.innerHTML = playing? "Stop" : "Play";
+            this.isPlaying = playing;
+            if (this.isPlaying) {
+                playButton.innerHTML = "Stop";
+            } else {
+                playButton.innerHTML = "Play";
+            }
+            
         },
         registerAnimation(update, duration) {
-            let id = this.nextAnimationId();
-            state.totalAnimationDuration += duration;
-            let node = { update, duration, id, next: null };
-            if (this.animations.first === null) {
-                this.animations.first = node;
-            } else {
-                this.animations.last.next = node;
-            }
-            this.animations.last = node;
-            return id;
+            this.totalAnimationDuration += duration;
+            return this.animationList.addLast({ update, duration });
         }, 
         deregisterAnimation(animationId) { // Returns the deregistered animation
-            // Bit of annoying pointer management since this is not a doubly-linked list
-            // Edge case where no animations are registered
-            if (this.animations.first === null) return null;
-
-            // Edge case where we remove the first animation
-            let previous = this.animations.first;
-            if (previous.id === animationId) {
-                if (this.animations.last.id === animationId) { // Edge case where the is only one element 
-                    this.animations.last = null;
-                    this.animations.first = null;
-                }
-                else {
-                    this.animations.first = previous.next; // Update first pointer
-                }
-                
-                this.totalAnimationDuration -= previous.duration;
-                return previous; 
+            let element = this.animationList.remove(animationId);
+            if (element !== null) {
+                this.totalAnimationDuration -= element.duration;
             }
-
-            // General case where we loop through elements
-            let current = previous.next;
-            while (current !== null) {
-                if (current.id === animationId) {
-                    if (this.animations.last.id === animationId) {
-                        this.animations.last = previous;
-                    }
-                    previous.next = current.next; // Update pointer to skip over current element
-                    this.totalAnimationDuration -= current.duration;
-                    return current;
-                }
-                previous = current;
-                current = current.next;
-            }
-            return null;
-        },
-        nextAnimationId() {
-            return this.animationId++;
+            return element;
         },
         getTotalAnimationDuration() {
             return this.totalAnimationDuration;
+        }, 
+        getElapsed() {
+            return elapsed;
         }
     };
     let state = document.state;
 
-    // let a = state.registerAnimation('a', 1);
-    // let b = state.registerAnimation('b', 2);
-    // let c = state.registerAnimation('c', 3);
-    // let d = state.registerAnimation('d', 4);
-
-    // let rb = state.deregisterAnimation(b);
-    // console.log(state.animations)
-    // let rc = state.deregisterAnimation(c);
-    // console.log(state.animations)
-    // let rd = state.deregisterAnimation(d);
-    // console.log(state.animations)
-    // let e = state.registerAnimation('e', 5);
-    // console.log(state.animations)
-
     parseAnimationCode();
+
+    // let items = state.animationList.items();
+    // for (let i of items) {
+    //     console.log(i);
+    // }
+    // return;
     startAnimation();
-    console.log(state.animations)
 
     rangeInput.addEventListener('input', (e) => {
         state.setPlaying(false);
