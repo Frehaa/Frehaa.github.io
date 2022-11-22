@@ -110,13 +110,27 @@ function parseAnimationCode() {
 
     // Update UI
     let rangeInput = document.getElementById('time-range');
+    let durationText = document.getElementById('duration-text');
     let animationButtonDiv = document.getElementById('animation-list');
 
     rangeInput.max = state.totalAnimationDuration;
-    for (let i in state.animations) {
+    let i = 0;
+    let elapsed = 0;
+    for (let a of state.animationList.items()) {
         let button = document.createElement('button');
         button.innerHTML = i;
+        elapsed += a.duration;
+        let onClick = (time) => {
+            return () => {
+                state.setPlaying(false);
+                draw(time)
+                durationText.value = Math.round(time) + "ms";
+                rangeInput.value = time;
+            };
+        }
+        button.addEventListener('click', onClick(elapsed));
         animationButtonDiv.appendChild(button);
+        i++;
     }
 }
 
@@ -206,12 +220,6 @@ function initialize() {
     let state = document.state;
 
     parseAnimationCode();
-
-    // let items = state.animationList.items();
-    // for (let i of items) {
-    //     console.log(i);
-    // }
-    // return;
     startAnimation();
 
     rangeInput.addEventListener('input', (e) => {
@@ -224,7 +232,7 @@ function initialize() {
     playButton.addEventListener('click', (e) => {
         if (state.isPlaying) {
             state.setPlaying(false);
-        } else if (rangeInput.value == state.getTotalAnimationDuration()) { // Start from beginning
+        } else if (rangeInput.value == state.getTotalAnimationDuration()) { // Restart from beginning when finished
             rangeInput.value = 0;
             durationText.value = 0 + "ms";
             state.setPlaying(true);
@@ -232,8 +240,6 @@ function initialize() {
         } else {
             startAnimation();
         }
-        
-        
     });
     
 }
