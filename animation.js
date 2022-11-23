@@ -100,30 +100,28 @@ function parseAnimationCode() {
 
     try {
         let textarea = document.getElementById("canvas-code");
+        // This shit is pretty sexy if I say so myself. All the functions are written manually to the animations array.
+        // They are then automatically added as function parameters to 'f' with their actual names, and the 'f' is called with them in guaranteed correct order. 
         let animations = [Circle, Show, FadeIn, FadeOut, MoveTo, Wait, RunConcurrently];
         let f = new Function(...animations.map(a => a.name), textarea.value);
         f(...animations);
     } catch (_ignored) {
         console.log(_ignored)
-    } // Who cares about a little error.
+    } // Who cares about a little error among friends.
 
 
     // Update UI
     let rangeInput = document.getElementById('time-range');
-    let durationText = document.getElementById('duration-text');
-    let animationButtonDiv = document.getElementById('animation-list');
-
-    rangeInput.max = state.totalAnimationDuration;
+    rangeInput.max = state.getTotalAnimationDuration();
 
     function addAnimationInBetweenButton(text, elapsed) {
+        let animationButtonDiv = document.getElementById('animation-list');
         let button = document.createElement('button');
         button.innerHTML = text;
         let onClick = (time) => {
             return () => {
                 state.setPlaying(false);
-                draw(time)
-                durationText.value = Math.round(time) + "ms";
-                rangeInput.value = time;
+                updateUiAndDraw(time);
             };
         }
         button.addEventListener('click', onClick(elapsed));
@@ -163,19 +161,22 @@ function draw(time) {
     });
 }
 
-function startAnimation() {
+function updateUiAndDraw(time) {
     let rangeInput = document.getElementById('time-range');
     let durationText = document.getElementById('duration-text');
+    let totalAnimationDuration = document.state.getTotalAnimationDuration();
+    rangeInput.value = time;
+    durationText.value = Math.round(Math.min(time, totalAnimationDuration)) + "ms";
+    draw(time);
+}
 
+function startAnimation() {
     let state = document.state;
     state.setPlaying(true);
 
     function animate(time) {
-        rangeInput.value = time;
-        durationText.value = Math.round(Math.min(time, state.totalAnimationDuration)) + "ms";
-        draw(time);
-
-        if (time >= state.totalAnimationDuration) state.setPlaying(false);
+        updateUiAndDraw(time);
+        if (time >= state.getTotalAnimationDuration()) state.setPlaying(false);
         if (state.isPlaying) requestAnimationFrame(animate);
     }
 
@@ -185,9 +186,6 @@ function startAnimation() {
 
 function initialize() {
     let playButton = document.getElementById('play-button');
-    let rangeInput = document.getElementById('time-range');
-    let durationText = document.getElementById('duration-text');
-
     document.state = {
         items: [],
         // NOTE: An animation is an object with an update function and a duration value
@@ -227,19 +225,17 @@ function initialize() {
     parseAnimationCode();
     startAnimation();
 
+    let rangeInput = document.getElementById('time-range');
     rangeInput.addEventListener('input', (e) => {
         state.setPlaying(false);
-        durationText.value = Math.round(e.target.value) + "ms";
-        draw(e.target.value);
+        updateUiAndDraw(e.target.value);
 
     });
 
-    playButton.addEventListener('click', (e) => {
+    playButton.addEventListener('click', (_) => {
         if (state.isPlaying) {
             state.setPlaying(false);
         } else if (rangeInput.value == state.getTotalAnimationDuration()) { // Restart from beginning when finished
-            rangeInput.value = 0;
-            durationText.value = 0 + "ms";
             state.setPlaying(true);
             startAnimation();
         } else {
