@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Playroom</title>
+<script src="noise_app.js"></script>
+<style>
+canvas {
+    /* border-width: 1px;
+    border-style: solid;
+    border-color: black; */
+    /* position: absolute;
+    left: 100px;
+    top: 100px; */
+    outline: solid 1px black;
+}
+
+#canvas-code {
+    width: 500px;
+    height: 480px;
+}
+.wrong:focus {
+    border-color: red;
+    outline: 0;
+    --webkit-box-shadow: inset 0 1px 1px rgba(255,0,0, .075), 0 0 8px rgba(255, 0, 0, 0.6);
+    box-shadow: inset 0 1px 1px rgba(255,0,0, .075), 0 0 8px rgba(255, 0, 0, 0.6);
+}
+</style>
+</head>
+<body onload="initialize()">
+    <table>
+        <tr>
+            <td align="center">
+                <h2>White noise Canvas</h2>
+                <canvas id="white-noise-canvas" width="500" height="500"></canvas>
+            </td>
+            <td align="center">
+                <h2>Blue noise Canvas</h2>
+                <canvas id="blue-noise-canvas" width="500" height="500"></canvas>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                Samples: <input type="range" id="white-noise-count-range" min="0" max="10000">
+                <input type="text" id="white-noise-count-range-text" value=""><br>
+                Seed: <input type="text" id="white-noise-rng-seed" value="seed">
+            </td>
+            <td>
+                Samples: <input type="range" id="blue-noise-count-range" min="0" max="10000">
+                <input type="text" id="blue-noise-count-range-text" value=""><br>
+                Seed: <input type="text" id="blue-noise-rng-seed" value="seed">
+            </td>
+        </tr>
+    </table>
+<br>
+</textarea>
+</body>
+</html>
