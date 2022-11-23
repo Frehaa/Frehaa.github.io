@@ -114,12 +114,10 @@ function parseAnimationCode() {
     let animationButtonDiv = document.getElementById('animation-list');
 
     rangeInput.max = state.totalAnimationDuration;
-    let i = 0;
-    let elapsed = 0;
-    for (let a of state.animationList.items()) {
+
+    function addAnimationInBetweenButton(text, elapsed) {
         let button = document.createElement('button');
-        button.innerHTML = i;
-        elapsed += a.duration;
+        button.innerHTML = text;
         let onClick = (time) => {
             return () => {
                 state.setPlaying(false);
@@ -130,7 +128,14 @@ function parseAnimationCode() {
         }
         button.addEventListener('click', onClick(elapsed));
         animationButtonDiv.appendChild(button);
-        i++;
+    }
+
+    let i = 0;
+    let elapsed = 0;
+    addAnimationInBetweenButton(i, elapsed);
+    for (let a of state.animationList.items()) {
+        elapsed += a.duration;
+        addAnimationInBetweenButton(++i, elapsed);
     }
 }
 
