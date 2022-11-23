@@ -183,7 +183,11 @@ function startAnimation() {
     requestAnimationFrame(animate);
 }
 
-
+// Two (simple) ways to handle correctly drawing when jumping in time. 
+//  1. Copy an initial state of the objects and update these each draw
+//  2. Draw each frame once, store it in memory, and paint it on demand.
+// (1.) requires handling copying elements correctly and will mean a lot of "wasted" operations
+// (2.) requires a huge amount of memory for big canvas with long animations. (720x480) * 1000 frames is more than a gigabyte.
 function initialize() {
     let playButton = document.getElementById('play-button');
     document.state = {
@@ -208,12 +212,11 @@ function initialize() {
         }, 
         deregisterAnimation(animationId) { // Returns the deregistered animation
             let element = this.animationList.remove(animationId);
-            if (element !== null) {
-                this.totalAnimationDuration -= element.duration;
-            }
+            if (element === null) throw new Error("Failed to deregister animation: The id was not registered.");
+            this.totalAnimationDuration -= element.duration;
             return element;
         },
-        getTotalAnimationDuration() {
+        getTotalAnimationDuration() { // Alternatively calculate on demand. This seems to work fine though.
             return this.totalAnimationDuration;
         }, 
         getElapsed() {
