@@ -12,11 +12,19 @@ canvas {
     left: 100px;
     top: 100px; */
     outline: solid 1px black;
+    margin: 0;
+    border: 0;
 }
 
-#canvas-code {
+#random-generator-code {
     width: 500px;
-    height: 480px;
+    height: 500px;
+    resize: none;
+    overflow-y: scroll;
+    margin: 0;
+    border: 0;
+    outline: solid 1px black;
+    padding: 0;
 }
 .wrong:focus {
     border-color: red;
@@ -36,6 +44,20 @@ canvas {
             <td align="center">
                 <h2>Blue noise Canvas</h2>
                 <canvas id="blue-noise-canvas" width="500" height="500"></canvas>
+            </td>
+            <td align="center">
+                <h2>Pseudorandom Generator Code</h2>
+                <textarea id="random-generator-code" width="500" height="500">
+// Linear congruential generator
+let state = seed;
+let a = 1664525;
+let c = 1013904223;
+let m = 2**32;
+while (true) {
+    state = (a * state + c) % m
+    yield state / m;
+}
+                </textarea>
             </td>
         </tr>
         <tr>
