@@ -1,32 +1,87 @@
 "use strict";
+const DEFAULT_DRAWABLE_SETTINGS = { red: 0, green: 0, blue: 0, fill: true, alpha: 0, visible: false };
 
 function parseAnimationCode() {
     let state = document.state;
+    state.items = [];
+    state.animationList = new LinkedList();
 
-    function Circle(x, y, radius) {
+    function Circle(x, y, radius, settings = {}) {
         let c = {
-            type: 'CIRCLE',
             position: {x, y},
             radius: radius,
-            red: 1,
-            green: 0,
-            blue: 0,
-            alpha: 0,
-            visible: false,
             draw: function(ctx) {
                 let r = c.red * 255;
                 let g = c.green * 255;
                 let b = c.blue * 255;
                 let a = c.alpha;
-                ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${a})`;
-                ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a})`;
                 ctx.beginPath();
                 ctx.arc(this.position.x, this.position.y, this.radius, 0, 2 * Math.PI);
-                ctx.fill();
-            }
+
+                if (c.fill) {
+                    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a})`;
+                    ctx.fill();
+                } else {
+                    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${a})`;
+                    ctx.stroke();
+                }
+                
+            }, 
+            ...DEFAULT_DRAWABLE_SETTINGS, // Initialize with default settings
+            ...settings // Overwrite according to given parameters
         };
         state.items.push(c);
         return c;
+    }
+
+    function Line(start, end, settings = {}) {
+        let l = {
+            start,
+            end,
+            draw: function(ctx) {
+                let r = l.red * 255;
+                let g = l.green * 255;
+                let b = l.blue * 255;
+                let a = l.alpha;
+                ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${a})`;
+                ctx.beginPath();
+                ctx.moveTo(l.start.x, l.start.y);
+                ctx.lineTo(l.end.x, l.end.y);
+                ctx.stroke();
+            },
+            ...DEFAULT_DRAWABLE_SETTINGS,
+            ...settings
+        };
+        state.items.push(l);
+        return l;
+    }
+
+    function Arrow(from, to, settings = {}) {
+        // TODO: Evaluate from and to
+        let a = {
+            start: from,
+            end: to,
+            draw: function(ctx) {
+                ctx.strokeStyle = `rgba(0,0,0,1)`;
+                ctx.beginPath();
+                ctx.moveTo(a.start.x, a.start.y);
+                ctx.lineTo(a.end.x, a.end.y);
+                // TODO: Draw arrow tip
+                ctx.stroke();
+            },
+            ...DEFAULT_DRAWABLE_SETTINGS,
+            ...settings
+        };
+        state.items.push(a);
+        return a;
+    }
+
+    function From(target) {
+        return target.position;
+    }
+
+    function To(target) {
+        return target.position;
     }
 
     function Show(target) {
@@ -102,11 +157,13 @@ function parseAnimationCode() {
 
     try {
         let textarea = document.getElementById("canvas-code");
+        let canvas = document.getElementById('canvas');
+        let ctx = canvas.getContext('2d');
         // This shit is pretty sexy if I say so myself. All the functions are written manually to the animations array.
         // They are then automatically added as function parameters to 'f' with their actual names, and the 'f' is called with them in guaranteed correct order. 
-        let animations = [Circle, Show, FadeIn, FadeOut, MoveTo, Wait, RunConcurrently];
-        let f = new Function(...animations.map(a => a.name), textarea.value);
-        f(...animations);
+        let animations = [Circle, Arrow, Line, From, To, Show, FadeIn, FadeOut, MoveTo, Wait, RunConcurrently];
+        let f = new Function('ctx',...animations.map(a => a.name), textarea.value);
+        f(ctx, ...animations);
     } catch (_ignored) {
         console.log(_ignored)
     } // Who cares about a little error among friends.
@@ -116,8 +173,8 @@ function parseAnimationCode() {
     let rangeInput = document.getElementById('time-range');
     rangeInput.max = state.getTotalAnimationDuration();
 
+    let animationButtonDiv = document.getElementById('animation-list');
     function addAnimationInBetweenButton(text, elapsed) {
-        let animationButtonDiv = document.getElementById('animation-list');
         let button = document.createElement('button');
         button.innerHTML = text;
         let onClick = (time) => {
@@ -132,6 +189,7 @@ function parseAnimationCode() {
 
     let i = 0;
     let elapsed = 0;
+    animationButtonDiv.innerHTML = '';
     addAnimationInBetweenButton(i, elapsed);
     for (let a of state.animationList.items()) {
         elapsed += a.duration;
@@ -227,6 +285,10 @@ function initialize() {
     };
     let state = document.state;
 
+    let canvas = document.getElementById('canvas');
+    let ctx = canvas.getContext('2d');
+    ctx.save();
+
     parseAnimationCode();
     startAnimation();
 
@@ -248,4 +310,13 @@ function initialize() {
         }
     });
     
+    let textarea = document.getElementById("canvas-code");
+    textarea.addEventListener('input', function(e) {
+        ctx.restore();
+        ctx.save();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        parseAnimationCode();
+        updateUiAndDraw(1);
+    })
+
 }

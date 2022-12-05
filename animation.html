@@ -9,17 +9,102 @@ canvas {
     outline: solid 1px black;
 }
 #canvas-code {
-    width: 500px;
-    height: 480px;
+    width: 700px;
+    height: 3000px;
 }
 </style>
 </head>
 <body onload="initialize()">
-<canvas id="canvas" width="720" height="480"></canvas>
+<canvas id="canvas" width="720" height="3000"></canvas>
 <textarea id="canvas-code">
-let circle = Circle(300, 300, 100);
-FadeIn(circle, 2000);
-RunConcurrently(MoveTo(circle, 100, 100, 1000), FadeOut(circle, 2000));
+let k = 5;
+let offsetX = k * 10;  let offsetY = 20;
+let marginX = 20;      let marginY = 20;
+let scale = 1;
+let radius = 5;
+
+let circles = {};
+for (let i = 0; i < 2**k; i++) {
+    for (let j = 0; j < k + 1; ++j) {
+        let settings = {visible: true, alpha: 0.2, red: 0, green: 0, blue: 0}
+        circles[[i, j]] = Circle(offsetX * j, offsetY * i, radius, settings);
+    }
+}
+
+let arrows = {};
+for (let i = 0; i < 2**k; i++) {
+    for (let j = 0; j < k; ++j) {
+       let from = circles[[i, j]];
+       let crossIdx = ij(i, j);
+       let to0 = circles[[i, j+1]];
+       let to1 = circles[[crossIdx, j+1]];
+       let lineSettings = {visible: true, alpha: 0.01, red: 0, green: 0, blue: 0};
+       arrows[[i, j, 0]] = Line(From(from), To(to0), lineSettings);
+       arrows[[i, j, 1]] = Line(From(from), To(to1), lineSettings);
+    }
+}
+
+ctx.transform(scale, 0, 0, scale, 0, 0);
+ctx.translate(marginX , marginY) // Add margin
+
+colorPath(0, k, 0.8, 0, 0);
+colorPath(1, k, 0, 0, 0.8);
+colorPath(1, k, 0, 0.8, 0);
+
+function ij(i, j) { 
+    return i ^ (2**j)
+}
+
+function colorPath(i, j, red, green, blue) {
+    circles[[i, j]].red += red;
+    circles[[i, j]].green += green;
+    circles[[i, j]].blue += blue;
+    circles[[i,j]].alpha += 1;
+    if (j == 0) return;
+    colorPath(i, j-1, red, green, blue);
+    let crossIdx = ij(i, j-1);
+    colorPath(crossIdx, j-1, red, green, blue);
+
+    arrows[[i,j-1,0]].alpha = 1;
+    arrows[[i,j-1,0]].red+= red;
+    arrows[[i,j-1,0]].green+= green;
+    arrows[[i,j-1,0]].blue+= blue;
+    arrows[[crossIdx,j-1,1]].alpha = 1;
+    arrows[[crossIdx,j-1,1]].red += red;
+    arrows[[crossIdx,j-1,1]].green+= green;
+    arrows[[crossIdx,j-1,1]].blue+= blue;
+}
+
+let stats = {};
+let tests = [];
+tests.push({name: "green", prop: function(c) { return c.green > 0.5 }});
+tests.push({name: "red", prop: function(c) { return c.red > 0.5 }});
+tests.push({name: "blue", prop: function(c) { return c.blue > 0.5 }});
+tests.push({name: "redGreen", prop: function(c) { return c.red > 0.5 && c.green > 0.5 }});
+tests.push({name: "redBlue", prop: function(c) { return c.red > 0.5 && c.blue > 0.5 }});
+tests.push({name: "blueGreen", prop: function(c) { return c.blue > 0.5 && c.green > 0.5}});
+tests.push({name: "all", prop: function(c) { return c.red > 0.5 && c.blue > 0.5 && c.green}});
+for (let i = 0; i < 2**k; i++) {
+    for (let j = 0; j < k + 1; ++j) {
+        let c = circles[[i,j]];
+        for (let test of tests) {
+            if (test.prop(c)) {
+                if (typeof stats[test.name] === 'undefined') {
+                    stats[test.name] = 0;
+                } 
+                stats[test.name]++;
+                
+            }
+        }
+
+    }
+}
+console.log(stats);
+
+
+// let circle = Circle(300, 300, 100);
+// FadeIn(circle, 2000);
+// RunConcurrently(MoveTo(circle, 100, 100, 1000), FadeOut(circle, 2000));
 </textarea>
 <br>
 <input id="time-range" type="range" min="0" max="100" value="0">
