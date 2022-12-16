@@ -20,17 +20,18 @@ canvas {
 let k = 5;
 let offsetX = k * 10;  let offsetY = 20;
 let marginX = 20;      let marginY = 20;
-let scale = 1;
+let scale = 2;
 let radius = 5;
 let runStats = true;
+let circleSettings= {visible: true, alpha: 0.2, red: 0, green: 0, blue: 0}
+let lineSettings = {visible: true, alpha: 0.1, red: 0, green: 0, blue: 0};
 
 if (k > 13) return;
 
 let circles = {};
 for (let i = 0; i < 2**k; i++) {
     for (let j = 0; j < k + 1; ++j) {
-        let settings = {visible: true, alpha: 0.2, red: 0, green: 0, blue: 0}
-        circles[[i, j]] = Circle(offsetX * j, offsetY * i, radius, settings);
+        circles[[i, j]] = Circle(offsetX * j, offsetY * i, radius, circleSettings);
     }
 }
 
@@ -38,10 +39,8 @@ let arrows = {};
 for (let i = 0; i < 2**k; i++) {
     for (let j = 0; j < k; ++j) {
        let from = circles[[i, j]];
-       let crossIdx = ij(i, j);
        let to0 = circles[[i, j+1]];
-       let to1 = circles[[crossIdx, j+1]];
-       let lineSettings = {visible: true, alpha: 0.01, red: 0, green: 0, blue: 0};
+       let to1 = circles[[ij(i, j), j+1]];
        arrows[[i, j, 0]] = Line(From(from), To(to0), lineSettings);
        arrows[[i, j, 1]] = Line(From(from), To(to1), lineSettings);
     }
