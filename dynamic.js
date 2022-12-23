@@ -20,9 +20,12 @@ function drawDynamic(time, r) {
             r = res;
         }
     } catch (_ignored) {
-        // console.log(_ignored)
+        console.log(_ignored)
     } // Who cares about a little error.
 
+    ctx.putImageData(imageData, 0, 0);
+    
+    
     requestAnimationFrame(time => drawDynamic(time, r));
 }
 
