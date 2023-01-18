@@ -23,8 +23,8 @@ let marginX = 20;      let marginY = 20;
 let scale = 2;
 let radius = 5;
 let runStats = true;
-let circleSettings= {visible: true, alpha: 1, red: 0, green: 0, blue: 0}
-let lineSettings = {visible: true, alpha: 0.5, red: 0, green: 0, blue: 0};
+let circleSettings= {visible: true, alpha: 0.1, red: 0, green: 0, blue: 0}
+let lineSettings = {visible: true, alpha: 0.1, red: 0, green: 0, blue: 0};
 
 if (k > 13) return;
 
@@ -49,54 +49,55 @@ for (let i = 0; i < 2**k; i++) {
 ctx.transform(scale, 0, 0, scale, 0, 0);
 ctx.translate(marginX , marginY)
 
-//colorPath(0, k, 0.8, 0, 0);
-colorPathRev(0, 1, 1, 0, 0.0);
+colorPath(0, k, 0.8, 0, 0);
+//colorPathRev(0, 1, 1, 0, 0.0);
+
 //colorPath(1, k, 0, 0.8, 0);
+
+for (let t = k-1; t > 0; --t) {
+    for (let i = 2; i < 2**t; i += 2) {
+       // colorPathRev(i, t-1, 0, 0, 0);
+    }
+}
 
 function ij(i, j) { 
     return i ^ (2**j)
 }
 
 function colorPath(i, j, red, green, blue) {
-    circles[[i, j]].red += red;
-    circles[[i, j]].green += green;
-    circles[[i, j]].blue += blue;
-    circles[[i,j]].alpha += 1;
+    colorMixNode(i, j, red, green, blue, 1)
     if (j == 0) return;
     colorPath(i, j-1, red, green, blue);
     let crossIdx = ij(i, j-1);
     colorPath(crossIdx, j-1, red, green, blue);
 
-    arrows[[i,j-1,0]].alpha = 1;
-    arrows[[i,j-1,0]].red+= red;
-    arrows[[i,j-1,0]].green+= green;
-    arrows[[i,j-1,0]].blue+= blue;
-    arrows[[crossIdx,j-1,1]].alpha = 1;
-    arrows[[crossIdx,j-1,1]].red += red;
-    arrows[[crossIdx,j-1,1]].green+= green;
-    arrows[[crossIdx,j-1,1]].blue+= blue;
+    colorMixArrow(i, j-1, 0, red, green, blue, 1)
+    colorMixArrow(crossIdx, j-1, 1, red, green, blue, 1)
 }
 
 function colorPathRev(i, j, red, green, blue) {
-    circles[[i, j]].red += red;
-    circles[[i, j]].green += green;
-    circles[[i, j]].blue += blue;
-    circles[[i,j]].alpha += 1;
+    colorMixNode(i, j, red, green, blue, 1)
     if (j == k) return;
     colorPathRev(i, j+1, red, green, blue);
     let crossIdx = ij(i, j);
     colorPathRev(crossIdx, j+1, red, green, blue);
 
-    let flipflap = [i,j,0];
-    let cripcrap = [i,j,1];
-    arrows[flipflap].alpha = 1;
-    arrows[flipflap].red+= red;
-    arrows[flipflap].green+= green;
-    arrows[flipflap].blue+= blue;
-    arrows[cripcrap].alpha = 1;
-    arrows[cripcrap].red += red;
-    arrows[cripcrap].green+= green;
-    arrows[cripcrap].blue+= blue;
+    colorMixArrow(i, j, 0, red, green, blue, 1)
+    colorMixArrow(i, j, 1, red, green, blue, 1)
+}
+function colorMixNode(i, j, red, green, blue, alpha) {
+    circles[[i, j]].red += red;
+    circles[[i, j]].green += green;
+    circles[[i, j]].blue += blue;
+    circles[[i,j]].alpha += alpha;
+}
+
+function colorMixArrow(i, j, t, red, green, blue, alpha) {
+    let idx = [i,j,t];
+    arrows[idx].alpha = alpha;
+    arrows[idx].red+= red;
+    arrows[idx].green+= green;
+    arrows[idx].blue+= blue;
 }
 
 if (!runStats) return;
