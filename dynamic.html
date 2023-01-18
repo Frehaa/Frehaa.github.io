@@ -3,7 +3,7 @@
 <head>
 <title>Playroom</title>
 <script src="graphics.js"></script>
-<script src="app.js"></script>
+<script src="dynamic.js"></script>
 <style>
 canvas {
     /* border-width: 1px;
@@ -29,6 +29,57 @@ canvas {
 <!-- <canvas id="function" width="720" height="480"></canvas> -->
 <canvas id="dynamic" width="720" height="480"></canvas>
 <textarea id="canvas-code">
+function pixelOffset(x, y, pitch) {
+    return 4 * (y * pitch + x);
+}
+
+function clear() {
+    for (let i = 0; i < width * height * 4; ++i) {
+          imageData.data[i] = 0;
+    }
+}
+
+function colorPixel(x, y, r, g, b, a) {
+    let offset0 = pixelOffset(x, y, width);
+    imageData.data[offset0+ 0] = r;
+    imageData.data[offset0+ 1] = g;
+    imageData.data[offset0+ 2] = b;
+    imageData.data[offset0+ 3] = a;
+}
+
+function drawLine(imageData, x0, y0, x1, y1) {
+ // Start at x0, y0
+
+ // We assume for now that x0 < x1 and y0 < y1
+    let dx = x1 - x0;
+    let dy = y1 - y0;
+ 
+    let y = y0;
+    for (let x = x0; x < x1; ++x) {
+        let t = x - x0; // t goes from 0 to dx, and when t = dx / 2 then y should be dy / 2
+
+        y = y0 + t /dx * dy; // There are still some issues here
+
+        // Another idea
+        // Update y when it gets too far away from where it should be
+        // Loop over all y and only color those close to the line
+        colorPixel(x, y, 255, 0, 0, 255);
+    }
+
+}
+
+clear();
+
+let x0 = 100; 
+let y0 = 100; 
+ 
+let x1 = 200;
+let y1 = 200;
+
+drawLine(imageData, x0, y0, x1, y1);
+colorPixel(x0, y0, 0, 0, 255, 255); 
+colorPixel(x1, y1, 0, 0, 255, 255);  
+
 </textarea>
 </body>
 </html>
