@@ -23,8 +23,8 @@ let marginX = 20;      let marginY = 20;
 let scale = 2;
 let radius = 5;
 let runStats = true;
-let circleSettings= {visible: true, alpha: 0.2, red: 0, green: 0, blue: 0}
-let lineSettings = {visible: true, alpha: 0.1, red: 0, green: 0, blue: 0};
+let circleSettings= {visible: true, alpha: 1, red: 0, green: 0, blue: 0}
+let lineSettings = {visible: true, alpha: 0.5, red: 0, green: 0, blue: 0};
 
 if (k > 13) return;
 
@@ -49,9 +49,9 @@ for (let i = 0; i < 2**k; i++) {
 ctx.transform(scale, 0, 0, scale, 0, 0);
 ctx.translate(marginX , marginY)
 
-colorPath(0, k, 0.8, 0, 0);
-colorPath(1, k, 0, 0, 0.8);
-colorPath(1, k, 0, 0.8, 0);
+//colorPath(0, k, 0.8, 0, 0);
+colorPathRev(0, 1, 1, 0, 0.0);
+//colorPath(1, k, 0, 0.8, 0);
 
 function ij(i, j) { 
     return i ^ (2**j)
@@ -77,9 +77,30 @@ function colorPath(i, j, red, green, blue) {
     arrows[[crossIdx,j-1,1]].blue+= blue;
 }
 
+function colorPathRev(i, j, red, green, blue) {
+    circles[[i, j]].red += red;
+    circles[[i, j]].green += green;
+    circles[[i, j]].blue += blue;
+    circles[[i,j]].alpha += 1;
+    if (j == k) return;
+    colorPathRev(i, j+1, red, green, blue);
+    let crossIdx = ij(i, j);
+    colorPathRev(crossIdx, j+1, red, green, blue);
+
+    let flipflap = [i,j,0];
+    let cripcrap = [i,j,1];
+    arrows[flipflap].alpha = 1;
+    arrows[flipflap].red+= red;
+    arrows[flipflap].green+= green;
+    arrows[flipflap].blue+= blue;
+    arrows[cripcrap].alpha = 1;
+    arrows[cripcrap].red += red;
+    arrows[cripcrap].green+= green;
+    arrows[cripcrap].blue+= blue;
+}
+
 if (!runStats) return;
 
-let stats = {};
 let tests = [];
 tests.push({name: "green", prop: function(c) { return c.green > 0.5 }});
 tests.push({name: "red", prop: function(c) { return c.red > 0.5 }});
@@ -88,22 +109,25 @@ tests.push({name: "redGreen", prop: function(c) { return c.red > 0.5 && c.green 
 tests.push({name: "redBlue", prop: function(c) { return c.red > 0.5 && c.blue > 0.5 }});
 tests.push({name: "blueGreen", prop: function(c) { return c.blue > 0.5 && c.green > 0.5}});
 tests.push({name: "all", prop: function(c) { return c.red > 0.5 && c.blue > 0.5 && c.green}});
+
+let stats = {};
+for (let test of tests) {
+    stats[test.name] = 0
+}
+
 for (let i = 0; i < 2**k; i++) {
     for (let j = 0; j < k + 1; ++j) {
         let c = circles[[i,j]];
         for (let test of tests) {
             if (test.prop(c)) {
-                if (typeof stats[test.name] === 'undefined') {
-                    stats[test.name] = 0;
-                } 
                 stats[test.name]++;
-                
             }
         }
 
     }
 }
 console.log(stats);
+
 </textarea>
 <br>
 <input id="time-range" type="range" min="0" max="100" value="0">
