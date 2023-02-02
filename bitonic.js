@@ -138,7 +138,8 @@ let bitonicSlideFrame = { // Bitonic slide thing
     mouseDown: function() {},
     mouseUp: function() {},
     frameStart: function() {},
-    frameEnd: function(){}
+    frameEnd: function(){},
+    keyUp: function() {}
 };
 
 const LINE_DISTANCE_THRESSHOLD = 10;
@@ -163,11 +164,12 @@ let networkFrame = {
             }
         }
     },
-    mouseMove: function() {},
+    mouseMove: function() {} ,
     mouseDown: function() {},
     mouseUp: function() {},
     frameStart: function() {},
-    frameEnd: function(){}
+    frameEnd: function(){},
+    keyUp: function() {}
 };
 
 let rectangleFrame = {
@@ -201,8 +203,57 @@ let rectangleFrame = {
     },
     frameEnd: function(){
         this.r.drag = false;
-    }
+    },
+    keyUp: function() {}
 };
+
+let writableSquareFrame = {
+    squares: [],
+    target: null,
+    keyDownCallback: function(e) {
+        let self = writableSquareFrame;
+        let key = e.key;
+        if (self.target != null && '0' <= key && key <= '9') {
+            self.target.text = key;
+            self.target = null;
+        }
+    },
+    draw: function(ctx) {
+        for (let s of this.squares) {
+            ctx.save();
+            if (s.isInside({x: mouseX, y: mouseY})) {
+                ctx.strokeStyle = '#00FF00'
+            }
+            if (s == this.target) {
+                ctx.strokeStyle = '#FF0000'
+            }
+            s.draw(ctx);
+            if (s.text != null) {
+                ctx.font = "40px Arial";
+                ctx.textAlign = "center"
+                ctx.fillText(s.text, s.x + s.width / 2, s.y + 40);
+            }
+            ctx.restore();
+        }
+    },
+    mouseMove: function() {} ,
+    mouseDown: function() {
+        for (let s of this.squares) {
+            if (s.isInside({x: mouseX, y: mouseY})) {
+                this.target = s;
+                console.log(this.target)
+            }
+        }
+    },
+    mouseUp: function() {},
+    frameStart: function() {
+        document.addEventListener('keydown', this.keyDownCallback)
+    },
+    frameEnd: function(){
+        document.removeEventListener('keydown', this.keyDownCallback);
+    },
+    keyUp: function() {}
+}
 
 function initializeEventListeners() {
     let canvas = document.getElementById('canvas');
@@ -241,12 +292,17 @@ function initializeEventListeners() {
 function initialize() {
     initializeEventListeners();
     // frames.push(bitonicSlideFrame);
+    frames.push(writableSquareFrame);
     frames.push(networkFrame);
     frames.push(rectangleFrame);
     for (let i = 1; i <= 6; ++i) {
         networkFrame.lines.push(horline(100, 70 *i, 400, 70 * i));
     }
     
+    for (let i = 0; i < 6; ++i) {
+        writableSquareFrame.squares.push(rectangle(100, 70 * i + 20, 50, 50));
+    }
 
+    frames[currentFrameIdx].frameStart();
     requestAnimationFrame(draw);
 }
