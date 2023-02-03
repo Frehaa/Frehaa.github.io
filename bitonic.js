@@ -64,6 +64,35 @@ function horline(x, y, length) {
     return r;
 }
 
+function vertical_arrow(x, y, length) {
+    const TIP_LENGTH = 15;
+    const TIP_WIDTH = 10;
+    let r = {
+        x,
+        y,
+        length,
+        draw: function(ctx) {
+            // We Just handle the straight down arrow first
+            let directionY = Math.sign(this.length);
+            let arrowEndY = this.y + this.length;
+            let arrowTipStartY = arrowEndY - TIP_LENGTH * directionY;
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(this.x, arrowTipStartY);
+            ctx.stroke();
+
+            // Arrow tip
+            ctx.beginPath();
+            ctx.moveTo(this.x, arrowEndY);
+            ctx.lineTo(this.x + TIP_WIDTH, arrowTipStartY);
+            ctx.lineTo(this.x - TIP_WIDTH, arrowTipStartY);
+            ctx.closePath();
+            ctx.fill();
+        },
+    };
+    return r;
+}
+
 function draw() {
     let canvas = document.getElementById('canvas');
     let ctx = canvas.getContext('2d');
@@ -102,14 +131,12 @@ let bitonicSlideFrame = { // Bitonic slide thing
         let x2 = x1 + width;
         let y2 = y1 + height;
 
-        
         let k = document.getElementById('range-input-k').value / 100;
         let m = document.getElementById('range-input-m').value / 100;
         
         let xInStart = x1 + width * k;
         let xInEnd = x1 + width * m
 
-        
         // Outer parts
         ctx.fillStyle = outColor;
         ctx.fillRect(xInStart, y1, xInStart - x1, height);
@@ -143,29 +170,74 @@ let bitonicSlideFrame = { // Bitonic slide thing
 
 const LINE_DISTANCE_THRESSHOLD = 10;
 
+const NETWORK_CIRCLE_RADIUS = 8;
+
 let networkFrame = {
     lines: [
     ],
     arrows: [
 
     ],
-    arrowStartCircle: circle(0, 0, 8),
+    arrowStartCircle: circle(0, 0, NETWORK_CIRCLE_RADIUS),
+    arrow: vertical_arrow(100, 200, -100),
+    arrows: [],
+    // currentWire: null,
     draw: function(ctx) {
         ctx.lineWidth = 3;
+        this.currentWire = null;
         for (let l of this.lines) {
             l.draw(ctx);
             let dist = l.distance({x: mouseX, y: mouseY});
-            // console.log(dist)
-            if (dist <= 8) {
-                this.arrowStartCircle.x = mouseX;
-                this.arrowStartCircle.y = l.y;
-                this.arrowStartCircle.draw(ctx);
+            if (dist <= NETWORK_CIRCLE_RADIUS * 2) {
+                this.currentWire = l;
             }
         }
+        let l = this.currentWire;
+
+        if (l != null && !this.drag) {
+            this.arrowStartCircle.x = mouseX;
+            this.arrowStartCircle.y = l.y;
+            this.arrowStartCircle.draw(ctx);
+        } else if (this.drag) {
+            this.arrowStartCircle.y = this.startWire.y;
+            this.arrowStartCircle.draw(ctx);
+
+            // Draw arrow if the current wire is different from the start wire
+            if (l != null) {
+                let wireDiff = l.y - this.startWire.y;
+                if (wireDiff != 0) {
+                    this.arrow.x = this.arrowStartCircle.x;
+                    this.arrow.y = this.arrowStartCircle.y;
+                    this.arrow.length = wireDiff;
+                    this.arrow.draw(ctx);
+                }
+            }
+        }
+
+
+
+        for (let a of this.arrows) {
+            a.draw(ctx);
+        }
+
     },
     mouseMove: function() {},
-    mouseDown: function() {},
-    mouseUp: function() {},
+    mouseDown: function() {
+        if (this.currentWire != null) {
+            this.drag = true;
+            this.startWire = this.currentWire;
+        }
+    },
+    mouseUp: function() {
+        if (this.drag && this.currentWire != this.startWire) {
+            this.arrows.push(this.arrow);
+            this.arrows.push(this.arrowStartCircle);
+            this.arrow = vertical_arrow(0, 0, 0);
+            this.arrowStartCircle = circle(0, 0, NETWORK_CIRCLE_RADIUS);
+        }
+        this.drag = false;
+        this.startWire = null;
+    },
     frameStart: function() {},
     frameEnd: function(){}
 };
