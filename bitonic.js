@@ -2,6 +2,8 @@
 const FLOATING_POINT_ERROR_MARGIN = 0.000001;
 const ARROW_RIGHT = "ArrowRight";
 const ARROW_LEFT = "ArrowLeft";
+const DELETE_KEY = "Delete";
+const BAKCSPACE_KEY = "Backspace";
 
 var mouseX = 0;
 var mouseY = 0;
@@ -54,11 +56,10 @@ function horline(x, y, length) {
             ctx.stroke();
         },
         distance: function(point) {
-            // console.log(point.x, this.x, this.length, this.x <= point.x, point.x <= this.x + this.length);
             if (this.x <= point.x && point.x <= this.x + this.length) {
                 return Math.abs(point.y - this.y);
             }
-            return 1000000;
+            return 1000000; // TODO
         }
     };
     return r;
@@ -173,7 +174,195 @@ const LINE_DISTANCE_THRESSHOLD = 10;
 
 const NETWORK_CIRCLE_RADIUS = 8;
 
-let networkFrame = {
+class Network {
+    constructor(size) {
+        this.size = size;
+        this.values = [];
+        for (let i = 0; i < size; ++i) {
+            this.values.push(null);
+        }
+    }
+}
+
+// A "Drawable" is an object with a draw method
+
+// TODO: Update every draw or update once and keep state in squares?
+// Currently updates every frame
+
+// Focus is the element which has been clicked on
+// Invariant: There should be focus on no more elements than one
+
+// TODO: Implement arrow focus
+// TODO: Implement arrow removal
+// TODO: Show path of values? In different colors and dotted line?
+class NetworkFrame {
+    constructor(network, x, y, length) {
+        if (!network instanceof Network) {
+            throw new TypeError("argument has to be instance of Network");
+        }
+        this.network = network;
+        this.values = [];
+        this.compareAndSwaps = new LinkedList();
+
+        // Static drawables
+        this.leftSquares = [];
+        this.rightSquares = [];
+        this.wires = [];
+
+        // Dynamic drawables
+        this.arrow = vertical_arrow(0, 0, 0);
+        this.arrowStartCircle = circle(0, 0, NETWORK_CIRCLE_RADIUS);
+
+        // Draw Flag
+        this.displayRightSquares = true;
+
+        // Hover and focus elements
+        this.focusSquareIdx = null;
+        
+        this.hoverWireIdx = null;
+        this.focusWireIdx = null;
+
+        // Setup static drawables
+        let squareLength = 50;
+        let wireLength = 400;
+        let squareOffset = squareLength + 20;
+        for (let i = 0; i < this.network.size; ++i) {
+            let wireY = y + squareLength / 2 + squareOffset * i;
+            this.values.push(null);
+            this.leftSquares.push(writableSquare(x, y + squareOffset * i, squareLength));
+            this.wires.push(horline(x + squareOffset, wireY, x + squareOffset + wireLength, wireY));
+            this.rightSquares.push(writableSquare(x + wireLength + 4 * squareOffset, y + squareOffset * i, squareLength));
+            // this.rightSquares[i].borderColor = 'rgba(0, 0, 0, 1)';
+        }
+    }
+
+    draw(ctx) {
+        ctx.lineWidth = 3;
+        // Left squares and wire
+        for (let i = 0; i < this.network.size; ++i) {
+            let lSquare = this.leftSquares[i];
+            lSquare.hover = lSquare.isInside({x: mouseX, y: mouseY});
+            lSquare.focus = (i == this.focusSquareIdx);
+            lSquare.text = this.values[i];
+            lSquare.draw(ctx);
+
+            this.wires[i].draw(ctx);
+        }
+        
+        // Draw place arrow start circle
+        if (this.hoverWireIdx != null) {
+            let w = this.wires[this.hoverWireIdx];
+            if(this.focusWireIdx == null) {
+                this.arrowStartCircle.x = mouseX;
+                this.arrowStartCircle.y = w.y;
+            } else if (this.hoverWireIdx != this.focusWireIdx) {
+                let wireDiff = w.y - this.wires[this.focusWireIdx].y;
+                this.arrow.x = this.arrowStartCircle.x;
+                this.arrow.y = this.arrowStartCircle.y;
+                this.arrow.length = wireDiff;
+                this.arrow.draw(ctx);
+            }
+
+            this.arrowStartCircle.draw(ctx);
+        } 
+
+        // Simulate network, draw right square results, and draw arrows
+        this.updateRightSquares();
+        this.rightSquares.forEach(s => s.draw(ctx));
+        this.compareAndSwaps.forEach(a => a.draw(ctx));
+    }
+    mouseMove() {
+        this.hoverWireIdx = null;
+        for (let i = 0; i < this.network.size; ++i) {
+            let dist = this.wires[i].distance({x: mouseX, y: mouseY});
+            if (dist <= NETWORK_CIRCLE_RADIUS * 2) {
+                this.hoverWireIdx = i;
+            }
+        }
+    }
+
+    mouseDown() {
+        // Handle wire focus
+        if (this.hoverWireIdx != null) {
+            this.focusWireIdx = this.hoverWireIdx;
+            this.arrowStartCircle.y = this.wires[this.hoverWireIdx].y;
+            this.focusSquareIdx = null;
+            return;
+        }
+
+        // Handle square focus
+        for (let i = 0; i < this.network.size; ++i) {
+            let s = this.leftSquares[i];
+            if (s.isInside({x: mouseX, y: mouseY})) {
+                this.focusSquareIdx = i;
+            }
+        }
+    }
+    mouseUp() {
+        // Handle place arrow mode 
+        if (this.focusWireIdx != null && this.hoverWireIdx != null && this.hoverWireIdx != this.focusWireIdx) {
+            this.arrow.x = this.arrowStartCircle.x; // Handle Edge case where the arrow x coordinate may not have been updated (?)
+
+            // Add compare and swap in correct order
+            let value = {
+                x: this.arrow.x, 
+                cas: createCompareAndSwap(this.hoverWireIdx, this.focusWireIdx),
+                drawables: [this.arrowStartCircle, this.arrow], 
+                draw: function(ctx) {
+                    value.drawables.forEach(d => d.draw(ctx));
+                }
+
+            };
+            this.compareAndSwaps.insertBeforePredicate(value, n => n.x > this.arrow.x);
+            
+            // Create new drawables 
+            this.arrow = vertical_arrow(0, 0, 0);
+            this.arrowStartCircle = circle(0, 0, NETWORK_CIRCLE_RADIUS);
+        }
+        this.focusWireIdx = null;
+    }
+    keyDownCallback(e) {
+        let key = e.key;
+        if (key === DELETE_KEY || key === BAKCSPACE_KEY) { // Delete value in left square
+            this.values[this.focusSquareIdx] = null;
+            this.focusSquareIdx = null;
+        }
+        else if (this.focusSquareIdx != null && '0' <= key && key <= '9') { // Write to left square
+            this.values[this.focusSquareIdx] = key;
+            this.focusSquareIdx = null;
+        }
+        else if (key == 'h') { // Toggle display of right squares
+            this.displayRightSquares = !this.displayRightSquares;
+        }
+    }
+    frameStart() {
+        document.addEventListener('keydown', (e) => {
+            this.keyDownCallback(e);
+        });
+    }
+    frameEnd(){
+        document.removeEventListener('keydown', (e) => {
+            this.keyDownCallback(e);
+        });
+    }
+    keyUp() {}
+    updateRightSquares() {
+        if (this.displayRightSquares) {
+            let vals = this.values.slice(0); // Copy
+            this.compareAndSwaps.forEach(n => n.cas(vals));
+            for (let i = 0; i < vals.length; ++i) {
+                this.rightSquares[i].text = vals[i];
+            }
+        } else {
+            for (let i = 0; i < this.network.size; ++i) {
+                this.rightSquares[i].text = null;
+            }
+        }
+
+    }
+}
+
+let wireFrame = {
     lines: [
     ],
     arrows: [
@@ -279,6 +468,43 @@ let rectangleFrame = {
     keyUp: function() {}
 };
 
+// Square which has text inside (only a single letter is properly centered )
+function writableSquare(x, y, length) { 
+    let r = {
+        x,
+        y,
+        length,
+        text: null,
+        font: "Arial",
+        fontSize: 40,
+        focus: false,
+        hover: false,
+        borderColor: '#000000',
+        focusColor: '#FF0000',
+        hoverColor: '#00FF00',
+        draw: function (ctx) {
+            ctx.save()
+            ctx.strokeStyle = this.borderColor;
+            if (this.focus) {
+                ctx.strokeStyle = this.focusColor;
+            } else if (this.hover) {
+                ctx.strokeStyle = this.hoverColor;
+            }
+            ctx.strokeRect(this.x, this.y, this.length, this.length);
+            if (this.text != null) {
+                ctx.font = this.fontSize + "px " + this.font;
+                ctx.textAlign = "center"
+                ctx.fillText(this.text, this.x + this.length / 2, this.y + this.fontSize);
+            }
+            ctx.restore();
+        }, 
+        isInside(point) {
+            return this.x <= point.x && point.x <= this.x + this.length && this.y <= point.y && point.y <= this.y + this.length;
+        }
+    };
+    return r;
+}
+
 let writableSquareFrame = {
     squares: [],
     target: null,
@@ -292,28 +518,17 @@ let writableSquareFrame = {
     },
     draw: function(ctx) {
         for (let s of this.squares) {
-            ctx.save();
-            if (s.isInside({x: mouseX, y: mouseY})) {
-                ctx.strokeStyle = '#00FF00'
-            }
-            if (s == this.target) {
-                ctx.strokeStyle = '#FF0000'
-            }
+            s.hover = s.isInside({x: mouseX, y: mouseY});
+            s.focus = s == this.target;
             s.draw(ctx);
-            if (s.text != null) {
-                ctx.font = "40px Arial";
-                ctx.textAlign = "center"
-                ctx.fillText(s.text, s.x + s.width / 2, s.y + 40);
-            }
-            ctx.restore();
         }
     },
     mouseMove: function() {} ,
     mouseDown: function() {
         for (let s of this.squares) {
             if (s.isInside({x: mouseX, y: mouseY})) {
+                console.log(s)
                 this.target = s;
-                console.log(this.target)
             }
         }
     },
@@ -361,18 +576,39 @@ function initializeEventListeners() {
     });
 }
 
+function createCompareAndSwap(a, b) {
+    return (vals) => {
+        if (vals[a] < vals[b]) {
+            let tmp = vals[a];
+            vals[a] = vals[b];
+            vals[b] = tmp;
+        };
+    }
+}
+
+function test(vals, comps) {
+    for (let c of comps) {
+        c(vals);
+    }
+}
+
 function initialize() {
     initializeEventListeners();
     // frames.push(bitonicSlideFrame);
-    frames.push(writableSquareFrame);
+    // frames.push(writableSquareFrame);
+
+    let network = new Network(4);
+    let networkFrame = new NetworkFrame(network, 100, 100, -1);
+
     frames.push(networkFrame);
+    frames.push(wireFrame);
     frames.push(rectangleFrame);
     for (let i = 1; i <= 6; ++i) {
-        networkFrame.lines.push(horline(100, 70 *i, 400, 70 * i));
+        wireFrame.lines.push(horline(100, 70 *i, 400, 70 * i));
     }
     
     for (let i = 0; i < 6; ++i) {
-        writableSquareFrame.squares.push(rectangle(100, 70 * i + 20, 50, 50));
+        writableSquareFrame.squares.push(writableSquare(100, 20 + 70 * i, 50))
     }
 
     frames[currentFrameIdx].frameStart();
