@@ -1,7 +1,7 @@
 "use strict";
-const FLOATING_POINT_ERROR_MARGIN = 0.000001;
-const ARROW_RIGHT = "ArrowRight";
-const ARROW_LEFT = "ArrowLeft";
+const FLOATING_POINT_ERROR_MARGIN = 0.000001; // TODO: Figure out if there exists some better constant. It probably depends on the precision.
+const ARROW_RIGHT_KEY = "ArrowRight";
+const ARROW_LEFT_KEY = "ArrowLeft";
 const DELETE_KEY = "Delete";
 const BAKCSPACE_KEY = "Backspace";
 
@@ -73,7 +73,6 @@ function vertical_arrow(x, y, length) {
         y,
         length,
         draw: function(ctx) {
-            // We Just handle the straight down arrow first
             let directionY = Math.sign(this.length);
             let arrowEndY = this.y + this.length;
             let arrowTipStartY = arrowEndY - TIP_LENGTH * directionY;
@@ -303,7 +302,7 @@ class NetworkFrame {
         if (this.focusWireIdx != null && this.hoverWireIdx != null && this.hoverWireIdx != this.focusWireIdx) {
             this.arrow.x = this.arrowStartCircle.x; // Handle Edge case where the arrow x coordinate may not have been updated (?)
 
-            // Add compare and swap in correct order
+            // Add compare-and-swap in correct order
             let value = {
                 x: this.arrow.x, 
                 cas: createCompareAndSwap(this.hoverWireIdx, this.focusWireIdx),
@@ -561,10 +560,10 @@ function initializeEventListeners() {
     document.addEventListener('keyup', function(e) {
         let prevFrameIdx = currentFrameIdx;
         switch (e.key) {
-            case ARROW_RIGHT: {
+            case ARROW_RIGHT_KEY: {
                 currentFrameIdx = Math.min(currentFrameIdx + 1, frames.length-1);
             } break;
-            case ARROW_LEFT: {
+            case ARROW_LEFT_KEY: {
                 currentFrameIdx = Math.max(currentFrameIdx - 1, 0);
             } break;
             default: return;
