@@ -173,6 +173,8 @@ const LINE_DISTANCE_THRESSHOLD = 10;
 
 const NETWORK_CIRCLE_RADIUS = 8;
 
+// TODO: Move compare and swap logic in here
+// TODO: Make compare and swap positioned in a normalized manner (0 - 1)
 class Network {
     constructor(size) {
         this.size = size;
@@ -195,12 +197,11 @@ class Network {
 // TODO: Implement arrow removal
 // TODO: Show path of values? In different colors and dotted line?
 class NetworkFrame {
-    constructor(network, x, y, length) {
+    constructor(network, x, y, sizes) {
         if (!network instanceof Network) {
             throw new TypeError("argument has to be instance of Network");
         }
         this.network = network;
-        this.values = [];
         this.compareAndSwaps = new LinkedList();
 
         // Static drawables
@@ -222,15 +223,15 @@ class NetworkFrame {
         this.focusWireIdx = null;
 
         // Setup static drawables
-        let squareLength = 50;
-        let wireLength = 400;
-        let squareOffset = squareLength + 20;
+        let squareLength = sizes.square;
+        let wireLength = sizes.wire;
+        let squareOffset = squareLength + sizes.offset;
         for (let i = 0; i < this.network.size; ++i) {
             let wireY = y + squareLength / 2 + squareOffset * i;
-            this.values.push(null);
-            this.leftSquares.push(writableSquare(x, y + squareOffset * i, squareLength));
-            this.wires.push(horline(x + squareOffset, wireY, x + squareOffset + wireLength, wireY));
-            this.rightSquares.push(writableSquare(x + wireLength + 4 * squareOffset, y + squareOffset * i, squareLength));
+            let squareY = y + squareOffset * i;
+            this.leftSquares.push(writableSquare(x, squareY, squareLength));
+            this.wires.push(horline(x + squareOffset, wireY, wireLength));
+            this.rightSquares.push(writableSquare(x + wireLength + squareOffset + sizes.offset, squareY, squareLength));
             // this.rightSquares[i].borderColor = 'rgba(0, 0, 0, 1)';
         }
     }
@@ -242,7 +243,7 @@ class NetworkFrame {
             let lSquare = this.leftSquares[i];
             lSquare.hover = lSquare.isInside({x: mouseX, y: mouseY});
             lSquare.focus = (i == this.focusSquareIdx);
-            lSquare.text = this.values[i];
+            lSquare.text = this.network.values[i];
             lSquare.draw(ctx);
 
             this.wires[i].draw(ctx);
@@ -323,11 +324,11 @@ class NetworkFrame {
     keyDownCallback(e) {
         let key = e.key;
         if (key === DELETE_KEY || key === BAKCSPACE_KEY) { // Delete value in left square
-            this.values[this.focusSquareIdx] = null;
+            this.network.values[this.focusSquareIdx] = null;
             this.focusSquareIdx = null;
         }
         else if (this.focusSquareIdx != null && '0' <= key && key <= '9') { // Write to left square
-            this.values[this.focusSquareIdx] = key;
+            this.network.values[this.focusSquareIdx] = key;
             this.focusSquareIdx = null;
         }
         else if (key == 'h') { // Toggle display of right squares
@@ -347,7 +348,7 @@ class NetworkFrame {
     keyUp() {}
     updateRightSquares() {
         if (this.displayRightSquares) {
-            let vals = this.values.slice(0); // Copy
+            let vals = this.network.values.slice(0); // Copy
             this.compareAndSwaps.forEach(n => n.cas(vals));
             for (let i = 0; i < vals.length; ++i) {
                 this.rightSquares[i].text = vals[i];
@@ -596,9 +597,13 @@ function initialize() {
     // frames.push(bitonicSlideFrame);
     // frames.push(writableSquareFrame);
 
-    let network = new Network(4);
-    let networkFrame = new NetworkFrame(network, 100, 100, -1);
+    let network = new Network(5);
+    let networkFrame = new NetworkFrame(network, 100, 100, {square: 50, wire: 400, offset: 20});
 
+    let exampleNetwork = new Network(16);
+    let exampleNetworkFrame = new NetworkFrame(exampleNetwork, 100, 100, {square: 25, wire: 400, offset: 10}, {squareBorder: '#FFFFFF', });
+
+    frames.push(exampleNetworkFrame);
     frames.push(networkFrame);
     frames.push(wireFrame);
     frames.push(rectangleFrame);
