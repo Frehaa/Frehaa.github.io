@@ -16,7 +16,6 @@ class LinkedList {
 
         this.first = node;
         return id;
-
     }
 
     addLast(value) {
@@ -45,7 +44,7 @@ class LinkedList {
             prev = next;
             next = prev.next;
         }
-        this.addAfter(value, prev);
+        return this.addAfter(value, prev);
     }
 
     addAfter(value, node) {
@@ -53,6 +52,7 @@ class LinkedList {
         let id = this.nextId++;
         let newNode = { value, id, next: node.next };
         node.next = newNode;
+        return id;
     }
 
     // Find the last node for which the predicate is true

@@ -65,17 +65,17 @@ function horline(x, y, length) {
     return r;
 }
 
-function vertical_arrow(x, y, length) {
-    const TIP_LENGTH = 15;
-    const TIP_WIDTH = 10;
+function verticalArrow(x, y, length, tipLength = 15, tipWidth = 10) {
     let r = {
         x,
         y,
         length,
+        tipLength,
+        tipWidth,
         draw: function(ctx) {
             let directionY = Math.sign(this.length);
             let arrowEndY = this.y + this.length;
-            let arrowTipStartY = arrowEndY - TIP_LENGTH * directionY;
+            let arrowTipStartY = arrowEndY - this.tipLength * directionY;
             ctx.beginPath();
             ctx.moveTo(this.x, this.y);
             ctx.lineTo(this.x, arrowTipStartY);
@@ -84,8 +84,8 @@ function vertical_arrow(x, y, length) {
             // Arrow tip
             ctx.beginPath();
             ctx.moveTo(this.x, arrowEndY);
-            ctx.lineTo(this.x + TIP_WIDTH, arrowTipStartY);
-            ctx.lineTo(this.x - TIP_WIDTH, arrowTipStartY);
+            ctx.lineTo(this.x + this.tipWidth, arrowTipStartY);
+            ctx.lineTo(this.x - this.tipWidth, arrowTipStartY);
             ctx.closePath();
             ctx.fill();
         },
@@ -171,8 +171,6 @@ let bitonicSlideFrame = { // Bitonic slide thing
 
 const LINE_DISTANCE_THRESSHOLD = 10;
 
-const NETWORK_CIRCLE_RADIUS = 8;
-
 // TODO: Move compare and swap logic in here
 // TODO: Make compare and swap positioned in a normalized manner (0 - 1)
 class Network {
@@ -182,7 +180,33 @@ class Network {
         for (let i = 0; i < size; ++i) {
             this.values.push(null);
         }
+        this.compareAndSwaps = new LinkedList();
     }
+    set(i, value) {
+        this.values[i] = value;
+    }
+    get(i) {
+        return this.values[i];
+    }
+    addCompareAndSwap(position, i, j) {
+        let value = {
+            position,
+            cas: createCompareAndSwap(i, j),
+        };
+        return this.compareAndSwaps.insertBeforePredicate(value, n => n.position > position);
+    }
+    *getCompareAndSwaps() {
+        for (let cas of this.compareAndSwaps) {
+            yield cas
+        }
+    }
+    run() {
+        let result = this.values.slice(0);
+        this.compareAndSwaps.forEach(c => c.cas(result));
+        return result;
+    }
+
+
 }
 
 // A "Drawable" is an object with a draw method
@@ -197,12 +221,21 @@ class Network {
 // TODO: Implement arrow removal
 // TODO: Show path of values? In different colors and dotted line?
 class NetworkFrame {
-    constructor(network, x, y, sizes) {
+    constructor(network, x, y, sizes, drawSettings) {
         if (!network instanceof Network) {
             throw new TypeError("argument has to be instance of Network");
         }
         this.network = network;
         this.compareAndSwaps = new LinkedList();
+
+        this.t = {
+            borderColor: '#000000',
+            lineWidth: 3,
+            circleRadius: 8,
+            tipLength: 15,
+            tipWidth: 10,
+            ...drawSettings
+        };
 
         // Static drawables
         this.leftSquares = [];
@@ -210,8 +243,9 @@ class NetworkFrame {
         this.wires = [];
 
         // Dynamic drawables
-        this.arrow = vertical_arrow(0, 0, 0);
-        this.arrowStartCircle = circle(0, 0, NETWORK_CIRCLE_RADIUS);
+        this.arrow = verticalArrow(0, 0, 0, this.t.tipLength, this.t.tipWidth);
+        this.arrowStartCircle = circle(0, 0, this.t.circleRadius);
+        this.arrows = {};
 
         // Draw Flag
         this.displayRightSquares = true;
@@ -232,18 +266,19 @@ class NetworkFrame {
             this.leftSquares.push(writableSquare(x, squareY, squareLength));
             this.wires.push(horline(x + squareOffset, wireY, wireLength));
             this.rightSquares.push(writableSquare(x + wireLength + squareOffset + sizes.offset, squareY, squareLength));
-            // this.rightSquares[i].borderColor = 'rgba(0, 0, 0, 1)';
+            this.leftSquares[i].borderColor = this.t.squareBorderColor;
+            this.rightSquares[i].borderColor = this.t.squareBorderColor;
         }
     }
 
     draw(ctx) {
-        ctx.lineWidth = 3;
+        ctx.lineWidth = this.t.lineWidth;
         // Left squares and wire
         for (let i = 0; i < this.network.size; ++i) {
             let lSquare = this.leftSquares[i];
             lSquare.hover = lSquare.isInside({x: mouseX, y: mouseY});
             lSquare.focus = (i == this.focusSquareIdx);
-            lSquare.text = this.network.values[i];
+            lSquare.text = this.network.get(i);
             lSquare.draw(ctx);
 
             this.wires[i].draw(ctx);
@@ -269,13 +304,15 @@ class NetworkFrame {
         // Simulate network, draw right square results, and draw arrows
         this.updateRightSquares();
         this.rightSquares.forEach(s => s.draw(ctx));
-        this.compareAndSwaps.forEach(a => a.draw(ctx));
+        for (let k in this.arrows) {
+            this.arrows[k].forEach(d => d.draw(ctx));
+        }
     }
     mouseMove() {
         this.hoverWireIdx = null;
         for (let i = 0; i < this.network.size; ++i) {
             let dist = this.wires[i].distance({x: mouseX, y: mouseY});
-            if (dist <= NETWORK_CIRCLE_RADIUS * 2) {
+            if (dist <= this.t.circleRadius * 2) {
                 this.hoverWireIdx = i;
             }
         }
@@ -304,31 +341,24 @@ class NetworkFrame {
             this.arrow.x = this.arrowStartCircle.x; // Handle Edge case where the arrow x coordinate may not have been updated (?)
 
             // Add compare-and-swap in correct order
-            let value = {
-                x: this.arrow.x, 
-                cas: createCompareAndSwap(this.hoverWireIdx, this.focusWireIdx),
-                drawables: [this.arrowStartCircle, this.arrow], 
-                draw: function(ctx) {
-                    value.drawables.forEach(d => d.draw(ctx));
-                }
-
-            };
-            this.compareAndSwaps.insertBeforePredicate(value, n => n.x > this.arrow.x);
+            let normalizedPosition = (this.arrow.x - this.wires[0].x) / this.wires[0].length;
+            let id = this.network.addCompareAndSwap(normalizedPosition, this.hoverWireIdx, this.focusWireIdx);
+            this.arrows[id] = [this.arrowStartCircle, this.arrow];
             
             // Create new drawables 
-            this.arrow = vertical_arrow(0, 0, 0);
-            this.arrowStartCircle = circle(0, 0, NETWORK_CIRCLE_RADIUS);
+            this.arrow = verticalArrow(0, 0, 0, this.t.tipLength, this.t.tipWidth);
+            this.arrowStartCircle = circle(0, 0, this.t.circleRadius);
         }
         this.focusWireIdx = null;
     }
     keyDownCallback(e) {
         let key = e.key;
         if (key === DELETE_KEY || key === BAKCSPACE_KEY) { // Delete value in left square
-            this.network.values[this.focusSquareIdx] = null;
+            this.network.set(this.focusSquareIdx, null);
             this.focusSquareIdx = null;
         }
         else if (this.focusSquareIdx != null && '0' <= key && key <= '9') { // Write to left square
-            this.network.values[this.focusSquareIdx] = key;
+            this.network.set(this.focusSquareIdx, key);
             this.focusSquareIdx = null;
         }
         else if (key == 'h') { // Toggle display of right squares
@@ -348,8 +378,7 @@ class NetworkFrame {
     keyUp() {}
     updateRightSquares() {
         if (this.displayRightSquares) {
-            let vals = this.network.values.slice(0); // Copy
-            this.compareAndSwaps.forEach(n => n.cas(vals));
+            let vals = this.network.run();
             for (let i = 0; i < vals.length; ++i) {
                 this.rightSquares[i].text = vals[i];
             }
@@ -358,80 +387,92 @@ class NetworkFrame {
                 this.rightSquares[i].text = null;
             }
         }
+    }
 
+    addCompareAndSwap(position, startWire, endWire) {
+        // TODO: Handle edge case where start or end wire is out of bound
+
+        // Create new drawables 
+        let arrow = verticalArrow(0, 0, 0, this.t.tipLength, this.t.tipWidth);
+        let arrowStartCircle = circle(0, 0, this.t.circleRadius);
+
+        // Add compare-and-swap in correct order
+        let normalizedPosition = (position - this.wires[0].x) / this.wires[0].length;
+        let id = this.network.addCompareAndSwap(normalizedPosition, startWire, endWire);
+        this.arrows[id] = [arrowStartCircle, arrow];
     }
 }
 
-let wireFrame = {
-    lines: [
-    ],
-    arrows: [
+// let wireFrame = {
+//     lines: [
+//     ],
+//     arrows: [
 
-    ],
-    arrowStartCircle: circle(0, 0, NETWORK_CIRCLE_RADIUS),
-    arrow: vertical_arrow(100, 200, -100),
-    arrows: [],
-    // currentWire: null,
-    draw: function(ctx) {
-        ctx.lineWidth = 3;
-        this.currentWire = null;
-        for (let l of this.lines) {
-            l.draw(ctx);
-            let dist = l.distance({x: mouseX, y: mouseY});
-            if (dist <= NETWORK_CIRCLE_RADIUS * 2) {
-                this.currentWire = l;
-            }
-        }
-        let l = this.currentWire;
+//     ],
+//     arrowStartCircle: circle(0, 0, NETWORK_CIRCLE_RADIUS),
+//     arrow: vertical_arrow(100, 200, -100),
+//     arrows: [],
+//     // currentWire: null,
+//     draw: function(ctx) {
+//         ctx.lineWidth = 3;
+//         this.currentWire = null;
+//         for (let l of this.lines) {
+//             l.draw(ctx);
+//             let dist = l.distance({x: mouseX, y: mouseY});
+//             if (dist <= NETWORK_CIRCLE_RADIUS * 2) {
+//                 this.currentWire = l;
+//             }
+//         }
+//         let l = this.currentWire;
 
-        if (l != null && !this.drag) {
-            this.arrowStartCircle.x = mouseX;
-            this.arrowStartCircle.y = l.y;
-            this.arrowStartCircle.draw(ctx);
-        } else if (this.drag) {
-            this.arrowStartCircle.y = this.startWire.y;
-            this.arrowStartCircle.draw(ctx);
+//         if (l != null && !this.drag) {
+//             this.arrowStartCircle.x = mouseX;
+//             this.arrowStartCircle.y = l.y;
+//             this.arrowStartCircle.draw(ctx);
+//         } else if (this.drag) {
+//             this.arrowStartCircle.y = this.startWire.y;
+//             this.arrowStartCircle.draw(ctx);
 
-            // Draw arrow if the current wire is different from the start wire
-            if (l != null) {
-                let wireDiff = l.y - this.startWire.y;
-                if (wireDiff != 0) {
-                    this.arrow.x = this.arrowStartCircle.x;
-                    this.arrow.y = this.arrowStartCircle.y;
-                    this.arrow.length = wireDiff;
-                    this.arrow.draw(ctx);
-                }
-            }
-        }
+//             // Draw arrow if the current wire is different from the start wire
+//             if (l != null) {
+//                 let wireDiff = l.y - this.startWire.y;
+//                 if (wireDiff != 0) {
+//                     this.arrow.x = this.arrowStartCircle.x;
+//                     this.arrow.y = this.arrowStartCircle.y;
+//                     this.arrow.length = wireDiff;
+//                     this.arrow.draw(ctx);
+//                 }
+//             }
+//         }
 
 
 
-        for (let a of this.arrows) {
-            a.draw(ctx);
-        }
+//         for (let a of this.arrows) {
+//             a.draw(ctx);
+//         }
 
-    },
-    mouseMove: function() {},
-    mouseDown: function() {
-        if (this.currentWire != null) {
-            this.drag = true;
-            this.startWire = this.currentWire;
-        }
-    },
-    mouseUp: function() {
-        if (this.drag && this.currentWire != this.startWire) {
-            this.arrows.push(this.arrow);
-            this.arrows.push(this.arrowStartCircle);
-            this.arrow = vertical_arrow(0, 0, 0);
-            this.arrowStartCircle = circle(0, 0, NETWORK_CIRCLE_RADIUS);
-        }
-        this.drag = false;
-        this.startWire = null;
-    },
-    frameStart: function() {},
-    frameEnd: function(){},
-    keyUp: function() {}
-};
+//     },
+//     mouseMove: function() {},
+//     mouseDown: function() {
+//         if (this.currentWire != null) {
+//             this.drag = true;
+//             this.startWire = this.currentWire;
+//         }
+//     },
+//     mouseUp: function() {
+//         if (this.drag && this.currentWire != this.startWire) {
+//             this.arrows.push(this.arrow);
+//             this.arrows.push(this.arrowStartCircle);
+//             this.arrow = vertical_arrow(0, 0, 0);
+//             this.arrowStartCircle = circle(0, 0, NETWORK_CIRCLE_RADIUS);
+//         }
+//         this.drag = false;
+//         this.startWire = null;
+//     },
+//     frameStart: function() {},
+//     frameEnd: function(){},
+//     keyUp: function() {}
+// };
 
 let rectangleFrame = {
     r: rectangle(250, 250, 100, 100),
@@ -601,15 +642,13 @@ function initialize() {
     let networkFrame = new NetworkFrame(network, 100, 100, {square: 50, wire: 400, offset: 20});
 
     let exampleNetwork = new Network(16);
-    let exampleNetworkFrame = new NetworkFrame(exampleNetwork, 100, 100, {square: 25, wire: 400, offset: 10}, {squareBorder: '#FFFFFF', });
+    let exampleNetworkSizes = {square: 15, wire: 800, offset: 10};
+    let exampleNetworkDrawSettings = {squareBorderColor: '#FFFFFF', lineWidth: 2, circleRadius: 5, tipLength: 10, tipWidth: 7};
+    let exampleNetworkFrame = new NetworkFrame(exampleNetwork, 25, 25, exampleNetworkSizes, exampleNetworkDrawSettings);
 
     frames.push(exampleNetworkFrame);
     frames.push(networkFrame);
-    frames.push(wireFrame);
     frames.push(rectangleFrame);
-    for (let i = 1; i <= 6; ++i) {
-        wireFrame.lines.push(horline(100, 70 *i, 400, 70 * i));
-    }
     
     for (let i = 0; i < 6; ++i) {
         writableSquareFrame.squares.push(writableSquare(100, 20 + 70 * i, 50))
