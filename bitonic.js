@@ -394,13 +394,49 @@ function createCompareAndSwap(a, b) {
     }
 }
 
+const ASCENDING = true;
+const DESCENDING = false;
+
+function bitonicSort(start, n, direction, network, pos) {
+    if (n == 1) return pos;
+
+    let m = n / 2;
+    let newPos = bitonicSort(start, m, DESCENDING, network, pos);
+    bitonicSort(start + m, m, ASCENDING, network, pos);
+    return bitonicMerge(start, n, direction, network, newPos);
+}
+
+function bitonicMerge(start, n, direction, network, pos) {
+    if (n == 1) return;
+
+    let space = 0.01;
+    let m = n / 2;
+    for (let i = start; i < start + m; i++) {
+        addCas(i, i + m, direction, network, pos + space * (i - start));
+    }
+
+    bitonicMerge(start, m, direction, network, pos + space * m + space);
+    bitonicMerge(start + m, m, direction, network, pos + space * m + space);
+
+    return pos + space * n + space * 5;
+}
+
+function addCas(i, j, direction, network, pos) {
+    if (direction === ASCENDING) {
+        let tmp = i;
+        i = j;
+        j = tmp;
+    }
+    network.addCompareAndSwap(pos, i, j);
+}
+
 function initialize() {
     initializeEventListeners();
     // frames.push(bitonicSlideFrame);
     // frames.push(writableSquareFrame);
 
-    let canvas = document.getElementById('canvas');
-    let ctx = canvas.getContext('2d');
+    // let canvas = document.getElementById('canvas');
+    // let ctx = canvas.getContext('2d');
     // ctx.scale(2, 2);
 
     let network = new Network(5);
@@ -410,10 +446,7 @@ function initialize() {
     let exampleNetworkDrawSettings = {squareLength: 0, wireLength: 1600, squareOffset: 35, squareBorderColor: '#FFFFFF', lineWidth: 4, circleRadius: 5, tipLength: 10, tipWidth: 7, drawBox: false};
     let exampleNetworkFrame = new NetworkFrame(exampleNetwork, exampleNetworkDrawSettings);
 
-    for (let i = 0; i < 15; i++) {
-        exampleNetwork.addCompareAndSwap((1 / 14) * i, i, i + 1);
-        
-    }
+    bitonicSort(0, 16, DESCENDING, exampleNetwork, 0.05);
 
     frames.push(exampleNetworkFrame);
     // frames.push(networkFrame);

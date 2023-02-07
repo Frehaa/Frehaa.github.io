@@ -238,7 +238,6 @@ class NetworkFrame {
             let x = xOffset + position * wireLength;
             let y1 = wires[startWireIdx].y;
             let y2 = wires[endWireIdx].y;
-            console.log(xOffset, position, wireLength, x)
             let arrow = verticalArrow(x, y1, y2 - y1, arrowTipLength, arrowTipWidth);
             let arrowStartCircle = circle(x, y1, circleRadius);
 
