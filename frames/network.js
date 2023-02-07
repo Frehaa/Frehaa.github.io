@@ -19,7 +19,13 @@ class Network {
     addCompareAndSwap(position, i, j) {
         let value = {
             position,
-            cas: createCompareAndSwap(i, j),
+            cas: (vals) => {
+                if (vals[j] < vals[i]) {
+                    let tmp = vals[i];
+                    vals[i] = vals[j];
+                    vals[j] = tmp;
+                };
+            }
         };
         let id = this.compareAndSwaps.insertBeforePredicate(value, n => n.position > position);
         this.callbacks.forEach(c => c(id, position, i, j));
@@ -55,7 +61,7 @@ class Network {
 // TODO: Implement arrow removal
 // TODO: Show path of values? In different colors and dotted line?
 class NetworkFrame {
-    constructor(network, drawSettings) {
+    constructor(network, drawSettings, interactable = true) {
         if (!network instanceof Network) {
             throw new TypeError("argument has to be instance of Network");
         }
@@ -73,6 +79,7 @@ class NetworkFrame {
             ...drawSettings // Overwrite if available
         };
 
+        this.interactable = interactable;
         this.network = network;
         this.compareAndSwaps = new LinkedList();
 
@@ -117,7 +124,6 @@ class NetworkFrame {
         // Left squares and wire
         for (let i = 0; i < this.network.size; ++i) {
             let lSquare = this.leftSquares[i];
-            lSquare.hover = lSquare.isInside({x: mouseX, y: mouseY});
             lSquare.focus = (i == this.focusSquareIdx);
             lSquare.text = this.network.get(i);
             lSquare.draw(ctx);
@@ -129,7 +135,7 @@ class NetworkFrame {
         if (this.hoverWireIdx != null) {
             let w = this.wires[this.hoverWireIdx];
             if(this.focusWireIdx == null) {
-                this.arrowStartCircle.x = mouseX;
+                this.arrowStartCircle.x = mousePosition.x;
                 this.arrowStartCircle.y = w.y;
             } else if (this.hoverWireIdx != this.focusWireIdx) {
                 let wireDiff = w.y - this.wires[this.focusWireIdx].y;
@@ -152,10 +158,11 @@ class NetworkFrame {
     mouseMove() {
         this.hoverWireIdx = null;
         for (let i = 0; i < this.network.size; ++i) {
-            let dist = this.wires[i].distance({x: mouseX, y: mouseY});
+            let dist = this.wires[i].distance(mousePosition);
             if (dist <= this.drawSettings.circleRadius * 2) {
                 this.hoverWireIdx = i;
             }
+            this.leftSquares[i].hover = this.leftSquares[i].isInside(mousePosition);
         }
     }
 
@@ -171,7 +178,7 @@ class NetworkFrame {
         // Handle square focus
         for (let i = 0; i < this.network.size; ++i) {
             let s = this.leftSquares[i];
-            if (s.isInside({x: mouseX, y: mouseY})) {
+            if (s.isInside(mousePosition)) {
                 this.focusSquareIdx = i;
             }
         }
@@ -246,3 +253,41 @@ class NetworkFrame {
         };
     }
 }
+
+
+const ASCENDING = true;
+const DESCENDING = false;
+
+function bitonicSort(start, n, direction, network, pos) {
+    if (n == 1) return pos;
+
+    let m = n / 2;
+    let newPos = bitonicSort(start, m, DESCENDING, network, pos);
+    bitonicSort(start + m, m, ASCENDING, network, pos);
+    return bitonicMerge(start, n, direction, network, newPos);
+}
+
+function bitonicMerge(start, n, direction, network, pos) {
+    if (n == 1) return;
+
+    let space = 0.01;
+    let m = n / 2;
+    for (let i = start; i < start + m; i++) {
+        addCas(i, i + m, direction, network, pos + space * (i - start));
+    }
+
+    bitonicMerge(start, m, direction, network, pos + space * m + space);
+    bitonicMerge(start + m, m, direction, network, pos + space * m + space);
+
+    return pos + space * n + space * 5;
+}
+
+function addCas(i, j, direction, network, pos) {
+    if (direction === ASCENDING) {
+        let tmp = i;
+        i = j;
+        j = tmp;
+    }
+    network.addCompareAndSwap(pos, i, j);
+}
+

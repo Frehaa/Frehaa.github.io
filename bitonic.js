@@ -5,8 +5,7 @@ const ARROW_LEFT_KEY = "ArrowLeft";
 const DELETE_KEY = "Delete";
 const BAKCSPACE_KEY = "Backspace";
 
-var mouseX = 0;
-var mouseY = 0;
+var mousePosition = {x:0, y: 0};
 
 let frames = [];
 let currentFrameIdx = 0;
@@ -169,84 +168,12 @@ let bitonicSlideFrame = { // Bitonic slide thing
     keyUp: function() {}
 };
 
-
-// let wireFrame = {
-//     lines: [
-//     ],
-//     arrows: [
-
-//     ],
-//     arrowStartCircle: circle(0, 0, NETWORK_CIRCLE_RADIUS),
-//     arrow: vertical_arrow(100, 200, -100),
-//     arrows: [],
-//     // currentWire: null,
-//     draw: function(ctx) {
-//         ctx.lineWidth = 3;
-//         this.currentWire = null;
-//         for (let l of this.lines) {
-//             l.draw(ctx);
-//             let dist = l.distance({x: mouseX, y: mouseY});
-//             if (dist <= NETWORK_CIRCLE_RADIUS * 2) {
-//                 this.currentWire = l;
-//             }
-//         }
-//         let l = this.currentWire;
-
-//         if (l != null && !this.drag) {
-//             this.arrowStartCircle.x = mouseX;
-//             this.arrowStartCircle.y = l.y;
-//             this.arrowStartCircle.draw(ctx);
-//         } else if (this.drag) {
-//             this.arrowStartCircle.y = this.startWire.y;
-//             this.arrowStartCircle.draw(ctx);
-
-//             // Draw arrow if the current wire is different from the start wire
-//             if (l != null) {
-//                 let wireDiff = l.y - this.startWire.y;
-//                 if (wireDiff != 0) {
-//                     this.arrow.x = this.arrowStartCircle.x;
-//                     this.arrow.y = this.arrowStartCircle.y;
-//                     this.arrow.length = wireDiff;
-//                     this.arrow.draw(ctx);
-//                 }
-//             }
-//         }
-
-
-
-//         for (let a of this.arrows) {
-//             a.draw(ctx);
-//         }
-
-//     },
-//     mouseMove: function() {},
-//     mouseDown: function() {
-//         if (this.currentWire != null) {
-//             this.drag = true;
-//             this.startWire = this.currentWire;
-//         }
-//     },
-//     mouseUp: function() {
-//         if (this.drag && this.currentWire != this.startWire) {
-//             this.arrows.push(this.arrow);
-//             this.arrows.push(this.arrowStartCircle);
-//             this.arrow = vertical_arrow(0, 0, 0);
-//             this.arrowStartCircle = circle(0, 0, NETWORK_CIRCLE_RADIUS);
-//         }
-//         this.drag = false;
-//         this.startWire = null;
-//     },
-//     frameStart: function() {},
-//     frameEnd: function(){},
-//     keyUp: function() {}
-// };
-
 let rectangleFrame = {
     r: rectangle(250, 250, 100, 100),
     draw: function(ctx) {
         if (this.r.drag) {
             ctx.strokeStyle = '#FF0000';
-        } else if (this.r.isInside({x:mouseX, y: mouseY})) {
+        } else if (this.r.isInside(mousePosition)) {
             ctx.strokeStyle = '#00FF00';
         } else {
             ctx.strokeStyle = '#0000FF';
@@ -255,13 +182,13 @@ let rectangleFrame = {
     }, 
     mouseMove: function() {
         if (this.r.drag) {
-            this.r.x = clamp(mouseX - this.r.width/2, 200, 400);
+            this.r.x = clamp(mousePosition.x - this.r.width/2, 200, 400);
         }
     }, 
     mouseDown: function() {
-        if (this.r.isInside({x: mouseX, y: mouseY})) {
+        if (this.r.isInside(mousePosition)) {
             this.r.drag = true;
-            this.r.x = clamp(mouseX - this.r.width/2, 200, 400);
+            this.r.x = clamp(mousePosition.x - this.r.width/2, 200, 400);
         } 
     }, 
     mouseUp: function() {
@@ -313,57 +240,24 @@ function writableSquare(x, y, length) {
     return r;
 }
 
-let writableSquareFrame = {
-    squares: [],
-    target: null,
-    keyDownCallback: function(e) {
-        let self = writableSquareFrame;
-        let key = e.key;
-        if (self.target != null && '0' <= key && key <= '9') {
-            self.target.text = key;
-            self.target = null;
-        }
-    },
-    draw: function(ctx) {
-        for (let s of this.squares) {
-            s.hover = s.isInside({x: mouseX, y: mouseY});
-            s.focus = s == this.target;
-            s.draw(ctx);
-        }
-    },
-    mouseMove: function() {} ,
-    mouseDown: function() {
-        for (let s of this.squares) {
-            if (s.isInside({x: mouseX, y: mouseY})) {
-                console.log(s)
-                this.target = s;
-            }
-        }
-    },
-    mouseUp: function() {},
-    frameStart: function() {
-        document.addEventListener('keydown', this.keyDownCallback)
-    },
-    frameEnd: function(){
-        document.removeEventListener('keydown', this.keyDownCallback);
-    },
-    keyUp: function() {}
-}
-
 function initializeEventListeners() {
     let canvas = document.getElementById('canvas');
     canvas.addEventListener('mousemove', function(e) {
-        mouseX = e.clientX - e.target.offsetLeft;
-        mouseY = e.clientY - e.target.offsetTop;
+        mousePosition = {
+            x: e.clientX - e.target.offsetLeft, 
+            y:e.clientY - e.target.offsetTop
+        };
         frames[currentFrameIdx].mouseMove();
     });
 
     canvas.addEventListener('mousedown', function(e) {
-        frames[currentFrameIdx].mouseDown();
+        let frame = frames[currentFrameIdx];
+        if (frame.isInteractable) frame.mouseDown();
     });
 
     canvas.addEventListener('mouseup', function(e) {
-        frames[currentFrameIdx].mouseUp();
+        let frame = frames[currentFrameIdx];
+        if (frame.isInteractable) frame.mouseUp();
     });
 
     document.addEventListener('keyup', function(e) {
@@ -384,56 +278,40 @@ function initializeEventListeners() {
     });
 }
 
-function createCompareAndSwap(a, b) {
-    return (vals) => {
-        if (vals[a] < vals[b]) {
-            let tmp = vals[a];
-            vals[a] = vals[b];
-            vals[b] = tmp;
-        };
+function combineFrames(f1, f2) {
+    return {
+        draw: function(ctx) {
+            f1.draw(ctx);
+            f2.draw(ctx);
+        }, 
+        mouseMove: function() {
+            if (f1.mouseMove) f1.mouseMove();
+            if (f2.mouseMove) f2.mouseMove();
+        }, 
+        mouseDown: function() {
+            if (f1.mouseDown) f1.mouseDown();
+            if (f2.mouseDown) f2.mouseDown();
+        }, 
+        mouseUp: function() {
+            if (f1.mouseUp) f1.mouseUp();
+            if (f2.mouseUp) f2.mouseUp();
+
+        }, 
+        frameEnd: function() {
+            if (f1.frameEnd) f1.frameEnd();
+            if (f2.frameEnd) f2.frameEnd();
+
+        }, 
+        frameStart: function() {
+            if (f1.frameStart) f1.frameStart();
+            if (f2.frameStart) f2.frameStart();
+        }
     }
-}
-
-const ASCENDING = true;
-const DESCENDING = false;
-
-function bitonicSort(start, n, direction, network, pos) {
-    if (n == 1) return pos;
-
-    let m = n / 2;
-    let newPos = bitonicSort(start, m, DESCENDING, network, pos);
-    bitonicSort(start + m, m, ASCENDING, network, pos);
-    return bitonicMerge(start, n, direction, network, newPos);
-}
-
-function bitonicMerge(start, n, direction, network, pos) {
-    if (n == 1) return;
-
-    let space = 0.01;
-    let m = n / 2;
-    for (let i = start; i < start + m; i++) {
-        addCas(i, i + m, direction, network, pos + space * (i - start));
-    }
-
-    bitonicMerge(start, m, direction, network, pos + space * m + space);
-    bitonicMerge(start + m, m, direction, network, pos + space * m + space);
-
-    return pos + space * n + space * 5;
-}
-
-function addCas(i, j, direction, network, pos) {
-    if (direction === ASCENDING) {
-        let tmp = i;
-        i = j;
-        j = tmp;
-    }
-    network.addCompareAndSwap(pos, i, j);
 }
 
 function initialize() {
     initializeEventListeners();
     // frames.push(bitonicSlideFrame);
-    // frames.push(writableSquareFrame);
 
     // let canvas = document.getElementById('canvas');
     // let ctx = canvas.getContext('2d');
@@ -444,18 +322,23 @@ function initialize() {
 
     let exampleNetwork = new Network(16);
     let exampleNetworkDrawSettings = {squareLength: 0, wireLength: 1600, squareOffset: 35, squareBorderColor: '#FFFFFF', lineWidth: 4, circleRadius: 5, tipLength: 10, tipWidth: 7, drawBox: false};
-    let exampleNetworkFrame = new NetworkFrame(exampleNetwork, exampleNetworkDrawSettings);
+    let exampleNetworkFrame = new NetworkFrame(exampleNetwork, exampleNetworkDrawSettings, false);
 
     bitonicSort(0, 16, DESCENDING, exampleNetwork, 0.05);
 
-    frames.push(exampleNetworkFrame);
+    let overlayFrame = {
+        draw: function(ctx) {
+            ctx.stroke
+            ctx.strokeStyle = 'rgba(100, 100, 100, 0.5)';
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+            ctx.fillRect(10, 10, 100, 100)
+            ctx.strokeRect(10, 10, 100, 100)
+        }
+    }
+    frames.push(combineFrames(exampleNetworkFrame, overlayFrame));
     // frames.push(networkFrame);
     frames.push(rectangleFrame);
     
-    for (let i = 0; i < 6; ++i) {
-        writableSquareFrame.squares.push(writableSquare(100, 20 + 70 * i, 50))
-    }
-
     frames[currentFrameIdx].frameStart();
     requestAnimationFrame(draw);
 }
