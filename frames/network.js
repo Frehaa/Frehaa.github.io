@@ -78,6 +78,7 @@ class NetworkFrame {
             wireLength: 400,
             ...drawSettings // Overwrite if available
         };
+        this.checkInvariants()
 
         this.interactable = interactable;
         this.network = network;
@@ -159,8 +160,9 @@ class NetworkFrame {
         this.hoverWireIdx = null;
         for (let i = 0; i < this.network.size; ++i) {
             let dist = this.wires[i].distance(mousePosition);
+            // Assumption: radius is smaller than the offset between wires
             if (dist <= this.drawSettings.circleRadius * 2) {
-                this.hoverWireIdx = i;
+                this.hoverWireIdx = i; 
             }
             this.leftSquares[i].hover = this.leftSquares[i].isInside(mousePosition);
         }
@@ -251,6 +253,14 @@ class NetworkFrame {
             // Add compare-and-swap in correct order
             this.arrows[id] = [arrowStartCircle, arrow];
         };
+    }
+
+    checkInvariants() {
+        let wireDistance = this.drawSettings.squareLength + this.drawSettings.squareOffset; 
+        if (wireDistance < 2 * this.drawSettings.circleRadius) {
+            let errorMessage = 'Wire circles overlap: The circle radius is too big compared to distance between wires.'
+            throw new Error(errorMessage)
+        }
     }
 }
 
