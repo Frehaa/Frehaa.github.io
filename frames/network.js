@@ -61,7 +61,7 @@ class Network {
 // TODO: Implement arrow removal
 // TODO: Show path of values? In different colors and dotted line?
 class NetworkFrame {
-    constructor(network, drawSettings, interactable = true) {
+    constructor(network, drawSettings, isInteractable = true) {
         if (!network instanceof Network) {
             throw new TypeError("argument has to be instance of Network");
         }
@@ -80,7 +80,7 @@ class NetworkFrame {
         };
         this.checkInvariants()
 
-        this.interactable = interactable;
+        this.isInteractable = isInteractable;
         this.network = network;
         this.compareAndSwaps = new LinkedList();
 
@@ -267,6 +267,7 @@ class NetworkFrame {
 
 const ASCENDING = true;
 const DESCENDING = false;
+var space = 0.02;
 
 function bitonicSort(start, n, direction, network, pos) {
     if (n == 1) return pos;
@@ -280,7 +281,6 @@ function bitonicSort(start, n, direction, network, pos) {
 function bitonicMerge(start, n, direction, network, pos) {
     if (n == 1) return;
 
-    let space = 0.01;
     let m = n / 2;
     for (let i = start; i < start + m; i++) {
         addCas(i, i + m, direction, network, pos + space * (i - start));
@@ -293,11 +293,11 @@ function bitonicMerge(start, n, direction, network, pos) {
 }
 
 function addCas(i, j, direction, network, pos) {
-    if (direction === ASCENDING) {
-        let tmp = i;
-        i = j;
-        j = tmp;
+    if (direction === DESCENDING) {
+        network.addCompareAndSwap(pos, i, j);
+    } else {
+        network.addCompareAndSwap(pos, j, i);
     }
-    network.addCompareAndSwap(pos, i, j);
+    
 }
 

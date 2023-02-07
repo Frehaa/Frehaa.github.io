@@ -170,6 +170,7 @@ let bitonicSlideFrame = { // Bitonic slide thing
 
 let rectangleFrame = {
     r: rectangle(250, 250, 100, 100),
+    isInteractable: true,
     draw: function(ctx) {
         if (this.r.drag) {
             ctx.strokeStyle = '#FF0000';
@@ -247,7 +248,8 @@ function initializeEventListeners() {
             x: e.clientX - e.target.offsetLeft, 
             y:e.clientY - e.target.offsetTop
         };
-        frames[currentFrameIdx].mouseMove();
+        let frame = frames[currentFrameIdx];
+        if (frame.isInteractable) frame.mouseMove();
     });
 
     canvas.addEventListener('mousedown', function(e) {
@@ -328,7 +330,6 @@ function initialize() {
 
     let overlayFrame = {
         draw: function(ctx) {
-            ctx.stroke
             ctx.strokeStyle = 'rgba(100, 100, 100, 0.5)';
             ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
             ctx.fillRect(10, 10, 100, 100)
@@ -336,8 +337,9 @@ function initialize() {
         }
     }
     frames.push(combineFrames(exampleNetworkFrame, overlayFrame));
-    // frames.push(networkFrame);
+    frames.push(networkFrame);
     frames.push(rectangleFrame);
+    frames.push(networkFrame);
     
     frames[currentFrameIdx].frameStart();
     requestAnimationFrame(draw);
