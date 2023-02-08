@@ -116,57 +116,115 @@ function clamp(v, min, max) {
     return v;
 }
 
-let bitonicSlideFrame = { // Bitonic slide thing
-    draw: function(ctx) {
-        let innerColor = `#999999`;
-        let outColor = `#FFFFFF`;
-        let borderColor = `#000000`;
-        let inOutSeperatorColor = `#777777`;
+class BitonicSliderFrame {
+    constructor(drawSettings, isInteractable = true) {
+        this.drawSettings = {
+            marginX: 25, 
+            marginY: 25,
+            width: 400,
+            height: 25,
+            innerColor: `#999999`,
+            outColor: `#FFFFFF`,
+            borderColor: `#000000`,
+            inOutSeperatorColor: `#777777`,
+            borderColor: '#000000',
+            lineWidth: 3,
+            offset: 25,
+            ...drawSettings // Overwrite if available
+        };
+        this.isInteractable = isInteractable;
+    }
+    draw(ctx) {
+        ctx.save()
+        ctx.lineWidth = this.drawSettings.lineWidth;
+        this.drawSimple(ctx);
+        this.draw2half(ctx);
+        this.drawPostMerge(ctx);
+        ctx.restore()
+    }
 
-        let width = 500;
-        let height = 40
-        let x1 = 100;
-        let y1 = 100;
-        let x2 = x1 + width;
-        let y2 = y1 + height;
+    drawSimple(ctx) {
+        let width = this.drawSettings.width;
+        let height = this.drawSettings.height
+        let x1 = this.drawSettings.marginX;
+        let y1 = this.drawSettings.marginY;
 
         let k = document.getElementById('range-input-k').value / 100;
         let m = document.getElementById('range-input-m').value / 100;
         
-        let xInStart = x1 + width * k;
-        let xInEnd = x1 + width * m
+        this.drawBox(ctx, x1, y1, width, height, k, m);
+    }
+    drawBox(ctx, leftX, topY, width, height, k, m) {
+        let xInStart = leftX + width * k;
+        let xInEnd = leftX + width * m
 
         // Outer parts
-        ctx.fillStyle = outColor;
-        ctx.fillRect(xInStart, y1, xInStart - x1, height);
-        ctx.fillRect(xInEnd, y1, x2 - xInEnd, height);
+        ctx.fillStyle = this.drawSettings.outColor;
+        ctx.fillRect(xInStart, topY, xInStart - leftX, height);
+        ctx.fillRect(xInEnd, topY, leftX + width - xInEnd, height);
 
         // Inner part
-        ctx.fillStyle = innerColor;
-        ctx.fillRect(xInStart, y1, xInEnd - xInStart, height);
+        ctx.fillStyle = this.drawSettings.innerColor;
+        ctx.fillRect(xInStart, topY, xInEnd - xInStart, height);
 
         if (k != m) {
             // Seperator
-            ctx.strokeStyle = inOutSeperatorColor;
+            ctx.strokeStyle = this.drawSettings.inOutSeperatorColor;
             ctx.beginPath();
-            ctx.moveTo(xInStart, y1);
-            ctx.lineTo(xInStart, y2);
-            ctx.moveTo(xInEnd, y1);
-            ctx.lineTo(xInEnd, y2);
+            ctx.moveTo(xInStart, topY);
+            ctx.lineTo(xInStart, topY + height);
+            ctx.moveTo(xInEnd, topY);
+            ctx.lineTo(xInEnd, topY + height);
             ctx.stroke();
         }
 
         // Draw Border
-        ctx.strokeStyle = borderColor;
-        ctx.strokeRect(x1, y1, width, height);
-    },
-    mouseMove: function() {},
-    mouseDown: function() {},
-    mouseUp: function() {},
-    frameStart: function() {},
-    frameEnd: function(){},
-    keyUp: function() {}
-};
+        ctx.strokeStyle = this.drawSettings.borderColor;
+        ctx.strokeRect(leftX, topY, width, height);
+    }
+    draw2half(ctx) {
+        let width = this.drawSettings.width ;
+        let height = this.drawSettings.height
+        let x = this.drawSettings.marginX;
+        let y = this.drawSettings.marginY + this.drawSettings.height + this.drawSettings.offset;
+
+        let k = document.getElementById('range-input-k').value / 100;
+        let m = document.getElementById('range-input-m').value / 100;
+
+        let k1 = Math.min(k * 2, 1);
+        let k2 = Math.max((k - 0.5) * 2, 0);
+
+        let m1 = Math.min(m * 2, 1);
+        let m2 = Math.max((m - 0.5) * 2, 0);
+        
+        this.drawBox(ctx, x, y, width, height, k1, m1);
+        this.drawBox(ctx, x, y + height, width, height, k2, m2);
+    }
+    drawPostMerge(ctx) {
+        let width = this.drawSettings.width ;
+        let height = this.drawSettings.height
+        let x = this.drawSettings.marginX;
+        let y = this.drawSettings.marginY + this.drawSettings.height + this.drawSettings.offset;
+
+        let k = document.getElementById('range-input-k').value / 100;
+        let m = document.getElementById('range-input-m').value / 100;
+
+        let k1 = Math.min(k * 2, 1);
+        let k2 = Math.max((k - 0.5) * 2, 0);
+
+        let m1 = Math.min(m * 2, 1);
+        let m2 = Math.max((m - 0.5) * 2, 0);
+        
+        this.drawBox(ctx, x, y, width, height, k1, m1);
+        this.drawBox(ctx, x, y + height, width, height, k2, m2);
+    }
+    mouseMove() {}
+    mouseDown() {}
+    mouseUp() {}
+    frameStart() {}
+    frameEnd(){}
+    keyUp() {}
+}
 
 let rectangleFrame = {
     r: rectangle(250, 250, 100, 100),
@@ -313,14 +371,28 @@ function combineFrames(f1, f2) {
 
 function initialize() {
     initializeEventListeners();
-    // frames.push(bitonicSlideFrame);
+    let bitonicDrawSettings = {};
+    let bitonicSliderFrame = new BitonicSliderFrame(bitonicDrawSettings);
+    frames.push(bitonicSliderFrame);
 
     // let canvas = document.getElementById('canvas');
     // let ctx = canvas.getContext('2d');
     // ctx.scale(2, 2);
 
     let network = new Network(5);
-    let networkFrame = new NetworkFrame(network, {square: 50, wire: 400, offset: 20});
+    let defaultNetworkDrawSettings = {
+        squareLength: 100, 
+        wireLength: 1600, 
+        squareOffset: 35, 
+        squareBorderColor: '#000000', 
+        lineWidth: 4, 
+        circleRadius: 10, 
+        tipLength: 20, 
+        tipWidth: 14, 
+        fontSize: 60,
+        drawBox: false
+    };
+    let networkFrame = new NetworkFrame(network, defaultNetworkDrawSettings);
 
     let exampleNetwork = new Network(16);
     let exampleNetworkDrawSettings = {squareLength: 0, wireLength: 1600, squareOffset: 35, squareBorderColor: '#FFFFFF', lineWidth: 4, circleRadius: 5, tipLength: 10, tipWidth: 7, drawBox: false};
@@ -332,11 +404,11 @@ function initialize() {
         draw: function(ctx) {
             ctx.strokeStyle = 'rgba(100, 100, 100, 0.5)';
             ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
-            ctx.fillRect(10, 10, 100, 100)
-            ctx.strokeRect(10, 10, 100, 100)
+            // ctx.fillRect(10, 10, 100, 100)
+            // ctx.strokeRect(10, 10, 100, 100)
         }
     }
-    frames.push(combineFrames(exampleNetworkFrame, overlayFrame));
+    // frames.push(combineFrames(exampleNetworkFrame, overlayFrame));
     frames.push(networkFrame);
     frames.push(rectangleFrame);
     frames.push(networkFrame);
