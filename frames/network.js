@@ -76,7 +76,6 @@ class NetworkFrame {
             squareLength: 25,
             squareOffset: 10,
             wireLength: 400,
-            fontSize: 20, // TODO: Calculate this based on box size?
             ...drawSettings // Overwrite if available
         };
         this.checkInvariants()
@@ -115,9 +114,7 @@ class NetworkFrame {
             this.wires.push(horline(this.drawSettings.marginX + squareLength + squareOffset, wireY, wireLength));
             this.rightSquares.push(writableSquare(this.drawSettings.marginX + wireLength + squareLength + 2 * squareOffset, squareY, squareLength));
             this.leftSquares[i].borderColor = this.drawSettings.squareBorderColor;
-            this.leftSquares[i].fontSize = this.drawSettings.fontSize;
             this.rightSquares[i].borderColor = this.drawSettings.squareBorderColor;
-            this.rightSquares[i].fontSize = this.drawSettings.fontSize;
         }
 
         network.subscribe(this.createNetworkCasCallback());

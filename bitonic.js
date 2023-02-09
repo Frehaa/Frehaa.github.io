@@ -10,88 +10,6 @@ var mousePosition = {x:0, y: 0};
 let frames = [];
 let currentFrameIdx = 0;
 
-function rectangle(x, y, width, height) {
-    let r = {
-        x,
-        y,
-        width,
-        height,
-        draw: function (ctx) {
-            ctx.strokeRect(this.x, this.y, this.width, this.height);
-        }, 
-        isInside(point) {
-            return this.x <= point.x && point.x <= this.x + this.width && this.y <= point.y && point.y <= this.y + this.height;
-        }
-    };
-    return r;
-}
-
-function circle(x, y, radius) {
-    let r = {
-        x,
-        y,
-        radius,
-        draw: function (ctx) {
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, radius, 0, 2 * Math.PI);
-            ctx.fill();
-        }, 
-        isInside(point) {
-            return false;
-        }
-    };
-    return r;
-}
-
-function horline(x, y, length) {
-    let r = {
-        x,
-        y,
-        length,
-        draw: function(ctx) {
-            ctx.beginPath();
-            ctx.moveTo(this.x, this.y);
-            ctx.lineTo(this.x + this.length, this.y);
-            ctx.stroke();
-        },
-        distance: function(point) {
-            if (this.x <= point.x && point.x <= this.x + this.length) {
-                return Math.abs(point.y - this.y);
-            }
-            return 1000000; // TODO
-        }
-    };
-    return r;
-}
-
-function verticalArrow(x, y, length, tipLength = 15, tipWidth = 10) {
-    let r = {
-        x,
-        y,
-        length,
-        tipLength,
-        tipWidth,
-        draw: function(ctx) {
-            let directionY = Math.sign(this.length);
-            let arrowEndY = this.y + this.length;
-            let arrowTipStartY = arrowEndY - this.tipLength * directionY;
-            ctx.beginPath();
-            ctx.moveTo(this.x, this.y);
-            ctx.lineTo(this.x, arrowTipStartY);
-            ctx.stroke();
-
-            // Arrow tip
-            ctx.beginPath();
-            ctx.moveTo(this.x, arrowEndY);
-            ctx.lineTo(this.x + this.tipWidth, arrowTipStartY);
-            ctx.lineTo(this.x - this.tipWidth, arrowTipStartY);
-            ctx.closePath();
-            ctx.fill();
-        },
-    };
-    return r;
-}
-
 function draw() {
     let canvas = document.getElementById('canvas');
     let ctx = canvas.getContext('2d');
@@ -104,152 +22,6 @@ function draw() {
     ctx.strokeText((currentFrameIdx + 1).toString(), canvas.width - 100, canvas.height - 50);
 
     requestAnimationFrame(draw);
-}
-
-function clamp(v, min, max) {
-    if (v < min) {
-        return min;
-    } 
-    if (v > max) {
-        return max;
-    }
-    return v;
-}
-
-// TODO: Implement 0-1 based slider
-class BitonicSliderFrame {
-    constructor(drawSettings, isInteractable = true) {
-        this.drawSettings = {
-            marginX: 25, 
-            marginY: 25,
-            width: 400,
-            height: 25,
-            innerColor: `#999999`,
-            outColor: `#FFFFFF`,
-            borderColor: `#000000`,
-            inOutSeperatorColor: `#777777`,
-            borderColor: '#000000',
-            lineWidth: 3,
-            offset: 25,
-            ...drawSettings // Overwrite if available
-        };
-        this.isInteractable = isInteractable;
-    }
-    draw(ctx) {
-        ctx.save()
-        ctx.lineWidth = this.drawSettings.lineWidth;
-
-        this.drawSimple(ctx);
-        this.draw2half(ctx);
-        this.drawPostMerge(ctx);
-        ctx.restore()
-    }
-
-    drawSimple(ctx) {
-        let width = this.drawSettings.width;
-        let height = this.drawSettings.height
-        let x1 = this.drawSettings.marginX;
-        let y1 = this.drawSettings.marginY;
-
-        let k = document.getElementById('range-input-k').value / document.getElementById('range-input-k').max;
-        let m = document.getElementById('range-input-m').value / document.getElementById('range-input-m').max;
-        
-        this.drawBox(ctx, x1, y1, width, height, k, m);
-    }
-    drawBox(ctx, leftX, topY, width, height, k, m, flipColor = false) {
-        let xInStart = leftX + width * k;
-        let xInEnd = leftX + width * m
-        let outColor = flipColor? this.drawSettings.innerColor : this.drawSettings.outColor;
-        let innerColor = flipColor? this.drawSettings.outColor : this.drawSettings.innerColor;
-
-        // console.log(innerColor, outColor, this.drawSettings)
-
-        // Outer parts
-        // TODO?: Fill all and remove?
-        ctx.fillStyle = outColor;
-        ctx.fillRect(leftX, topY, xInStart - leftX, height);
-        ctx.fillRect(xInEnd, topY, leftX + width - xInEnd, height);
-
-        // Inner part
-        ctx.fillStyle = innerColor;
-        ctx.fillRect(xInStart, topY, xInEnd - xInStart, height);
-
-        // TODO: Make sure seperator does not draw out of 'in' area
-        if (Math.abs(k - m) > FLOATING_POINT_ERROR_MARGIN) {
-        // if (false) {
-            // Seperator
-            let sepOffset = this.drawSettings.lineWidth / 2;
-            if (flipColor) {
-                sepOffset = -sepOffset;
-            }
-            ctx.strokeStyle = this.drawSettings.inOutSeperatorColor;
-            ctx.beginPath();
-            ctx.moveTo(xInStart+sepOffset, topY);
-            ctx.lineTo(xInStart+sepOffset, topY + height);
-            ctx.moveTo(xInEnd-sepOffset, topY);
-            ctx.lineTo(xInEnd-sepOffset, topY + height);
-            ctx.stroke();
-        }
-
-        // Draw Border
-        ctx.strokeStyle = this.drawSettings.borderColor;
-        ctx.strokeRect(leftX, topY, width, height);
-    }
-    draw2half(ctx) {
-        let width = this.drawSettings.width / 2;
-        let height = this.drawSettings.height
-        let x = this.drawSettings.marginX + width / 2;
-        let y = this.drawSettings.marginY + this.drawSettings.height + this.drawSettings.offset;
-
-        let k = document.getElementById('range-input-k').value / document.getElementById('range-input-k').max;
-        let m = document.getElementById('range-input-m').value / document.getElementById('range-input-m').max;
-
-        let k1 = Math.min(k * 2, 1);
-        let k2 = Math.max((k - 0.5) * 2, 0);
-
-        let m1 = Math.min(m * 2, 1);
-        let m2 = Math.max((m - 0.5) * 2, 0);
-        
-        this.drawBox(ctx, x, y, width, height, k1, m1);
-        this.drawBox(ctx, x, y + height, width, height, k2, m2);
-    }
-    drawPostMerge(ctx) {
-        let width = this.drawSettings.width / 2;
-        let height = this.drawSettings.height
-        let x = this.drawSettings.marginX + width / 2;
-        let y = this.drawSettings.marginY + 3 * this.drawSettings.height + 2 * this.drawSettings.offset;
-
-        let k = document.getElementById('range-input-k').value / document.getElementById('range-input-k').max;
-        let m = document.getElementById('range-input-m').value / document.getElementById('range-input-m').max;
-
-        // Top 
-        let k1 = Math.min(k * 2, 1);
-        let m1 = Math.min(m * 2, 1);
-
-        // Bottom
-        let k2 = Math.max((k - 0.5) * 2, 0);
-        let m2 = Math.max((m - 0.5) * 2, 0);
-
-        if (k1 == 1) {
-            this.drawBox(ctx, x, y, width, height, 1, 1);
-            this.drawBox(ctx, x, y + height, width, height, k2, m2);
-        } else if (m1 < 1) {
-            this.drawBox(ctx, x, y, width, height, 1, 1);
-            this.drawBox(ctx, x, y + height, width, height, k1, m1);
-        } else if (k1 > m2) {
-            this.drawBox(ctx, x, y, width, height, 1, 1);
-            this.drawBox(ctx, x, y + height, width, height, m2, k1, true);
-        } else if (k1 <= m2) {
-            this.drawBox(ctx, x, y, width, height, k1, m2);
-            this.drawBox(ctx, x, y + height, width, height, 0, 1);
-        }
-    }
-    mouseMove() {}
-    mouseDown() {}
-    mouseUp() {}
-    frameStart() {}
-    frameEnd(){}
-    keyUp() {}
 }
 
 let rectangleFrame = {
@@ -287,43 +59,6 @@ let rectangleFrame = {
     },
     keyUp: function() {}
 };
-
-// Square which has text inside (only a single letter is properly centered )
-function writableSquare(x, y, length) { 
-    let r = {
-        x,
-        y,
-        length,
-        text: null,
-        font: "Arial",
-        fontSize: 40,
-        focus: false,
-        hover: false,
-        borderColor: '#000000',
-        focusColor: '#FF0000',
-        hoverColor: '#00FF00',
-        draw: function (ctx) {
-            ctx.save()
-            ctx.strokeStyle = this.borderColor;
-            if (this.focus) {
-                ctx.strokeStyle = this.focusColor;
-            } else if (this.hover) {
-                ctx.strokeStyle = this.hoverColor;
-            }
-            ctx.strokeRect(this.x, this.y, this.length, this.length);
-            if (this.text != null) {
-                ctx.font = this.fontSize + "px " + this.font;
-                ctx.textAlign = "center"
-                ctx.fillText(this.text, this.x + this.length / 2, this.y + this.fontSize);
-            }
-            ctx.restore();
-        }, 
-        isInside(point) {
-            return this.x <= point.x && point.x <= this.x + this.length && this.y <= point.y && point.y <= this.y + this.length;
-        }
-    };
-    return r;
-}
 
 function initializeEventListeners() {
     let canvas = document.getElementById('canvas');
@@ -364,36 +99,93 @@ function initializeEventListeners() {
     });
 }
 
-function combineFrames(f1, f2) {
-    return {
-        draw: function(ctx) {
-            f1.draw(ctx);
-            f2.draw(ctx);
-        }, 
-        mouseMove: function() {
-            if (f1.mouseMove) f1.mouseMove();
-            if (f2.mouseMove) f2.mouseMove();
-        }, 
-        mouseDown: function() {
-            if (f1.mouseDown) f1.mouseDown();
-            if (f2.mouseDown) f2.mouseDown();
-        }, 
-        mouseUp: function() {
-            if (f1.mouseUp) f1.mouseUp();
-            if (f2.mouseUp) f2.mouseUp();
+class BoxplotFrame {
+    constructor(values, drawSettings) {
+        this.values = values;
+        this.drawSettings = {
+            ...drawSettings
+        };
 
-        }, 
-        frameEnd: function() {
-            if (f1.frameEnd) f1.frameEnd();
-            if (f2.frameEnd) f2.frameEnd();
+        let copy = values.slice();
+        copy.sort((a, b) => a > b);
+        this.lowerHalf = copy.slice(0, this.values.length / 2 - 1);
+        this.upperHalf = copy.slice(this.values.length / 2);
+    }
 
-        }, 
-        frameStart: function() {
-            if (f1.frameStart) f1.frameStart();
-            if (f2.frameStart) f2.frameStart();
+    draw(ctx) {
+        if (this.drawSettings.drawHorizontal) {
+            this.drawHorizontal(ctx);
+        } else {
+            this.drawVertical(ctx);
         }
     }
+
+    drawHorizontal(ctx) {
+        let max = Math.max(...this.values);
+        let leftX = this.drawSettings.marginX;
+        let topY = this.drawSettings.marginY;
+        let height = this.drawSettings.height;
+        let width = this.drawSettings.width;
+        let length = this.values.length;
+        let offset = this.drawSettings.boxOffset;
+
+        let boxHeight = (height / length) - offset;
+
+        for (let i = 0; i < length; i++) {
+            let v = this.values[i];
+            let t = v / max;
+            this.colorBox(i, t, ctx)
+            ctx.fillRect(leftX, topY + (boxHeight +offset )* i , width, boxHeight);
+        }
+    }
+
+    drawVertical(ctx) {
+        let max = Math.max(...this.values);
+        let leftX = this.drawSettings.marginX;
+        let topY = this.drawSettings.marginY;
+        let height = this.drawSettings.height;
+        let width = this.drawSettings.width;
+        let length = this.values.length;
+        let offset = this.drawSettings.boxOffset;
+
+        let boxWidth = (width / length) - offset;
+        
+
+        for (let i = 0; i < length; i++) {
+            let v = this.values[i];
+            let t = v / max;
+            let boxHeight = t * height;
+            this.colorBox(i, t, ctx)
+            ctx.fillRect(leftX + (boxWidth + offset) * i, topY + height - boxHeight, boxWidth, boxHeight);
+        }
+    }
+
+    colorBox(i, t, ctx) {
+        let start = this.drawSettings.startColor;
+        let end = this.drawSettings.endColor;
+        if (false) {
+            let r = lerp(start.r, end.r, t) * 255;
+            let g = lerp(start.g, end.g, t) * 255;
+            let b = lerp(start.b, end.b, t) * 255;
+            ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 1)`; 
+        } else {
+            let v = this.values[i];
+            if (this.lowerHalf.findIndex(w => w == v) >= 0) {
+                ctx.fillStyle = '#00FF00'; 
+            } else {
+                ctx.fillStyle = '#FF0000'; 
+            }
+        }
+    }
+
+    mouseMove() {}
+    mouseDown() {}
+    mouseUp() {}
+    frameStart() {}
+    frameEnd(){}
+    keyUp() {}
 }
+
 
 function initialize() {
     initializeEventListeners();
@@ -411,7 +203,54 @@ function initialize() {
             offset: 100,
     };
     let bitonicSliderFrame = new BitonicSliderFrame(bitonicDrawSettings);
-    frames.push(bitonicSliderFrame);
+    // frames.push(bitonicSliderFrame);
+
+    let boxplotDrawSettings = {
+        marginX: 50,
+        marginY: 50,
+        height: 500,
+        width: 600,
+        boxOffset: 1,
+        startColor: {
+            r: 0.1,
+            g: 0.3,
+            b: 0.1,
+        },
+        endColor: {
+            r: 0.1,
+            g: 0.8,
+            b: 0.1,
+        },
+        drawHorizontal: true
+    };
+    
+    let values = [19, 13, 17, 12, 3, 1, 8, 9, 18, 16, 2, 15, 14, 6, 5, 7, 10, 11, 4, 20]; 
+    // values.sort((a, b) => a > b)
+    // console.log(values)
+    // let values = [5, 3, 6, 1, 4, 2]
+
+    let values1 = values.slice(0, 9);
+    let values2 = values.slice(10, 19);
+    
+
+    values1.sort((a, b) => a > b)
+    // values2.sort((a, b) => a < b)
+    values2.sort((a, b) => a > b)
+    
+    let values3 = values1.concat(values2);
+
+
+    let boxplotFrame1 = new BoxplotFrame(values, boxplotDrawSettings);
+    let c = combineFrames(boxplotFrame1, {draw: function(ctx) {
+        ctx.lineWidth = 3
+        for (let i = 0; i < values.length; i++) {
+
+            drawVerticalArrow(10 * i, 10 * i, 50, 20, 10, ctx);
+        }
+
+    }});
+    // frames.push(c);
+    // frames.push(boxplotFrame1);
 
     // let canvas = document.getElementById('canvas');
     // let ctx = canvas.getContext('2d');
@@ -419,11 +258,11 @@ function initialize() {
 
     let network = new Network(5);
     let defaultNetworkDrawSettings = {
-        squareLength: 100, 
+        squareLength: 20, 
         wireLength: 1600, 
         squareOffset: 35, 
         squareBorderColor: '#000000', 
-        lineWidth: 4, 
+        lineWidth: 1, 
         circleRadius: 10, 
         tipLength: 20, 
         tipWidth: 14, 
