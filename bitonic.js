@@ -258,16 +258,16 @@ function initialize() {
 
     let network = new Network(5);
     let defaultNetworkDrawSettings = {
-        squareLength: 20, 
+        squareLength: 100, 
         wireLength: 1600, 
         squareOffset: 35, 
         squareBorderColor: '#000000', 
-        lineWidth: 1, 
+        lineWidth: 4, 
         circleRadius: 10, 
         tipLength: 20, 
         tipWidth: 14, 
         fontSize: 60,
-        drawBox: false
+        drawBox: true
     };
     let networkFrame = new NetworkFrame(network, defaultNetworkDrawSettings);
 

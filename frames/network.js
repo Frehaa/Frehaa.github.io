@@ -80,6 +80,7 @@ class NetworkFrame {
         };
         this.checkInvariants()
 
+
         this.isInteractable = isInteractable;
         this.network = network;
         this.compareAndSwaps = new LinkedList();
@@ -113,8 +114,17 @@ class NetworkFrame {
             this.leftSquares.push(writableSquare(this.drawSettings.marginX, squareY, squareLength));
             this.wires.push(horline(this.drawSettings.marginX + squareLength + squareOffset, wireY, wireLength));
             this.rightSquares.push(writableSquare(this.drawSettings.marginX + wireLength + squareLength + 2 * squareOffset, squareY, squareLength));
-            this.leftSquares[i].borderColor = this.drawSettings.squareBorderColor;
-            this.rightSquares[i].borderColor = this.drawSettings.squareBorderColor;
+            if (this.drawSettings.drawBox) {
+                this.leftSquares[i].borderColor = this.drawSettings.squareBorderColor;
+                this.rightSquares[i].borderColor = this.drawSettings.squareBorderColor;
+            } else {
+                this.leftSquares[i].borderColor = 'rgba(0,0,0,0)';
+                this.rightSquares[i].borderColor = 'rgba(0,0,0,0)';
+                this.leftSquares[i].hoverColor = 'rgba(0,0,0,0)';
+                this.rightSquares[i].hoverColor = 'rgba(0,0,0,0)';
+                this.leftSquares[i].focusColor = 'rgba(0,0,0,0)';
+                this.rightSquares[i].focusColor = 'rgba(0,0,0,0)';
+            }
         }
 
         network.subscribe(this.createNetworkCasCallback());
