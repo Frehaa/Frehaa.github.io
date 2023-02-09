@@ -116,6 +116,7 @@ function clamp(v, min, max) {
     return v;
 }
 
+// TODO: Implement 0-1 based slider
 class BitonicSliderFrame {
     constructor(drawSettings, isInteractable = true) {
         this.drawSettings = {
@@ -132,13 +133,12 @@ class BitonicSliderFrame {
             offset: 25,
             ...drawSettings // Overwrite if available
         };
-        console.log(this.drawSettings, this.drawSettings.innerColor, this.drawSettings.outColor)
-
         this.isInteractable = isInteractable;
     }
     draw(ctx) {
         ctx.save()
         ctx.lineWidth = this.drawSettings.lineWidth;
+
         this.drawSimple(ctx);
         this.draw2half(ctx);
         this.drawPostMerge(ctx);
@@ -151,8 +151,8 @@ class BitonicSliderFrame {
         let x1 = this.drawSettings.marginX;
         let y1 = this.drawSettings.marginY;
 
-        let k = document.getElementById('range-input-k').value / 100;
-        let m = document.getElementById('range-input-m').value / 100;
+        let k = document.getElementById('range-input-k').value / document.getElementById('range-input-k').max;
+        let m = document.getElementById('range-input-m').value / document.getElementById('range-input-m').max;
         
         this.drawBox(ctx, x1, y1, width, height, k, m);
     }
@@ -175,16 +175,21 @@ class BitonicSliderFrame {
         ctx.fillRect(xInStart, topY, xInEnd - xInStart, height);
 
         // TODO: Make sure seperator does not draw out of 'in' area
-        // if (k != m) {
-        //     // Seperator
-        //     ctx.strokeStyle = this.drawSettings.inOutSeperatorColor;
-        //     ctx.beginPath();
-        //     ctx.moveTo(xInStart, topY);
-        //     ctx.lineTo(xInStart, topY + height);
-        //     ctx.moveTo(xInEnd, topY);
-        //     ctx.lineTo(xInEnd, topY + height);
-        //     ctx.stroke();
-        // }
+        if (Math.abs(k - m) > FLOATING_POINT_ERROR_MARGIN) {
+        // if (false) {
+            // Seperator
+            let sepOffset = this.drawSettings.lineWidth / 2;
+            if (flipColor) {
+                sepOffset = -sepOffset;
+            }
+            ctx.strokeStyle = this.drawSettings.inOutSeperatorColor;
+            ctx.beginPath();
+            ctx.moveTo(xInStart+sepOffset, topY);
+            ctx.lineTo(xInStart+sepOffset, topY + height);
+            ctx.moveTo(xInEnd-sepOffset, topY);
+            ctx.lineTo(xInEnd-sepOffset, topY + height);
+            ctx.stroke();
+        }
 
         // Draw Border
         ctx.strokeStyle = this.drawSettings.borderColor;
@@ -196,8 +201,8 @@ class BitonicSliderFrame {
         let x = this.drawSettings.marginX + width / 2;
         let y = this.drawSettings.marginY + this.drawSettings.height + this.drawSettings.offset;
 
-        let k = document.getElementById('range-input-k').value / 100;
-        let m = document.getElementById('range-input-m').value / 100;
+        let k = document.getElementById('range-input-k').value / document.getElementById('range-input-k').max;
+        let m = document.getElementById('range-input-m').value / document.getElementById('range-input-m').max;
 
         let k1 = Math.min(k * 2, 1);
         let k2 = Math.max((k - 0.5) * 2, 0);
@@ -214,8 +219,8 @@ class BitonicSliderFrame {
         let x = this.drawSettings.marginX + width / 2;
         let y = this.drawSettings.marginY + 3 * this.drawSettings.height + 2 * this.drawSettings.offset;
 
-        let k = document.getElementById('range-input-k').value / 100;
-        let m = document.getElementById('range-input-m').value / 100;
+        let k = document.getElementById('range-input-k').value / document.getElementById('range-input-k').max;
+        let m = document.getElementById('range-input-m').value / document.getElementById('range-input-m').max;
 
         // Top 
         let k1 = Math.min(k * 2, 1);
