@@ -132,6 +132,8 @@ class BitonicSliderFrame {
             offset: 25,
             ...drawSettings // Overwrite if available
         };
+        console.log(this.drawSettings, this.drawSettings.innerColor, this.drawSettings.outColor)
+
         this.isInteractable = isInteractable;
     }
     draw(ctx) {
@@ -154,38 +156,44 @@ class BitonicSliderFrame {
         
         this.drawBox(ctx, x1, y1, width, height, k, m);
     }
-    drawBox(ctx, leftX, topY, width, height, k, m) {
+    drawBox(ctx, leftX, topY, width, height, k, m, flipColor = false) {
         let xInStart = leftX + width * k;
         let xInEnd = leftX + width * m
+        let outColor = flipColor? this.drawSettings.innerColor : this.drawSettings.outColor;
+        let innerColor = flipColor? this.drawSettings.outColor : this.drawSettings.innerColor;
+
+        // console.log(innerColor, outColor, this.drawSettings)
 
         // Outer parts
-        ctx.fillStyle = this.drawSettings.outColor;
-        ctx.fillRect(xInStart, topY, xInStart - leftX, height);
+        // TODO?: Fill all and remove?
+        ctx.fillStyle = outColor;
+        ctx.fillRect(leftX, topY, xInStart - leftX, height);
         ctx.fillRect(xInEnd, topY, leftX + width - xInEnd, height);
 
         // Inner part
-        ctx.fillStyle = this.drawSettings.innerColor;
+        ctx.fillStyle = innerColor;
         ctx.fillRect(xInStart, topY, xInEnd - xInStart, height);
 
-        if (k != m) {
-            // Seperator
-            ctx.strokeStyle = this.drawSettings.inOutSeperatorColor;
-            ctx.beginPath();
-            ctx.moveTo(xInStart, topY);
-            ctx.lineTo(xInStart, topY + height);
-            ctx.moveTo(xInEnd, topY);
-            ctx.lineTo(xInEnd, topY + height);
-            ctx.stroke();
-        }
+        // TODO: Make sure seperator does not draw out of 'in' area
+        // if (k != m) {
+        //     // Seperator
+        //     ctx.strokeStyle = this.drawSettings.inOutSeperatorColor;
+        //     ctx.beginPath();
+        //     ctx.moveTo(xInStart, topY);
+        //     ctx.lineTo(xInStart, topY + height);
+        //     ctx.moveTo(xInEnd, topY);
+        //     ctx.lineTo(xInEnd, topY + height);
+        //     ctx.stroke();
+        // }
 
         // Draw Border
         ctx.strokeStyle = this.drawSettings.borderColor;
         ctx.strokeRect(leftX, topY, width, height);
     }
     draw2half(ctx) {
-        let width = this.drawSettings.width ;
+        let width = this.drawSettings.width / 2;
         let height = this.drawSettings.height
-        let x = this.drawSettings.marginX;
+        let x = this.drawSettings.marginX + width / 2;
         let y = this.drawSettings.marginY + this.drawSettings.height + this.drawSettings.offset;
 
         let k = document.getElementById('range-input-k').value / 100;
@@ -201,22 +209,35 @@ class BitonicSliderFrame {
         this.drawBox(ctx, x, y + height, width, height, k2, m2);
     }
     drawPostMerge(ctx) {
-        let width = this.drawSettings.width ;
+        let width = this.drawSettings.width / 2;
         let height = this.drawSettings.height
-        let x = this.drawSettings.marginX;
-        let y = this.drawSettings.marginY + this.drawSettings.height + this.drawSettings.offset;
+        let x = this.drawSettings.marginX + width / 2;
+        let y = this.drawSettings.marginY + 3 * this.drawSettings.height + 2 * this.drawSettings.offset;
 
         let k = document.getElementById('range-input-k').value / 100;
         let m = document.getElementById('range-input-m').value / 100;
 
+        // Top 
         let k1 = Math.min(k * 2, 1);
-        let k2 = Math.max((k - 0.5) * 2, 0);
-
         let m1 = Math.min(m * 2, 1);
+
+        // Bottom
+        let k2 = Math.max((k - 0.5) * 2, 0);
         let m2 = Math.max((m - 0.5) * 2, 0);
-        
-        this.drawBox(ctx, x, y, width, height, k1, m1);
-        this.drawBox(ctx, x, y + height, width, height, k2, m2);
+
+        if (k1 == 1) {
+            this.drawBox(ctx, x, y, width, height, 1, 1);
+            this.drawBox(ctx, x, y + height, width, height, k2, m2);
+        } else if (m1 < 1) {
+            this.drawBox(ctx, x, y, width, height, 1, 1);
+            this.drawBox(ctx, x, y + height, width, height, k1, m1);
+        } else if (k1 > m2) {
+            this.drawBox(ctx, x, y, width, height, 1, 1);
+            this.drawBox(ctx, x, y + height, width, height, m2, k1, true);
+        } else if (k1 <= m2) {
+            this.drawBox(ctx, x, y, width, height, k1, m2);
+            this.drawBox(ctx, x, y + height, width, height, 0, 1);
+        }
     }
     mouseMove() {}
     mouseDown() {}
@@ -371,7 +392,19 @@ function combineFrames(f1, f2) {
 
 function initialize() {
     initializeEventListeners();
-    let bitonicDrawSettings = {};
+    let bitonicDrawSettings = {
+            marginX: 50, 
+            marginY: 50,
+            width: 1600,
+            height: 50,
+            innerColor: `#999999`,
+            outColor: `#FFFFFF`,
+            borderColor: `#000000`,
+            inOutSeperatorColor: `#777777`,
+            borderColor: '#000000',
+            lineWidth: 3,
+            offset: 100,
+    };
     let bitonicSliderFrame = new BitonicSliderFrame(bitonicDrawSettings);
     frames.push(bitonicSliderFrame);
 
