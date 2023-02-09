@@ -69,10 +69,13 @@ class NetworkFrame {
             marginX: 25, 
             marginY: 25,
             borderColor: '#000000',
-            lineWidth: 3,
+            wireColor: '#000000',
+            wireWidth: 3,
             circleRadius: 8,
+            arrowWidth: 3,
             tipLength: 15,
             tipWidth: 10,
+            arrowColor: '#000000',
             squareLength: 25,
             squareOffset: 10,
             wireLength: 400,
@@ -92,6 +95,7 @@ class NetworkFrame {
 
         // Dynamic drawables
         this.arrow = verticalArrow(0, 0, 0, this.drawSettings.tipLength, this.drawSettings.tipWidth);
+        this.arrow.color = this.drawSettings.arrowColor;
         this.arrowStartCircle = circle(0, 0, this.drawSettings.circleRadius);
         this.arrows = {};
 
@@ -131,7 +135,13 @@ class NetworkFrame {
     }
 
     draw(ctx) {
-        ctx.lineWidth = this.drawSettings.lineWidth;
+        ctx.lineWidth = this.drawSettings.wireWidth;
+
+        let wireColor = [this.drawSettings.wireColor]
+        if (this.drawSettings.wireColor.length) {
+            wireColor = this.drawSettings.wireColor
+        } 
+
         // Left squares and wire
         for (let i = 0; i < this.network.size; ++i) {
             let lSquare = this.leftSquares[i];
@@ -139,9 +149,11 @@ class NetworkFrame {
             lSquare.text = this.network.get(i);
             lSquare.draw(ctx);
 
+            ctx.strokeStyle = wireColor[i % wireColor.length];
             this.wires[i].draw(ctx);
         }
         
+        ctx.lineWidth = this.drawSettings.arrowWidth;
         // Draw place arrow start circle
         if (this.hoverWireIdx != null) {
             let w = this.wires[this.hoverWireIdx];
@@ -159,9 +171,11 @@ class NetworkFrame {
             this.arrowStartCircle.draw(ctx);
         } 
 
+        ctx.lineWidth = this.drawSettings.wireWidth;
         // Simulate network, draw right square results, and draw arrows
         this.updateRightSquares();
         this.rightSquares.forEach(s => s.draw(ctx));
+        ctx.lineWidth = this.drawSettings.arrowWidth;
         for (let k in this.arrows) {
             this.arrows[k].forEach(d => d.draw(ctx));
         }
@@ -200,7 +214,6 @@ class NetworkFrame {
         if (this.focusWireIdx != null && this.hoverWireIdx != null && this.hoverWireIdx != this.focusWireIdx) {
             // Add compare-and-swap in correct order
             let normalizedPosition = (this.arrow.x - this.wires[0].x) / this.wires[0].length;
-            console.log(this.arrow.x, normalizedPosition, this.drawSettings.wireLength)
             this.network.addCompareAndSwap(normalizedPosition, this.focusWireIdx, this.hoverWireIdx);
             // The new arrow will be added through the callback
         }
@@ -258,6 +271,7 @@ class NetworkFrame {
             let y1 = wires[startWireIdx].y;
             let y2 = wires[endWireIdx].y;
             let arrow = verticalArrow(x, y1, y2 - y1, arrowTipLength, arrowTipWidth);
+            arrow.color = this.drawSettings.arrowColor;
             let arrowStartCircle = circle(x, y1, circleRadius);
 
             // Add compare-and-swap in correct order

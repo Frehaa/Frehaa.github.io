@@ -256,18 +256,22 @@ function initialize() {
     // let ctx = canvas.getContext('2d');
     // ctx.scale(2, 2);
 
-    let network = new Network(5);
+    let wireColors = ['#FF0000', '#00FF00', '#FF0000', '#00FF00', '#00FF00', '#FF0000', '#00FF00', '#FF0000' ]; 
+
+    let network = new Network(8);
     let defaultNetworkDrawSettings = {
-        squareLength: 100, 
+        squareLength: 40, 
         wireLength: 1600, 
-        squareOffset: 35, 
+        squareOffset: 20, 
         squareBorderColor: '#000000', 
-        lineWidth: 4, 
+        wireColor: wireColors, 
+        wireWidth: 40, 
         circleRadius: 10, 
+        arrowColor: '#000000',
         tipLength: 20, 
         tipWidth: 14, 
         fontSize: 60,
-        drawBox: true
+        drawBox: false
     };
     let networkFrame = new NetworkFrame(network, defaultNetworkDrawSettings);
 

@@ -77,7 +77,10 @@ function verticalArrow(x, y, length, tipLength = 15, tipWidth = 10) {
         length,
         tipLength,
         tipWidth,
+        color: '#000000',
         draw: function(ctx) {
+            ctx.strokeStyle = this.color;
+            ctx.fillStyle = this.color;
             drawVerticalArrow(this.x, this.y, this.length, this.tipLength, this.tipWidth, ctx);
         },
     };
