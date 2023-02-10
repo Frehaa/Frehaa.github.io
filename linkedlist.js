@@ -1,6 +1,6 @@
 class LinkedList {
     constructor() {
-        this.length = 0;
+        this.size = 0;
         this.nextId = 0;
         this.first = null;
         this.last = null;
@@ -15,6 +15,7 @@ class LinkedList {
         } 
 
         this.first = node;
+        this.size++;
         return id;
     }
 
@@ -30,28 +31,26 @@ class LinkedList {
         }
 
         this.last = node;
+        this.size++;
         return id;
     } 
 
     // Insert value before the first node for which the predicate is true or last
     insertBeforePredicate(value, predicate) {
-        if (this.first == null) return this.addLast(value);
-        if (predicate(this.first.value)) return this.addFirst(value);
+        if (this.first == null || predicate(this.first.value)) return this.addFirst(value);
 
         let prev = this.first;
-        let next = prev.next;
-        while (next != null && !predicate(next.value)) {
-            prev = next;
-            next = prev.next;
+        while (prev.next != null && !predicate(prev.next.value)) {
+            prev = prev.next;
         }
         return this.addAfter(value, prev);
     }
 
     addAfter(value, node) {
-        // if (node == null) return this.addLast(value);
         let id = this.nextId++;
         let newNode = { value, id, next: node.next };
         node.next = newNode;
+        this.size++;
         return id;
     }
 
@@ -85,7 +84,7 @@ class LinkedList {
         // Edge case where no are registered
         if (this.first === null) return null;
 
-        // Edge case where we remove the first animation
+        // Edge case where we remove the first element
         let previous = this.first;
         if (previous.id === id) {
             if (this.last.id === id) { // Edge case where there is only one element 
