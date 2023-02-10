@@ -325,3 +325,8 @@ function addCas(i, j, direction, network, pos) {
     
 }
 
+
+// let exampleNetwork = new Network(16);
+// let exampleNetworkDrawSettings = {squareLength: 0, wireLength: 1600, squareOffset: 35, squareBorderColor: '#FFFFFF', lineWidth: 4, circleRadius: 5, tipLength: 10, tipWidth: 7, drawBox: false};
+// let exampleNetworkFrame = new NetworkFrame(exampleNetwork, exampleNetworkDrawSettings, false);
+// bitonicSort(0, 16, DESCENDING, exampleNetwork, 0.05);

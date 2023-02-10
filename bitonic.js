@@ -64,14 +64,15 @@ function initializeEventListeners() {
     let canvas = document.getElementById('canvas');
     canvas.addEventListener('mousemove', function(e) {
         mousePosition = {
-            x: e.clientX - e.target.offsetLeft, 
-            y:e.clientY - e.target.offsetTop
+            x: e.pageX - e.target.offsetLeft, 
+            y:e.pageY - e.target.offsetTop
         };
         let frame = frames[currentFrameIdx];
         if (frame.isInteractable) frame.mouseMove();
     });
 
     canvas.addEventListener('mousedown', function(e) {
+        console.log(e)
         let frame = frames[currentFrameIdx];
         if (frame.isInteractable) frame.mouseDown();
     });
@@ -98,94 +99,6 @@ function initializeEventListeners() {
         }
     });
 }
-
-class BoxplotFrame {
-    constructor(values, drawSettings) {
-        this.values = values;
-        this.drawSettings = {
-            ...drawSettings
-        };
-
-        let copy = values.slice();
-        copy.sort((a, b) => a > b);
-        this.lowerHalf = copy.slice(0, this.values.length / 2 - 1);
-        this.upperHalf = copy.slice(this.values.length / 2);
-    }
-
-    draw(ctx) {
-        if (this.drawSettings.drawHorizontal) {
-            this.drawHorizontal(ctx);
-        } else {
-            this.drawVertical(ctx);
-        }
-    }
-
-    drawHorizontal(ctx) {
-        let max = Math.max(...this.values);
-        let leftX = this.drawSettings.marginX;
-        let topY = this.drawSettings.marginY;
-        let height = this.drawSettings.height;
-        let width = this.drawSettings.width;
-        let length = this.values.length;
-        let offset = this.drawSettings.boxOffset;
-
-        let boxHeight = (height / length) - offset;
-
-        for (let i = 0; i < length; i++) {
-            let v = this.values[i];
-            let t = v / max;
-            this.colorBox(i, t, ctx)
-            ctx.fillRect(leftX, topY + (boxHeight +offset )* i , width, boxHeight);
-        }
-    }
-
-    drawVertical(ctx) {
-        let max = Math.max(...this.values);
-        let leftX = this.drawSettings.marginX;
-        let topY = this.drawSettings.marginY;
-        let height = this.drawSettings.height;
-        let width = this.drawSettings.width;
-        let length = this.values.length;
-        let offset = this.drawSettings.boxOffset;
-
-        let boxWidth = (width / length) - offset;
-        
-
-        for (let i = 0; i < length; i++) {
-            let v = this.values[i];
-            let t = v / max;
-            let boxHeight = t * height;
-            this.colorBox(i, t, ctx)
-            ctx.fillRect(leftX + (boxWidth + offset) * i, topY + height - boxHeight, boxWidth, boxHeight);
-        }
-    }
-
-    colorBox(i, t, ctx) {
-        let start = this.drawSettings.startColor;
-        let end = this.drawSettings.endColor;
-        if (false) {
-            let r = lerp(start.r, end.r, t) * 255;
-            let g = lerp(start.g, end.g, t) * 255;
-            let b = lerp(start.b, end.b, t) * 255;
-            ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 1)`; 
-        } else {
-            let v = this.values[i];
-            if (this.lowerHalf.findIndex(w => w == v) >= 0) {
-                ctx.fillStyle = '#00FF00'; 
-            } else {
-                ctx.fillStyle = '#FF0000'; 
-            }
-        }
-    }
-
-    mouseMove() {}
-    mouseDown() {}
-    mouseUp() {}
-    frameStart() {}
-    frameEnd(){}
-    keyUp() {}
-}
-
 
 function initialize() {
     initializeEventListeners();
@@ -258,14 +171,14 @@ function initialize() {
 
     let wireColors = ['#FF0000', '#00FF00', '#FF0000', '#00FF00', '#00FF00', '#FF0000', '#00FF00', '#FF0000' ]; 
 
-    let network = new Network(8);
+    let network16 = new Network(16);
     let defaultNetworkDrawSettings = {
-        squareLength: 40, 
+        squareLength: 20, 
         wireLength: 1600, 
         squareOffset: 20, 
         squareBorderColor: '#000000', 
-        wireColor: wireColors, 
-        wireWidth: 40, 
+        wireColor: '#000000', 
+        wireWidth: 3, 
         circleRadius: 10, 
         arrowColor: '#000000',
         tipLength: 20, 
@@ -273,13 +186,9 @@ function initialize() {
         fontSize: 60,
         drawBox: false
     };
-    let networkFrame = new NetworkFrame(network, defaultNetworkDrawSettings);
+    let networkFrame = new NetworkFrame(network16, defaultNetworkDrawSettings);
 
-    let exampleNetwork = new Network(16);
-    let exampleNetworkDrawSettings = {squareLength: 0, wireLength: 1600, squareOffset: 35, squareBorderColor: '#FFFFFF', lineWidth: 4, circleRadius: 5, tipLength: 10, tipWidth: 7, drawBox: false};
-    let exampleNetworkFrame = new NetworkFrame(exampleNetwork, exampleNetworkDrawSettings, false);
-
-    bitonicSort(0, 16, DESCENDING, exampleNetwork, 0.05);
+    
 
     let overlayFrame = {
         draw: function(ctx) {
