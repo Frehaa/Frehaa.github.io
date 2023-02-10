@@ -9,6 +9,14 @@ class Network {
             this.values.push(null);
         }
         this.compareAndSwaps = new LinkedList();
+        this.casById = {};
+        this.casByStartWire = []
+        this.casByEndWire = []
+        for (let i = 0; i < this.size; i++) {
+            this.casByStartWire.push([]);
+            this.casByEndWire.push([]);
+            
+        }
     }
     set(i, value) {
         this.values[i] = value;
@@ -19,15 +27,21 @@ class Network {
     addCompareAndSwap(position, i, j) {
         let value = {
             position,
+            i,
+            j,
             cas: (vals) => {
-                if (vals[j] < vals[i]) {
-                    let tmp = vals[i];
-                    vals[i] = vals[j];
-                    vals[j] = tmp;
+                if (vals[this.j] < vals[this.i]) {
+                    let tmp = vals[this.i];
+                    vals[this.i] = vals[this.j];
+                    vals[this.j] = tmp;
                 };
             }
         };
         let id = this.compareAndSwaps.insertBeforePredicate(value, n => n.position > position);
+        value.id = id;
+        this.casById[id] = value;
+        this.casByStartWire[i].push(value);
+        this.casByEndWire[j].push(value);
         this.callbacks.forEach(c => c(id, position, i, j));
     }
     *getCompareAndSwaps() {
