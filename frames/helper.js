@@ -7,16 +7,16 @@ function combineFrames(f1, f2) {
             f2.draw(ctx);
         }, 
         mouseMove: function() {
-            if (f1.mouseMove) f1.mouseMove();
-            if (f2.mouseMove) f2.mouseMove();
+            if (f1.mouseMove && f1.isInteractable) f1.mouseMove();
+            if (f2.mouseMove && f2.isInteractable) f2.mouseMove();
         }, 
         mouseDown: function() {
-            if (f1.mouseDown) f1.mouseDown();
-            if (f2.mouseDown) f2.mouseDown();
+            if (f1.mouseDown && f1.isInteractable) f1.mouseDown();
+            if (f2.mouseDown && f2.isInteractable) f2.mouseDown();
         }, 
         mouseUp: function() {
-            if (f1.mouseUp) f1.mouseUp();
-            if (f2.mouseUp) f2.mouseUp();
+            if (f1.mouseUp && f1.isInteractable) f1.mouseUp();
+            if (f2.mouseUp && f2.isInteractable) f2.mouseUp();
 
         }, 
         frameEnd: function() {
@@ -27,6 +27,7 @@ function combineFrames(f1, f2) {
         frameStart: function() {
             if (f1.frameStart) f1.frameStart();
             if (f2.frameStart) f2.frameStart();
-        }
+        },
+        isInteractable: true
     }
 }
