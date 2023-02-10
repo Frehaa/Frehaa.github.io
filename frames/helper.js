@@ -1,32 +1,36 @@
-function combineFrames(f1, f2) {
+function combineFrames(...frames) {
     return {
         draw: function(ctx) {
-            ctx.save()
-            f1.draw(ctx);
-            ctx.restore()
-            f2.draw(ctx);
+            frames.forEach(f => {
+                ctx.save()
+                f.draw(ctx);
+                ctx.restore()
+            });
         }, 
         mouseMove: function() {
-            if (f1.mouseMove && f1.isInteractable) f1.mouseMove();
-            if (f2.mouseMove && f2.isInteractable) f2.mouseMove();
+            frames.forEach(f => {
+                if (f.mouseMove && f.isInteractable) f.mouseMove();
+            });
         }, 
         mouseDown: function() {
-            if (f1.mouseDown && f1.isInteractable) f1.mouseDown();
-            if (f2.mouseDown && f2.isInteractable) f2.mouseDown();
+            frames.forEach(f => {
+                if (f.mouseDown && f.isInteractable) f.mouseDown();
+            });
         }, 
         mouseUp: function() {
-            if (f1.mouseUp && f1.isInteractable) f1.mouseUp();
-            if (f2.mouseUp && f2.isInteractable) f2.mouseUp();
-
+            frames.forEach(f => {
+                if (f.mouseUp && f.isInteractable) f.mouseUp();
+            });
         }, 
         frameEnd: function() {
-            if (f1.frameEnd) f1.frameEnd();
-            if (f2.frameEnd) f2.frameEnd();
-
+            frames.forEach(f => {
+                if (f.frameEnd) f.frameEnd();
+            });
         }, 
         frameStart: function() {
-            if (f1.frameStart) f1.frameStart();
-            if (f2.frameStart) f2.frameStart();
+            frames.forEach(f => {
+                if (f.frameStart) f.frameStart();
+            });
         },
         isInteractable: true
     }
