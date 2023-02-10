@@ -1,4 +1,4 @@
-// TODO: Implement 0-1 based slider
+// NOTE THAT IT ONLY WORKS FOR k <= m
 class BitonicSliderFrame {
     constructor(drawSettings, isInteractable = true) {
         this.drawSettings = {
@@ -20,6 +20,10 @@ class BitonicSliderFrame {
     draw(ctx) {
         ctx.save()
         ctx.lineWidth = this.drawSettings.lineWidth;
+
+        let k = document.getElementById('range-input-k').value / document.getElementById('range-input-k').max;
+        let m = document.getElementById('range-input-m').value / document.getElementById('range-input-m').max;
+        if (k > m ) return
 
         this.drawSimple(ctx);
         this.draw2half(ctx);
