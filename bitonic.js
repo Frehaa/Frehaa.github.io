@@ -10,6 +10,10 @@ var mousePosition = {x:0, y: 0};
 let frames = [];
 let currentFrameIdx = 0;
 
+function rgba(r, g, b, a) {
+    return { r, g, b, a };
+}
+
 function draw() {
     let canvas = document.getElementById('canvas');
     let ctx = canvas.getContext('2d');
@@ -164,17 +168,23 @@ class TextBoxOverlay {
         let height = this.drawSettings.height; 
         let word = this.text; 
         let combinedTextHeight = textHeight * word.length;
+        let drawVertical = this.drawSettings.drawVertical;
         ctx.font = `${textHeight}px ${font}`
 
         let measure = ctx.measureText(word[0]);
         ctx.lineWidth = this.drawSettings.strokeWidth;
         ctx.clearRect(x, y, width, height);
         ctx.strokeRect(x, y, width, height);
-        for (let i = 0; i < word.length; i++) {
-            let centerX = x + width / 2 - measure.width / 2;
-            let centerY = y + (height - combinedTextHeight) / 2;
-            ctx.fillText(word[i], centerX, centerY + textHeight * i + measure.actualBoundingBoxAscent)    
+        if (drawVertical) {
+            for (let i = 0; i < word.length; i++) {
+                let centerX = x + width / 2 - measure.width / 2;
+                let centerY = y + (height - combinedTextHeight) / 2;
+                ctx.fillText(word[i], centerX, centerY + textHeight * i + measure.actualBoundingBoxAscent)    
+            }
+        } else {
+            ctx.fillText(word, x, y);
         }
+
     }
 
     mouseMove() {}
@@ -185,28 +195,114 @@ class TextBoxOverlay {
     keyUp() {}
 }
 
-
-function rgba(r, g, b, a) {
-    return { r, g, b, a };
-}
-
 function initialize() {
     initializeEventListeners();
-    let bitonicDrawSettings = {
-            marginX: 50, 
-            marginY: 50,
-            width: 1600,
-            height: 50,
-            innerColor: 'rgba(255, 0, 0, 0.7)', // `#FF0000`,
-            outColor: 'rgba(0, 255, 0, 0.7)', // `#00FF00`,
-            borderColor: `#000000`,
-            inOutSeperatorColor: 'rgba(255, 0, 0, 0.2)', // `#777777`,
-            borderColor: '#000000',
-            lineWidth: 3,
-            offset: 100,
+    let canvas = document.getElementById('canvas');
+    let ctx = canvas.getContext('2d');
+
+    // TITLE 
+    frames.push(combineFrames({
+        draw: function(ctx) {
+            ctx.font = '60px Arial';
+            ctx.lineWidth = 3;
+            let text = "Sorting Networks and Bitonic Merge Sort";
+            let measure = ctx.measureText(text);
+            let x = canvas.width / 2 - measure.width / 2;
+            ctx.fillText(text, x, 100);
+        }
+    }));
+
+    // BIT OF PRACTICAL INFORMATION
+    frames.push(combineFrames({
+        draw: function(ctx) {
+            ctx.font = '60px Arial';
+            ctx.lineWidth = 3;
+            let text = "Practical information (PhD, feedback therefore recording, \
+                student participation, can cut out if need)";
+            let measure = ctx.measureText(text);
+            let x = canvas.width / 2 - measure.width / 2;
+            ctx.fillText(text, x, 100);
+        }
+    }));
+
+    // WIKIPEDIA NETWORK
+    let wikiNetwork = new Network(16);
+    let wikiNetworkDrawSettings = {
+        marginX: 65,
+        marginY: 50,
+        squareLength: 0, 
+        squareOffset: 35, 
+        wireLength: canvas.width - 200,
+        squareBorderColor: '#FFFFFF', 
+        lineWidth: 4, 
+        circleRadius: 5, 
+        tipLength: 10, 
+        tipWidth: 7, 
+        drawBox: false
     };
-    let bitonicSliderFrame = new BitonicSliderFrame(bitonicDrawSettings);
-    frames.push(bitonicSliderFrame);
+    let wikiNetworkFrame = new NetworkFrame(wikiNetwork, wikiNetworkDrawSettings, false);
+    bitonicSort(0, 16, DESCENDING, wikiNetwork, 0.05);
+    frames.push(wikiNetworkFrame);
+
+    // I show them how it works 1
+    // let tinyExampleNetwork = new Network(3);
+    // tinyExampleNetwork.values[0] = 2
+    // tinyExampleNetwork.values[1] = 3
+    // tinyExampleNetwork.values[2] = 1
+    // let tinyExampleNetworkFrame = new NetworkFrame(tinyExampleNetwork, {
+    //     marginX: 40,
+    //     marginY: 50,
+    //     squareLength: 100, 
+    //     squareOffset: 35, 
+    //     wireLength: canvas.width - 300,
+    //     squareBorderColor: '#000000', 
+    //     lineWidth: 10, 
+    //     circleRadius: 10, 
+    //     tipLength: 20, 
+    //     tipWidth: 15, 
+    //     drawBox: true
+
+    // }, true);
+
+    // currentFrameIdx = frames.length
+    // frames.push(tinyExampleNetworkFrame);
+
+    // Let them do it
+    let selfExampleNetwork = new Network(6);
+    let selfExampleNetworkFrame = new NetworkFrame(selfExampleNetwork, {
+        marginX: 40,
+        marginY: 50,
+        squareLength: 100, 
+        squareOffset: 35, 
+        wireLength: canvas.width - 300,
+        squareBorderColor: '#000000', 
+        lineWidth: 10, 
+        circleRadius: 10, 
+        tipLength: 20, 
+        tipWidth: 15, 
+        drawBox: true
+
+    }, true);
+
+    currentFrameIdx = frames.length
+    frames.push(selfExampleNetworkFrame);
+
+
+    // let bitonicDrawSettings = {
+    //         marginX: 50, 
+    //         marginY: 50,
+    //         width: 1600,
+    //         height: 50,
+    //         innerColor: 'rgba(255, 0, 0, 0.7)', // `#FF0000`,
+    //         outColor: 'rgba(0, 255, 0, 0.7)', // `#00FF00`,
+    //         borderColor: `#000000`,
+    //         inOutSeperatorColor: 'rgba(255, 0, 0, 0.2)', // `#777777`,
+    //         borderColor: '#000000',
+    //         lineWidth: 3,
+    //         offset: 100,
+    // };
+    // let bitonicSliderFrame = new BitonicSliderFrame(bitonicDrawSettings);
+    // frames.push(bitonicSliderFrame);
 
     let boxplotDrawSettings = {
         marginX: 50,
@@ -255,8 +351,6 @@ function initialize() {
     // frames.push(c);
     // frames.push(boxplotFrame1);
 
-    // let canvas = document.getElementById('canvas');
-    // let ctx = canvas.getContext('2d');
     // ctx.scale(2, 2);
 
     let wireColors = ['#FF0000', '#00FF00', '#FF0000', '#00FF00', '#00FF00', '#FF0000', '#00FF00', '#FF0000' ]; 
@@ -351,7 +445,8 @@ function initialize() {
         height: canvas.height - 80,
         fontSize: 40,
         font: "Arial",
-        strokeWidth: 3
+        strokeWidth: 3,
+        drawVertical: true
     });
 
     let networkMergeFrame1 = combineFrames(bothoverlay, mergeBoxOverlay1);
@@ -363,7 +458,8 @@ function initialize() {
         height: (canvas.height - 80) / 2,
         fontSize: 30,
         font: "Arial",
-        strokeWidth: 3
+        strokeWidth: 3,
+        drawVertical: true
     });
 
     let networkMergeFrame2 = combineFrames(networkMergeFrame1, mergeBoxOverlay2)
@@ -375,7 +471,8 @@ function initialize() {
         height: (canvas.height - 80) / 4,
         fontSize: 20,
         font: "Arial",
-        strokeWidth: 3
+        strokeWidth: 3,
+        drawVertical: true
     });
 
     let networkMergeFrame3 = combineFrames(networkMergeFrame2, mergeBoxOverlay3)
@@ -505,7 +602,8 @@ function initialize() {
         height: (canvas.height - 100) / 2,
         fontSize: 40,
         font: "Arial",
-        strokeWidth: 3
+        strokeWidth: 3,
+        drawVertical: true
     });
     let sortBoxOverlay2 = new TextBoxOverlay("↑SORT", {
         position: {x: canvas.width / 2 - 250, y: canvas.height / 2 - 40 + 5},
@@ -513,7 +611,8 @@ function initialize() {
         height: (canvas.height - 100) / 2 + 5,
         fontSize: 40,
         font: "Arial",
-        strokeWidth: 3
+        strokeWidth: 3,
+        drawVertical: true
     });
     let waawframe = combineFrames(cleanNetworkFrame, sortBoxOverlay1, sortBoxOverlay2, mergeBoxOverlay1);
     frames.push(waawframe);
@@ -524,7 +623,8 @@ function initialize() {
         height: (canvas.height - 80) / 2,
         fontSize: 40,
         font: "Arial",
-        strokeWidth: 3
+        strokeWidth: 3,
+        drawVertical: true
     });
 
     let mergeBoxOverlay4 = new TextBoxOverlay("MERGE", {
@@ -533,7 +633,8 @@ function initialize() {
         height: (canvas.height - 80) / 2,
         fontSize: 40,
         font: "Arial",
-        strokeWidth: 3
+        strokeWidth: 3,
+        drawVertical: true
     });
 
     // currentFrameIdx = frames.length
