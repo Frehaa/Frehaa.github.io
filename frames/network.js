@@ -30,10 +30,10 @@ class Network {
             i,
             j,
             cas: (vals) => {
-                if (vals[this.j] < vals[this.i]) {
-                    let tmp = vals[this.i];
-                    vals[this.i] = vals[this.j];
-                    vals[this.j] = tmp;
+                if (vals[value.j] < vals[value.i]) {
+                    let tmp = vals[value.i];
+                    vals[value.i] = vals[value.j];
+                    vals[value.j] = tmp;
                 };
             }
         };
@@ -305,7 +305,7 @@ class NetworkFrame {
 
 const ASCENDING = true;
 const DESCENDING = false;
-var space = 0.02;
+var space = 0.01;
 
 function bitonicSort(start, n, direction, network, pos) {
     if (n == 1) return pos;
@@ -336,11 +336,5 @@ function addCas(i, j, direction, network, pos) {
     } else {
         network.addCompareAndSwap(pos, j, i);
     }
-    
 }
 
-
-// let exampleNetwork = new Network(16);
-// let exampleNetworkDrawSettings = {squareLength: 0, wireLength: 1600, squareOffset: 35, squareBorderColor: '#FFFFFF', lineWidth: 4, circleRadius: 5, tipLength: 10, tipWidth: 7, drawBox: false};
-// let exampleNetworkFrame = new NetworkFrame(exampleNetwork, exampleNetworkDrawSettings, false);
-// bitonicSort(0, 16, DESCENDING, exampleNetwork, 0.05);
