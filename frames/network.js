@@ -305,7 +305,6 @@ class NetworkFrame {
 
 const ASCENDING = true;
 const DESCENDING = false;
-var space = 0.01;
 
 function bitonicSort(start, n, direction, network, pos) {
     if (n == 1) return pos;
@@ -318,6 +317,9 @@ function bitonicSort(start, n, direction, network, pos) {
 
 function bitonicMerge(start, n, direction, network, pos) {
     if (n == 1) return;
+    let canv = document.getElementById('canvas');
+    var space = 0.02; // This value is good for n = 16
+    // var space = canv.width / 96000; //0.02; //canv.width / 1000;
 
     let m = n / 2;
     for (let i = start; i < start + m; i++) {
@@ -327,7 +329,7 @@ function bitonicMerge(start, n, direction, network, pos) {
     bitonicMerge(start, m, direction, network, pos + space * m + space);
     bitonicMerge(start + m, m, direction, network, pos + space * m + space);
 
-    return pos + space * n + space * 5;
+    return pos + space * n + space *5;
 }
 
 function addCas(i, j, direction, network, pos) {

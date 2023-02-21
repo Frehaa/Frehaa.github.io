@@ -7,8 +7,9 @@ class BoxplotFrame {
 
         let copy = values.slice();
         copy.sort((a, b) => a > b);
-        this.lowerHalf = copy.slice(0, this.values.length / 2 - 1);
-        this.upperHalf = copy.slice(this.values.length / 2);
+        let mid = this.values.length / 2;
+        this.lowerHalf = copy.slice(0, mid);
+        this.upperHalf = copy.slice(mid);
     }
 
     draw(ctx) {
@@ -60,6 +61,10 @@ class BoxplotFrame {
     }
 
     colorBox(i, t, ctx) {
+        if (this.drawSettings.color) {
+            this.drawSettings.color(i, this.values, ctx);
+            return;
+        }
         let start = this.drawSettings.startColor;
         let end = this.drawSettings.endColor;
         if (false) {
@@ -70,9 +75,13 @@ class BoxplotFrame {
         } else {
             let v = this.values[i];
             if (this.lowerHalf.findIndex(w => w == v) >= 0) {
-                ctx.fillStyle = '#00FF00'; 
+                let {r,g,b,a} = this.drawSettings.startColor;
+                ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
+                // ctx.fillStyle = '#00FF00'; 
             } else {
-                ctx.fillStyle = '#FF0000'; 
+                let {r,g,b,a} = this.drawSettings.endColor;
+                ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
+                // ctx.fillStyle =  '#FF0000'; 
             }
         }
     }

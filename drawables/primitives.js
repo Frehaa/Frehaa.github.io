@@ -70,6 +70,24 @@ function drawVerticalArrow(x, y, length, tipLength, tipWidth, ctx) {
     ctx.fill();
 }
 
+function drawHorizontalArrow(x, y, length, tipLength, tipWidth, ctx) {
+    let directionX = Math.sign(length);
+    let arrowEndX = x + length;
+    let arrowTipStartX = arrowEndX - tipLength * directionX;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(arrowTipStartX, y);
+    ctx.stroke();
+
+    // Arrow tip
+    ctx.beginPath();
+    ctx.moveTo(arrowEndX, y);
+    ctx.lineTo(arrowTipStartX, y + tipWidth);
+    ctx.lineTo(arrowTipStartX, y - tipWidth);
+    ctx.closePath();
+    ctx.fill();
+}
+
 function verticalArrow(x, y, length, tipLength = 15, tipWidth = 10) {
     let r = {
         x,

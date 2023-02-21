@@ -195,86 +195,87 @@ class TextBoxOverlay {
     keyUp() {}
 }
 
+function fillTextCenter(text, y, ctx) {
+    let canvas = ctx.canvas;
+    let measure = ctx.measureText(text);
+    let x = canvas.width / 2 - measure.width / 2;
+    ctx.fillText(text, x, y);
+}
+
 function initialize() {
     initializeEventListeners();
     let canvas = document.getElementById('canvas');
     let ctx = canvas.getContext('2d');
+    let w = canvas.width;
+    let h = canvas.height;
 
     // TITLE 
-    frames.push(combineFrames({
-        draw: function(ctx) {
-            ctx.font = '60px Arial';
-            ctx.lineWidth = 3;
-            let text = "Sorting Networks and Bitonic Merge Sort";
-            let measure = ctx.measureText(text);
-            let x = canvas.width / 2 - measure.width / 2;
-            ctx.fillText(text, x, 100);
-        }
-    }));
-
-    // BIT OF PRACTICAL INFORMATION
-    frames.push(combineFrames({
-        draw: function(ctx) {
-            ctx.font = '60px Arial';
-            ctx.lineWidth = 3;
-            let text = "Practical information (PhD, feedback therefore recording, \
-                student participation, can cut out if need)";
-            let measure = ctx.measureText(text);
-            let x = canvas.width / 2 - measure.width / 2;
-            ctx.fillText(text, x, 100);
-        }
-    }));
-
     // WIKIPEDIA NETWORK
     let wikiNetwork = new Network(16);
     let wikiNetworkDrawSettings = {
-        marginX: 65,
-        marginY: 50,
+        marginX: w * 0.03,
+        marginY: h * 0.18,
         squareLength: 0, 
-        squareOffset: 35, 
-        wireLength: canvas.width - 200,
+        squareOffset: h / 22, 
+        wireLength: w - (2 * h / 20 + w * 0.06),
         squareBorderColor: '#FFFFFF', 
-        lineWidth: 4, 
-        circleRadius: 5, 
-        tipLength: 10, 
-        tipWidth: 7, 
+        lineWidth: h / 175, 
+        circleRadius: h / 110, 
+        tipLength: h / 50, 
+        tipWidth: h / 90, 
         drawBox: false
     };
+    // currentFrameIdx = frames.length
     let wikiNetworkFrame = new NetworkFrame(wikiNetwork, wikiNetworkDrawSettings, false);
-    bitonicSort(0, 16, DESCENDING, wikiNetwork, 0.05);
-    frames.push(wikiNetworkFrame);
+    bitonicSort(0, 16, DESCENDING, wikiNetwork, 0.04);
 
-    // I show them how it works 1
-    // let tinyExampleNetwork = new Network(3);
-    // tinyExampleNetwork.values[0] = 2
-    // tinyExampleNetwork.values[1] = 3
-    // tinyExampleNetwork.values[2] = 1
-    // let tinyExampleNetworkFrame = new NetworkFrame(tinyExampleNetwork, {
-    //     marginX: 40,
-    //     marginY: 50,
-    //     squareLength: 100, 
-    //     squareOffset: 35, 
-    //     wireLength: canvas.width - 300,
-    //     squareBorderColor: '#000000', 
-    //     lineWidth: 10, 
-    //     circleRadius: 10, 
-    //     tipLength: 20, 
-    //     tipWidth: 15, 
-    //     drawBox: true
-
-    // }, true);
+    frames.push(combineFrames(wikiNetworkFrame, {
+        draw: function(ctx) {
+            ctx.font = '80px Arial';
+            ctx.lineWidth = 3;
+            let text = "Sorting Networks and Bitonic Merge Sort";
+            fillTextCenter(text, 100, ctx);
+        }
+    }));
 
     // currentFrameIdx = frames.length
-    // frames.push(tinyExampleNetworkFrame);
+    // BIT OF PRACTICAL INFORMATION
+    frames.push(combineFrames({
+        draw: function(ctx) {
+            ctx.font = '80px Arial';
+            ctx.lineWidth = 3;
+            let text = "Practical information (PhD, feedback therefore recording, \
+                student participation, can cut out if need)";
 
-    // Let them do it
-    let selfExampleNetwork = new Network(6);
-    let selfExampleNetworkFrame = new NetworkFrame(selfExampleNetwork, {
-        marginX: 40,
-        marginY: 50,
-        squareLength: 100, 
-        squareOffset: 35, 
-        wireLength: canvas.width - 300,
+            fillTextCenter('Practical Information', 100, ctx);
+
+            ctx.font = '60px Arial';
+            let bullets = [
+                '• PhD student                      ',
+                '• Recording                         ',
+                '• Participation                     '
+            ];
+            for (let i = 0; i < bullets.length; i++) {
+                const bullet = bullets[i];
+                ctx.fillText(bullet, 100, 200 + 100 * i);
+                
+            }
+        }
+    }));
+
+
+
+    // I show them how it works 1
+    let tinyExampleNetwork = new Network(3);
+    tinyExampleNetwork.values[0] = 2
+    tinyExampleNetwork.values[1] = 3
+    tinyExampleNetwork.values[2] = 1
+    let tinyExampleNetworkFrame = new NetworkFrame(tinyExampleNetwork, {
+        marginX: w * 0.03,
+        marginY: h * 0.1,
+        squareLength: w * 0.05, 
+        squareOffset: w * 0.02, 
+        wireLength: w * 0.8,
         squareBorderColor: '#000000', 
         lineWidth: 10, 
         circleRadius: 10, 
@@ -283,10 +284,50 @@ function initialize() {
         drawBox: true
 
     }, true);
+    // currentFrameIdx = frames.length;
 
-    currentFrameIdx = frames.length
+    frames.push(tinyExampleNetworkFrame);
+
+
+    // Let them do it
+    let selfExampleNetwork = new Network(5);
+    let selfExampleNetworkFrame = new NetworkFrame(selfExampleNetwork, {
+        marginX: h / 20,
+        marginY: h / 20,
+        squareLength: h / 7, 
+        squareOffset: w / 100, 
+        wireLength: w - (2 * w / 100 + 2 * h / 7 + 2 * h / 20),
+        squareBorderColor: '#000000', 
+        lineWidth: h / 100, 
+        circleRadius: h / 100, 
+        tipLength: h / 50, 
+        tipWidth: w / 200,
+        // strokeWidth: ???, // TODO: The square width is not customizable
+        drawBox: true
+
+    }, true);
+    // currentFrameIdx = frames.length
     frames.push(selfExampleNetworkFrame);
 
+    // Bubble sort
+    let bubbleExampleNetwork = new Network(6);
+    let bubbleExampleNetworkFrame = new NetworkFrame(bubbleExampleNetwork, {
+        marginX: h / 20,
+        marginY: h / 20,
+        squareLength: h / 9, 
+        squareOffset: w / 100, 
+        wireLength: w - (2 * w / 100 + 2 * h / 9 + 2 * h / 20),
+        squareBorderColor: '#000000', 
+        lineWidth: h / 100, 
+        circleRadius: h / 100, 
+        tipLength: h / 50, 
+        tipWidth: w / 200,
+        // strokeWidth: ???, // TODO: The square width is not customizable
+        drawBox: false
+
+    }, true);
+    // currentFrameIdx = frames.length
+    frames.push(bubbleExampleNetworkFrame);
 
     // let bitonicDrawSettings = {
     //         marginX: 50, 
@@ -304,134 +345,107 @@ function initialize() {
     // let bitonicSliderFrame = new BitonicSliderFrame(bitonicDrawSettings);
     // frames.push(bitonicSliderFrame);
 
-    let boxplotDrawSettings = {
-        marginX: 50,
-        marginY: 50,
-        height: 500,
-        width: 600,
-        boxOffset: 1,
-        startColor: {
-            r: 0.1,
-            g: 0.3,
-            b: 0.1,
-        },
-        endColor: {
-            r: 0.1,
-            g: 0.8,
-            b: 0.1,
-        },
-        drawHorizontal: false
-    };
-    
-    let values = [19, 13, 17, 12, 3, 1, 8, 9, 18, 16, 2, 15, 14, 6, 5, 7, 10, 11, 4, 20]; 
-    // values.sort((a, b) => a > b)
-    // console.log(values)
-    // let values = [5, 3, 6, 1, 4, 2]
-
-    let values1 = values.slice(0, 9);
-    let values2 = values.slice(10, 19);
-    
-
-    values1.sort((a, b) => a > b)
-    // values2.sort((a, b) => a < b)
-    values2.sort((a, b) => a > b)
-    
-    let values3 = values1.concat(values2);
-
-
-    let boxplotFrame1 = new BoxplotFrame(values, boxplotDrawSettings);
-    let c = combineFrames(boxplotFrame1, {draw: function(ctx) {
-        ctx.lineWidth = 3
-        for (let i = 0; i < values.length; i++) {
-
-            drawVerticalArrow(10 * i, 10 * i, 50, 20, 10, ctx);
-        }
-
-    }});
-    // frames.push(c);
-    // frames.push(boxplotFrame1);
-
     // ctx.scale(2, 2);
 
     let wireColors = ['#FF0000', '#00FF00', '#FF0000', '#00FF00', '#00FF00', '#FF0000', '#00FF00', '#FF0000' ]; 
 
     let network16 = new Network(16);
     let defaultNetworkDrawSettings = {
-        marginX: 0,
-        marginY: 0,
-        squareLength: 20, 
-        wireLength: canvas.width - 2 * 40, 
-        squareOffset: 20, 
-        squareBorderColor: '#000000', 
-        wireColor: '#000000', 
-        wireWidth: 3, 
-        circleRadius: 10, 
-        arrowColor: '#000000',
-        tipLength: 20, 
-        tipWidth: 14, 
-        fontSize: 60,
-        drawBox: false,
+        marginX: w * 0.03,
+        marginY: h * 0.08,
+        squareLength: h / 40, 
+        squareOffset: h / 40, 
+        wireLength: w - (2 * h / 20 + w * 0.06),
+        squareBorderColor: '#FFFFFF', 
+        lineWidth: h / 175, 
+        circleRadius: h / 110, 
+        tipLength: h / 50, 
+        tipWidth: h / 90, 
+        drawBox: false
+        // marginX: 0,
+        // marginY: 0,
+        // squareLength: 0, 
+        // wireLength: w , 
+        // squareOffset: h / 20, 
+        // squareBorderColor: '#000000', 
+        // wireColor: '#000000', 
+        // wireWidth: 3, 
+        // circleRadius: 10, 
+        // arrowColor: '#000000',
+        // tipLength: 20, 
+        // tipWidth: 14, 
+        // fontSize: 60,
+        // drawBox: false,
     };
     let networkFrame = new NetworkFrame(network16, defaultNetworkDrawSettings, true);
 
     let cleanNetworkFrame = new NetworkFrame(new Network(16), defaultNetworkDrawSettings, false);
 
     let greenOverlayFrame = new OverlayFrame({
-        position: {x: canvas.width / 2, y: 2},
-        width: canvas.width / 2 - 40 + 2,
-        height: canvas.height / 2 - 40 - 4,
+        position: {x: w / 2, y: networkFrame.drawSettings.marginY},
+        width: w * 0.45,
+        height: 8 * (networkFrame.drawSettings.squareLength + networkFrame.drawSettings.squareOffset) - 
+                networkFrame.drawSettings.squareOffset,
         strokeColor: rgba(0, 1, 0, 0.5),
         fillColor: rgba(0, 1, 0, 0.5),
     });
 
     let redOverlayFrame = new OverlayFrame({
-        position: {x: canvas.width / 2, y: canvas.height / 2 - 40 + 2},
-        width: canvas.width / 2 - 40 + 2,
-        height: canvas.height / 2 - 40 - 2,
+        position: {x: w / 2, y: networkFrame.drawSettings.marginY + 8.5 * (networkFrame.drawSettings.squareLength + networkFrame.drawSettings.squareOffset) - 
+                networkFrame.drawSettings.squareOffset},
+        width: w * 0.45,
+        height: 8 * (networkFrame.drawSettings.squareLength + networkFrame.drawSettings.squareOffset) - 
+                networkFrame.drawSettings.squareOffset,
         strokeColor: rgba(1, 0, 0, 0.5),
         fillColor: rgba(1, 0, 0, 0.5),
     });
 
-    let greenWireOverlayFrames = []
-    for (let i = 0; i < networkFrame.network.size; i++) {
-        let y = networkFrame.drawSettings.marginY +
-                (networkFrame.drawSettings.squareLength +
-                    networkFrame.drawSettings.squareOffset) * i
-        let frame = new OverlayFrame({
-            position: {x: 40, y },
+    function createWireOverlay(i, drawSettings, color) {
+        let y = drawSettings.marginY +
+                (drawSettings.squareLength +
+                    drawSettings.squareOffset) * i
+        let x = drawSettings.marginX + 
+                    drawSettings.squareOffset +
+                    drawSettings.squareLength;
+        return new OverlayFrame({
+            position: {x, y },
             width: networkFrame.drawSettings.wireLength,
             height: networkFrame.drawSettings.squareLength,
-            strokeColor: rgba(0, 1, 0, 0.5),
-            fillColor: rgba(0, 1, 0, 0.5),
+            strokeColor: color,
+            fillColor: color
         });
-        greenWireOverlayFrames.push(frame)
     }
+
+    let greenWireOverlayFrames = []
     let redWireOverlayFrames = []
     for (let i = 0; i < networkFrame.network.size; i++) {
-        let y = networkFrame.drawSettings.marginY +
-                (networkFrame.drawSettings.squareLength +
-                    networkFrame.drawSettings.squareOffset) * i
-        let frame = new OverlayFrame({
-            position: {x: 40, y },
-            width: networkFrame.drawSettings.wireLength,
-            height: networkFrame.drawSettings.squareLength,
-            strokeColor: rgba(1, 0, 0, 0.5),
-            fillColor: rgba(1, 0, 0, 0.5),
-        });
-        redWireOverlayFrames.push(frame)
+        let gframe = createWireOverlay(i, networkFrame.drawSettings, rgba(0, 1, 0, 0.5));
+        let rframe = createWireOverlay(i, networkFrame.drawSettings, rgba(1, 0, 0, 0.5));
+        greenWireOverlayFrames.push(gframe)
+        redWireOverlayFrames.push(rframe)
+    }
+
+    function drawDashLine(x1, y1, x2, y2, dash, ctx) {
+        ctx.beginPath();
+        ctx.setLineDash(dash);
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
     }
 
     let dashedLine = {
         draw: function(ctx) {
-            let y = canvas.height / 2 - 40;
-            ctx.beginPath();
-            ctx.setLineDash([10, 10]);
-            ctx.moveTo(20, y);
-            ctx.lineTo(canvas.width - 20, y);
-            ctx.stroke();
+            let y = networkFrame.drawSettings.marginY + 
+                8 * (networkFrame.drawSettings.squareLength + networkFrame.drawSettings.squareOffset) -
+                networkFrame.drawSettings.squareOffset / 2 ;
+
+            ctx.lineWidth = 3
+            drawDashLine(networkFrame.drawSettings.marginX, y, w -
+            networkFrame.drawSettings.marginX, y, [10, 10], ctx);
         }
     }
     frames.push(networkFrame);
+
     let networkWidthWidthGreen = combineFrames(networkFrame, greenOverlayFrame);
     frames.push(networkWidthWidthGreen);
     let bothoverlay  = combineFrames(networkWidthWidthGreen, redOverlayFrame)
@@ -440,9 +454,9 @@ function initialize() {
 
     // Insert merge box overlay
     let mergeBoxOverlay1 = new TextBoxOverlay("MERGE", {
-        position: {x: canvas.width / 2, y: 2},
+        position: {x: w / 2, y: 2},
         width: 100,
-        height: canvas.height - 80,
+        height: h - 80,
         fontSize: 40,
         font: "Arial",
         strokeWidth: 3,
@@ -453,9 +467,9 @@ function initialize() {
     frames.push(networkMergeFrame1);
 
     let mergeBoxOverlay2 = new TextBoxOverlay("MERGE", {
-        position: {x: canvas.width / 2 + 150, y: 2},
+        position: {x: w / 2 + 150, y: 2},
         width: 70,
-        height: (canvas.height - 80) / 2,
+        height: (h - 80) / 2,
         fontSize: 30,
         font: "Arial",
         strokeWidth: 3,
@@ -466,9 +480,9 @@ function initialize() {
     frames.push(networkMergeFrame2);
 
     let mergeBoxOverlay3 = new TextBoxOverlay("MERGE", {
-        position: {x: canvas.width / 2 + 300, y: 2},
+        position: {x: w / 2 + 300, y: 2},
         width: 50,
-        height: (canvas.height - 80) / 4,
+        height: (h - 80) / 4,
         fontSize: 20,
         font: "Arial",
         strokeWidth: 3,
@@ -565,23 +579,71 @@ function initialize() {
 
 
     // currentFrameIdx = 17
+    let blueOverlayX = networkFrame.drawSettings.marginX +
+                        networkFrame.drawSettings.squareLength +
+                        networkFrame.drawSettings.squareOffset;
     let blueOverlayFrame = new OverlayFrame({
-        position: {x: 40, y: 2},
-        width: canvas.width / 2 - 40 + 2,
-        height: canvas.height / 2 - 40 - 2,
+        position: {x: blueOverlayX, y: networkFrame.drawSettings.marginY},
+        width: w * 0.4,
+        height: 8 * (networkFrame.drawSettings.squareLength + networkFrame.drawSettings.squareOffset) - networkFrame.drawSettings.squareOffset / 2,
         strokeColor: rgba(0, 0, 1, 0.5),
         fillColor: rgba(0, 0, 1, 0.5),
     });
+    currentFrameIdx = frames.length
     frames.push(combineFrames(blueOverlayFrame, bitonic2Frame));
 
     let blueOverlayFrame2 = new OverlayFrame({
-        position: {x: 40, y: canvas.height / 2 - 40 + 2},
-        width: canvas.width / 2 - 40 + 2,
-        height: canvas.height / 2 - 40 - 2,
+        position: {x: blueOverlayX, 
+            y: networkFrame.drawSettings.marginY + 8 *
+            (networkFrame.drawSettings.squareLength +
+            networkFrame.drawSettings.squareOffset) -
+            networkFrame.drawSettings.squareOffset / 2},
+        width: w * 0.4,
+        height: 8 * (networkFrame.drawSettings.squareLength + networkFrame.drawSettings.squareOffset) - networkFrame.drawSettings.squareOffset / 2,
         strokeColor: rgba(0, 0, 1, 0.5),
         fillColor: rgba(0, 0, 1, 0.5),
     });
     frames.push(combineFrames(blueOverlayFrame2, bitonic2Frame));
+
+    let whiteOverlayFrame = new OverlayFrame({
+        position: {x: blueOverlayX, y: networkFrame.drawSettings.marginY},
+        width: w * 0.4,
+        height: 8 * (networkFrame.drawSettings.squareLength + networkFrame.drawSettings.squareOffset) - 
+                networkFrame.drawSettings.squareOffset,
+        strokeColor: rgba(0, 0, 0, 1),
+        fillColor: rgba(1, 1, 1, 1),
+    });
+
+    frames.push(combineFrames(bitonic2Frame, whiteOverlayFrame, {
+        draw: function(ctx) {
+            ctx.font = '40px Arial';
+            ctx.fillText('Sort ASC', 300, 200);
+        }
+    }));
+
+    let whiteOverlayFrame2 = new OverlayFrame({
+        position: {x: blueOverlayX, 
+            y: networkFrame.drawSettings.marginY + 8 *
+            (networkFrame.drawSettings.squareLength +
+            networkFrame.drawSettings.squareOffset) -
+            networkFrame.drawSettings.squareOffset / 2 + 
+            networkFrame.drawSettings.squareOffset * 0.5
+         },
+        width: w * 0.4,
+        height: 8 * (networkFrame.drawSettings.squareLength + networkFrame.drawSettings.squareOffset) - networkFrame.drawSettings.squareOffset,
+        strokeColor: rgba(0, 0, 0, 1),
+        fillColor: rgba(1, 1, 1, 1),
+    });
+
+    frames.push(combineFrames(frames[frames.length-1], whiteOverlayFrame2, {
+        draw: function(ctx) {
+            ctx.font = '40px Arial';
+            ctx.fillText('Sort DESC', 300, h / 2 + 200);
+        }
+    }))
+    
+
+
 
     // frames.push(combineFrames(wireColoredFrame, networkFrame2));
     // frames.push(combineFrames(wireColoredFrame, networkFrame));
@@ -597,30 +659,30 @@ function initialize() {
     // currentFrameIdx = frames.length
     // Insert merge box overlay
     let sortBoxOverlay1 = new TextBoxOverlay("SORT↓", {
-        position: {x: canvas.width / 2 - 250, y: 5},
+        position: {x: w / 2 - 250, y: 5},
         width: 100,
-        height: (canvas.height - 100) / 2,
+        height: (h - 100) / 2,
         fontSize: 40,
         font: "Arial",
         strokeWidth: 3,
         drawVertical: true
     });
     let sortBoxOverlay2 = new TextBoxOverlay("↑SORT", {
-        position: {x: canvas.width / 2 - 250, y: canvas.height / 2 - 40 + 5},
+        position: {x: w / 2 - 250, y: h / 2 - 40 + 5},
         width: 100,
-        height: (canvas.height - 100) / 2 + 5,
+        height: (h - 100) / 2 + 5,
         fontSize: 40,
         font: "Arial",
         strokeWidth: 3,
         drawVertical: true
     });
     let waawframe = combineFrames(cleanNetworkFrame, sortBoxOverlay1, sortBoxOverlay2, mergeBoxOverlay1);
-    frames.push(waawframe);
+    // frames.push(waawframe);
 
     let questionBoxOverlay = new TextBoxOverlay("SORT?", {
-        position: {x: canvas.width / 2 + 200, y: 5},
+        position: {x: w / 2 + 200, y: 5},
         width: 100,
-        height: (canvas.height - 80) / 2,
+        height: (h - 80) / 2,
         fontSize: 40,
         font: "Arial",
         strokeWidth: 3,
@@ -628,23 +690,306 @@ function initialize() {
     });
 
     let mergeBoxOverlay4 = new TextBoxOverlay("MERGE", {
-        position: {x: canvas.width / 2 + 400, y: 5},
+        position: {x: w / 2 + 400, y: 5},
         width: 100,
-        height: (canvas.height - 80) / 2,
+        height: (h - 80) / 2,
         fontSize: 40,
         font: "Arial",
         strokeWidth: 3,
         drawVertical: true
     });
 
+    // frames.push(combineFrames(waawframe, questionBoxOverlay, mergeBoxOverlay4));
+
+    // frames.push(combineFrames({
+    //     draw: function(ctx) {
+
+    //     }
+    // }));
+
     // currentFrameIdx = frames.length
-    frames.push(combineFrames(waawframe, questionBoxOverlay, mergeBoxOverlay4));
+    
+    let values = [13, 12, 3, 1, 7, 9, 15, 2, 16, 14, 5, 6, 8, 10, 11, 4]; 
 
-    frames.push(combineFrames({
+    let values1 = values.slice(0, 8);
+    let values2 = values.slice(8, 16);
+
+
+    values1.sort((a, b) => a > b)
+    values2.sort((a, b) => a < b)
+    console.log(values1, values2)
+    // values2.sort((a, b) => a > b)
+    
+    let values3 = values1.concat(values2);
+    console.log(values.length, values3.length)
+
+    function drawCasBox(i, step, values, drawSettings, ctx) {
+        let max = Math.max(...values);
+        let leftX = drawSettings.marginX;
+        let topY = drawSettings.marginY;
+        let height = drawSettings.height;
+        let width = drawSettings.width;
+        let length = values.length;
+        let offset = drawSettings.boxOffset;
+
+        let boxWidth = (width / length) - offset;
+        
+        let x = leftX + (boxWidth + offset) * i +  boxWidth / 2;
+        let boxHeight = height * (values[i] / max)
+        let boxHeight2 = height * (values[i + step] / max)
+        let y = topY + height - (boxHeight / 2);
+        if (boxHeight > boxHeight2) {
+            y = topY + height - (boxHeight2 / 2);
+        } 
+        drawHorizontalArrow(x, y, (boxWidth + offset) * step, 10, 10, ctx)
+        ctx.strokeRect(leftX + (boxWidth + offset) * i, topY + height - boxHeight, boxWidth, boxHeight);
+        ctx.strokeRect(leftX + (boxWidth + offset) * (i + step), topY + height - boxHeight2, boxWidth, boxHeight2);
+    }
+
+    let boxPlotDrawSettings = {
+        marginX: w / 2 - w * 0.35,
+        marginY: 50,
+        height: 800,
+        width: w * 0.7,
+        boxOffset: 15,
+        startColor: rgba(0, 1, 0, 0.5),
+        endColor: rgba(1, 0, 0, 0.5),
+        drawHorizontal: false
+    };
+    values = values3
+    values = addCasFrames(0, values.length / 2, boxPlotDrawSettings, values)
+
+    // Boxed 4 biggest on left
+    let boxplotFrame = new BoxplotFrame(values, boxPlotDrawSettings);
+    let c = combineFrames(boxplotFrame, {
+        vals: values.slice(),
         draw: function(ctx) {
+            let values = this.vals;
+            ctx.lineWidth = 5
+            let max = Math.max(...values);
+            let leftX = boxPlotDrawSettings.marginX;
+            let topY = boxPlotDrawSettings.marginY;
+            let height = boxPlotDrawSettings.height;
+            let width = boxPlotDrawSettings.width;
+            let length = values.length;
+            let offset = boxPlotDrawSettings.boxOffset;
 
+            let boxWidth = (width / length) - offset;
+            
+            let boxHeight = height * (values[4] / max)
+            let boxHeight2 = height * (values[13] / max)
+            ctx.strokeRect(leftX - offset /2 + (boxWidth + offset) * 3, topY + height - boxHeight, 4 * (boxWidth + offset), boxHeight);
+            ctx.strokeRect(leftX - offset /2 + (boxWidth + offset) * 10, topY + height - boxHeight2, 4 * (boxWidth + offset), boxHeight2);
+            
+            let dashX = w / 2 - offset / 2;
+            drawDashLine(dashX, 30, dashX, 860, [10, 10], ctx);
+    }});
+    frames.push(c);
+
+
+    function addCasFrames(start, step, drawSettings, values) {
+        frames.push(new BoxplotFrame(values, drawSettings));
+        for (let i = start; i < start + step; ++i) {
+            values = values.slice();
+            if (values[i] > values[i + step]) {
+                let tmp = values[i];
+                values[i] = values[i + step];
+                values[i + step] = tmp;
+            }
+            let frame = new BoxplotFrame(values, drawSettings);
+            let c = combineFrames(frame, {
+                vals: values.slice(),
+                step,
+                draw: function(ctx) {
+                    let values = this.vals;
+                    ctx.lineWidth = 5
+                    drawCasBox(i, this.step, values, drawSettings, ctx);
+                
+                    let dashX = drawSettings.marginX - drawSettings.boxOffset / 2 + (drawSettings.width * (start + this.step) / values.length);
+                    drawDashLine(dashX, 30, dashX, 860, [10, 10], ctx);
+            }});
+            frames.push(c);
         }
-    }));
+        return values;
+    }
+
+    values = values.slice();
+    currentFrameIdx = frames.length-1
+
+    let lboxPlotDrawSettings = {
+        ...boxPlotDrawSettings,
+    };
+    // /// TODO RECURSIVELY SORT 
+    for (let j = 4; j >= 1; j /= 2) {
+        lboxPlotDrawSettings = {
+            ...boxPlotDrawSettings,
+            color: function(i, values, ctx) {
+                let c = rgba(0.2, 0.2, 0.2, 0.5);
+                if (i < 2 * j) {
+                    if (values[i] <= j) {
+                        c = rgba(0, 1, 0, 0.5);
+                    } else {
+                        c = rgba(1, 0, 0, 0.5);
+                    }
+                }             
+                let {r,g,b,a} = c;
+                ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
+            },
+        };
+        values = addCasFrames(0, j, lboxPlotDrawSettings, values);
+    }
+
+    // start == 2
+    let start = 2;
+    for (let j = 1; j >= 1; j /= 2) {
+        lboxPlotDrawSettings = {
+            ...lboxPlotDrawSettings,
+            color: function(i, values, ctx) {
+                let c = rgba(0.2, 0.2, 0.2, 0.5);
+                console.log(this)
+                if (i < this.start + 2 * j && i >= this.start) {
+                    if (values[i] <= this.start + j) {
+                        c = rgba(0, 1, 0, 0.5);
+                    } else {
+                        c = rgba(1, 0, 0, 0.5);
+                    }
+                }             
+                let {r,g,b,a} = c;
+                ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
+            }.bind({start}),
+        }
+        values = addCasFrames(start, j, lboxPlotDrawSettings, values);
+    }
+
+    start = 4;
+    for (let j = 2; j >= 1; j /= 2) {
+        lboxPlotDrawSettings = {
+            ...lboxPlotDrawSettings,
+            color: function(i, values, ctx) {
+                let c = rgba(0.2, 0.2, 0.2, 0.5);
+                if (i < this.start + 2 * j && i >= this.start) {
+                    if (values[i] <= this.start + j) {
+                        c = rgba(0, 1, 0, 0.5);
+                    } else {
+                        c = rgba(1, 0, 0, 0.5);
+                    }
+                }             
+                let {r,g,b,a} = c;
+                ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
+            }.bind({start}),
+        }
+        values = addCasFrames(start, j, lboxPlotDrawSettings, values);
+    }
+
+    start = 6;
+    for (let j = 1; j >= 1; j /= 2) {
+        lboxPlotDrawSettings = {
+            ...lboxPlotDrawSettings,
+            color: function(i, values, ctx) {
+                let c = rgba(0.2, 0.2, 0.2, 0.5);
+                if (i < this.start + 2 * j && i >= this.start) {
+                    if (values[i] <= this.start + j) {
+                        c = rgba(0, 1, 0, 0.5);
+                    } else {
+                        c = rgba(1, 0, 0, 0.5);
+                    }
+                }             
+                let {r,g,b,a} = c;
+                ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
+            }.bind({start}),
+        }
+        values = addCasFrames(start, j, lboxPlotDrawSettings, values);
+    }
+
+    start = 8;
+    for (let j = 4; j >= 1; j /= 2) {
+        lboxPlotDrawSettings = {
+            ...lboxPlotDrawSettings,
+            color: function(i, values, ctx) {
+                let c = rgba(0.2, 0.2, 0.2, 0.5);
+                if (i < this.start + 2 * j && i >= this.start) {
+                    if (values[i] <= this.start + j) {
+                        c = rgba(0, 1, 0, 0.5);
+                    } else {
+                        c = rgba(1, 0, 0, 0.5);
+                    }
+                }             
+                let {r,g,b,a} = c;
+                ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
+            }.bind({start}),
+        }
+        values = addCasFrames(start, j, lboxPlotDrawSettings, values);
+    }
+
+    start = 10;
+    for (let j = 1; j >= 1; j /= 2) {
+        lboxPlotDrawSettings = {
+            ...lboxPlotDrawSettings,
+            color: function(i, values, ctx) {
+                let c = rgba(0.2, 0.2, 0.2, 0.5);
+                if (i < this.start + 2 * j && i >= this.start) {
+                    if (values[i] <= this.start + j) {
+                        c = rgba(0, 1, 0, 0.5);
+                    } else {
+                        c = rgba(1, 0, 0, 0.5);
+                    }
+                }             
+                let {r,g,b,a} = c;
+                ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
+            }.bind({start}),
+        }
+        values = addCasFrames(start, j, lboxPlotDrawSettings, values);
+    }
+
+    start = 12;
+    for (let j = 2; j >= 1; j /= 2) {
+        lboxPlotDrawSettings = {
+            ...lboxPlotDrawSettings,
+            color: function(i, values, ctx) {
+                let c = rgba(0.2, 0.2, 0.2, 0.5);
+                if (i < this.start + 2 * j && i >= this.start) {
+                    if (values[i] <= this.start + j) {
+                        c = rgba(0, 1, 0, 0.5);
+                    } else {
+                        c = rgba(1, 0, 0, 0.5);
+                    }
+                }             
+                let {r,g,b,a} = c;
+                ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
+            }.bind({start}),
+        }
+        values = addCasFrames(start, j, lboxPlotDrawSettings, values);
+    }
+
+    start = 14;
+    for (let j = 1; j >= 1; j /= 2) {
+        lboxPlotDrawSettings = {
+            ...lboxPlotDrawSettings,
+            color: function(i, values, ctx) {
+                let c = rgba(0.2, 0.2, 0.2, 0.5);
+                if (i < this.start + 2 * j && i >= this.start) {
+                    if (values[i] <= this.start + j) {
+                        c = rgba(0, 1, 0, 0.5);
+                    } else {
+                        c = rgba(1, 0, 0, 0.5);
+                    }
+                }             
+                let {r,g,b,a} = c;
+                ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
+            }.bind({start}),
+        }
+        values = addCasFrames(start, j, lboxPlotDrawSettings, values);
+    }
+
+    currentFrameIdx = frames.length;
+    frames.push(new BoxplotFrame(values, {
+        ...lboxPlotDrawSettings,
+        color: function(i, values, ctx) {
+            let {r,g,b,a} = rgba(0, 1, 0, 0.5);
+            ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
+            
+        }
+    }))
 
     frames[currentFrameIdx].frameStart();
     requestAnimationFrame(draw);
