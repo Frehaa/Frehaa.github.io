@@ -3,6 +3,10 @@ const FLOATING_POINT_ERROR_MARGIN = 0.000001; // TODO: Figure out if there exist
 const ARROW_RIGHT_KEY = "ArrowRight";
 const ARROW_LEFT_KEY = "ArrowLeft";
 const DELETE_KEY = "Delete";
+const HOME_KEY = "Home";
+const END_KEY = "End";
+const PAGE_DOWN_KEY = "PageDown";
+const PAGE_UP_KEY = "PageUp";
 const BAKCSPACE_KEY = "Backspace";
 
 var mousePosition = {x:0, y: 0};
@@ -94,9 +98,21 @@ function initializeEventListeners() {
             case ARROW_LEFT_KEY: {
                 currentFrameIdx = Math.max(currentFrameIdx - 1, 0);
             } break;
-             case 't': {
+            case HOME_KEY: {
+                currentFrameIdx = 0;
+            } break;
+            case END_KEY: {
+                currentFrameIdx = frames.length - 1;
+            } break;
+            case PAGE_DOWN_KEY: {
+                currentFrameIdx = Math.min(currentFrameIdx + 10, frames.length-1);
+            } break;
+            case PAGE_UP_KEY: {
+                currentFrameIdx = Math.max(currentFrameIdx - 10, 0);
+            } break;
+            case 't': {
                 console.log(mousePosition)
-                console.log(frames[0])
+                console.log(frames[currentFrameIdx])
             } break;
            default: return;
         }
@@ -699,29 +715,17 @@ function initialize() {
         drawVertical: true
     });
 
-    // frames.push(combineFrames(waawframe, questionBoxOverlay, mergeBoxOverlay4));
 
-    // frames.push(combineFrames({
-    //     draw: function(ctx) {
-
-    //     }
-    // }));
-
-    // currentFrameIdx = frames.length
-    
+    // -------------- Beginning of boxplot sorting frames -----------------------
     let values = [13, 12, 3, 1, 7, 9, 15, 2, 16, 14, 5, 6, 8, 10, 11, 4]; 
 
     let values1 = values.slice(0, 8);
     let values2 = values.slice(8, 16);
 
-
     values1.sort((a, b) => a > b)
     values2.sort((a, b) => a < b)
-    console.log(values1, values2)
-    // values2.sort((a, b) => a > b)
     
     let values3 = values1.concat(values2);
-    console.log(values.length, values3.length)
 
     function drawCasBox(i, step, values, drawSettings, ctx) {
         let max = Math.max(...values);
@@ -832,7 +836,6 @@ function initialize() {
     currentFrameIdx = frames.length-1
 
     function addCasFramesRec(start, n, drawSettings, values) {
-        console.log('rec', start, n);
         drawSettings = {
             ...drawSettings,
             color: function(i, values, ctx) {
@@ -861,7 +864,19 @@ function initialize() {
         return values;
     }
 
-    addCasFramesRec(0, 16, boxPlotDrawSettings, values)
+    values = addCasFramesRec(0, 16, boxPlotDrawSettings, values)
+    frames.push(new BoxplotFrame(values, {
+        ...boxPlotDrawSettings,
+        color: function(i, values, ctx) {
+            let {r,g,b,a} = rgba(0, 1, 0, 0.5);
+            ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
+            
+        }
+    }))
+
+    currentFrameIdx = frames.length
+
+    frames.push(wikiNetworkFrame)
 
     frames[currentFrameIdx].frameStart();
     requestAnimationFrame(draw);
