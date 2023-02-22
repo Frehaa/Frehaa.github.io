@@ -89,6 +89,10 @@ function initializeEventListeners() {
         if (frame.isInteractable) frame.mouseUp();
     });
 
+    document.body.addEventListener('resize', function(e) {
+        console.log(e)
+    })
+
     document.addEventListener('keydown', function(e) {
         let prevFrameIdx = currentFrameIdx;
         switch (e.key) {
@@ -122,20 +126,20 @@ function initializeEventListeners() {
         }
     });
 
-    let k_range_input = document.getElementById('range-input-k');
-    let m_range_input = document.getElementById('range-input-m');
-    k_range_input.addEventListener('input', function(e) {
-        let m = Number(m_range_input.value);
-        if (Number(e.target.value) > m) {
-            e.target.value = m;
-        }
-    });
-    m_range_input.addEventListener('input', function(e) {
-        let k = Number(k_range_input.value);
-        if (Number(e.target.value) < k) {
-            e.target.value = k;
-        }
-    });
+    // let k_range_input = document.getElementById('range-input-k');
+    // let m_range_input = document.getElementById('range-input-m');
+    // k_range_input.addEventListener('input', function(e) {
+    //     let m = Number(m_range_input.value);
+    //     if (Number(e.target.value) > m) {
+    //         e.target.value = m;
+    //     }
+    // });
+    // m_range_input.addEventListener('input', function(e) {
+    //     let k = Number(k_range_input.value);
+    //     if (Number(e.target.value) < k) {
+    //         e.target.value = k;
+    //     }
+    // });
 }
 
 class OverlayFrame {
@@ -187,18 +191,27 @@ class TextBoxOverlay {
         let drawVertical = this.drawSettings.drawVertical;
         ctx.font = `${textHeight}px ${font}`
 
-        let measure = ctx.measureText(word[0]);
         ctx.lineWidth = this.drawSettings.strokeWidth;
         ctx.clearRect(x, y, width, height);
         ctx.strokeRect(x, y, width, height);
         if (drawVertical) {
             for (let i = 0; i < word.length; i++) {
+                let measure = ctx.measureText(word[i]);
                 let centerX = x + width / 2 - measure.width / 2;
                 let centerY = y + (height - combinedTextHeight) / 2;
                 ctx.fillText(word[i], centerX, centerY + textHeight * i + measure.actualBoundingBoxAscent)    
             }
         } else {
-            ctx.fillText(word, x, y);
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'top'
+            let measure = ctx.measureText(word);
+            let textHeight = measure.actualBoundingBoxDescent + measure.actualBoundingBoxAscent;
+            let centerX = x + width / 2;
+            let centerY = y + height / 2 - textHeight / 2 + measure.actualBoundingBoxAscent;
+            ctx.fillText(word, centerX, centerY);
+            // ctx.strokeRect(x, y + height / 2, width, 1)
+            // ctx.strokeRect(x + width /2, y, 1, height)
+            // ctx.strokeRect(centerX - measure.width /2, centerY - measure.actualBoundingBoxAscent, measure.width, textHeight)
         }
 
     }
@@ -221,7 +234,6 @@ function fillTextCenter(text, y, ctx) {
 function initialize() {
     initializeEventListeners();
     let canvas = document.getElementById('canvas');
-    let ctx = canvas.getContext('2d');
     let w = canvas.width;
     let h = canvas.height;
 
@@ -241,9 +253,8 @@ function initialize() {
         tipWidth: h / 90, 
         drawBox: false
     };
-    // currentFrameIdx = frames.length
     let wikiNetworkFrame = new NetworkFrame(wikiNetwork, wikiNetworkDrawSettings, false);
-    bitonicSort(0, 16, DESCENDING, wikiNetwork, 0.04);
+    bitonicSort(0, 16, DESCENDING, wikiNetwork, 0.1);
 
     frames.push(combineFrames(wikiNetworkFrame, {
         draw: function(ctx) {
@@ -254,7 +265,6 @@ function initialize() {
         }
     }));
 
-    // currentFrameIdx = frames.length
     // BIT OF PRACTICAL INFORMATION
     frames.push(combineFrames({
         draw: function(ctx) {
@@ -300,7 +310,6 @@ function initialize() {
         drawBox: true
 
     }, true);
-    // currentFrameIdx = frames.length;
 
     frames.push(tinyExampleNetworkFrame);
 
@@ -322,7 +331,6 @@ function initialize() {
         drawBox: true
 
     }, true);
-    // currentFrameIdx = frames.length
     frames.push(selfExampleNetworkFrame);
 
     // Bubble sort
@@ -342,7 +350,6 @@ function initialize() {
         drawBox: false
 
     }, true);
-    // currentFrameIdx = frames.length
     frames.push(bubbleExampleNetworkFrame);
 
     // let bitonicDrawSettings = {
@@ -363,8 +370,6 @@ function initialize() {
 
     // ctx.scale(2, 2);
 
-    let wireColors = ['#FF0000', '#00FF00', '#FF0000', '#00FF00', '#00FF00', '#FF0000', '#00FF00', '#FF0000' ]; 
-
     let network16 = new Network(16);
     let defaultNetworkDrawSettings = {
         marginX: w * 0.03,
@@ -378,39 +383,23 @@ function initialize() {
         tipLength: h / 50, 
         tipWidth: h / 90, 
         drawBox: false
-        // marginX: 0,
-        // marginY: 0,
-        // squareLength: 0, 
-        // wireLength: w , 
-        // squareOffset: h / 20, 
-        // squareBorderColor: '#000000', 
-        // wireColor: '#000000', 
-        // wireWidth: 3, 
-        // circleRadius: 10, 
-        // arrowColor: '#000000',
-        // tipLength: 20, 
-        // tipWidth: 14, 
-        // fontSize: 60,
-        // drawBox: false,
     };
     let networkFrame = new NetworkFrame(network16, defaultNetworkDrawSettings, true);
-
-    let cleanNetworkFrame = new NetworkFrame(new Network(16), defaultNetworkDrawSettings, false);
 
     let greenOverlayFrame = new OverlayFrame({
         position: {x: w / 2, y: networkFrame.drawSettings.marginY},
         width: w * 0.45,
-        height: 8 * (networkFrame.drawSettings.squareLength + networkFrame.drawSettings.squareOffset) - 
+        height: calcHeightFromWires(networkFrame.drawSettings, 8) -
                 networkFrame.drawSettings.squareOffset,
         strokeColor: rgba(0, 1, 0, 0.5),
         fillColor: rgba(0, 1, 0, 0.5),
     });
 
     let redOverlayFrame = new OverlayFrame({
-        position: {x: w / 2, y: networkFrame.drawSettings.marginY + 8.5 * (networkFrame.drawSettings.squareLength + networkFrame.drawSettings.squareOffset) - 
+        position: {x: w / 2, y: networkFrame.drawSettings.marginY + calcHeightFromWires(networkFrame.drawSettings, 8.5) - 
                 networkFrame.drawSettings.squareOffset},
         width: w * 0.45,
-        height: 8 * (networkFrame.drawSettings.squareLength + networkFrame.drawSettings.squareOffset) - 
+        height: calcHeightFromWires(networkFrame.drawSettings, 8) - 
                 networkFrame.drawSettings.squareOffset,
         strokeColor: rgba(1, 0, 0, 0.5),
         fillColor: rgba(1, 0, 0, 0.5),
@@ -424,9 +413,9 @@ function initialize() {
                     drawSettings.squareOffset +
                     drawSettings.squareLength;
         return new OverlayFrame({
-            position: {x, y },
-            width: networkFrame.drawSettings.wireLength,
-            height: networkFrame.drawSettings.squareLength,
+            position: {x, y},
+            width: drawSettings.wireLength,
+            height: drawSettings.squareLength,
             strokeColor: color,
             fillColor: color
         });
@@ -462,53 +451,36 @@ function initialize() {
     }
     frames.push(networkFrame);
 
-    let networkWidthWidthGreen = combineFrames(networkFrame, greenOverlayFrame);
-    frames.push(networkWidthWidthGreen);
-    let bothoverlay  = combineFrames(networkWidthWidthGreen, redOverlayFrame)
-    frames.push(bothoverlay);
+    frames.push(combineFrames(greenOverlayFrame, networkFrame));
+    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, networkFrame));
 
+    // Insert merge box overlays
+    let mergeBoxOverlays = [];
+    let mergeBoxWidths = [0.075, 0.06, 0.05, 0.03];
+    let mergeBoxFonts = [50, 40, 30, 13];
+    let mergeBoxOverlayX = w / 2;
+    for (let i = 0; i < 4; i++) {
+        for (let j = 0; j < 2**i; ++j) {
+            let mergeBoxOverlayHeight = 16 / (2**i) * (defaultNetworkDrawSettings.squareLength + defaultNetworkDrawSettings.squareOffset);
+            let mergeBoxOverlayY = defaultNetworkDrawSettings.marginY + j * mergeBoxOverlayHeight;
+            let mergeBoxOverlay = new TextBoxOverlay("MERGE", {
+                position: {x: mergeBoxOverlayX, y: mergeBoxOverlayY },
+                width: defaultNetworkDrawSettings.wireLength * mergeBoxWidths[i],
+                height: mergeBoxOverlayHeight - defaultNetworkDrawSettings.squareOffset,
+                fontSize: mergeBoxFonts[i],
+                font: "Arial",
+                strokeWidth: 3,
+                drawVertical: true
+            });        
+            mergeBoxOverlays.push(mergeBoxOverlay);
+        }
+        mergeBoxOverlayX += defaultNetworkDrawSettings.wireLength * mergeBoxWidths[i] + defaultNetworkDrawSettings.wireLength / 12;
 
-    // Insert merge box overlay
-    let mergeBoxOverlay1 = new TextBoxOverlay("MERGE", {
-        position: {x: w / 2, y: 2},
-        width: 100,
-        height: h - 80,
-        fontSize: 40,
-        font: "Arial",
-        strokeWidth: 3,
-        drawVertical: true
-    });
+        frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, networkFrame, ...mergeBoxOverlays));
 
-    let networkMergeFrame1 = combineFrames(bothoverlay, mergeBoxOverlay1);
-    frames.push(networkMergeFrame1);
+    }
 
-    let mergeBoxOverlay2 = new TextBoxOverlay("MERGE", {
-        position: {x: w / 2 + 150, y: 2},
-        width: 70,
-        height: (h - 80) / 2,
-        fontSize: 30,
-        font: "Arial",
-        strokeWidth: 3,
-        drawVertical: true
-    });
-
-    let networkMergeFrame2 = combineFrames(networkMergeFrame1, mergeBoxOverlay2)
-    frames.push(networkMergeFrame2);
-
-    let mergeBoxOverlay3 = new TextBoxOverlay("MERGE", {
-        position: {x: w / 2 + 300, y: 2},
-        width: 50,
-        height: (h - 80) / 4,
-        fontSize: 20,
-        font: "Arial",
-        strokeWidth: 3,
-        drawVertical: true
-    });
-
-    let networkMergeFrame3 = combineFrames(networkMergeFrame2, mergeBoxOverlay3)
-    frames.push(networkMergeFrame3);
-
-    frames.push(combineFrames(bothoverlay, {
+    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, networkFrame, {
         draw: function() {},
         frameStart: function() {
             // Dirty trick to make sure the network is initialized
@@ -520,16 +492,16 @@ function initialize() {
     }));
 
     // Frames which do not sort correctly
-    let test = [ 8, 2, 3, 14, 15, 5, 6, 10, 1, 9, 12, 11, 7, 0, 4, 13 ];
+    let failingSequence = [ 8, 2, 3, 14, 15, 5, 6, 10, 1, 9, 12, 11, 7, 0, 4, 13 ];
     let wireColoredFrame = dashedLine
     for (let i = 0; i < networkFrame.network.size / 2; i++) {
-        if (test[i] < 8) {
+        if (failingSequence[i] < 8) {
             wireColoredFrame = combineFrames(wireColoredFrame, greenWireOverlayFrames[i]);
         } else {
             wireColoredFrame = combineFrames(wireColoredFrame, redWireOverlayFrames[i]);
         }
-        let k = i + 8;
-        if (test[k] < 8) {
+        let k = i + failingSequence.length / 2;
+        if (failingSequence[k] < 8) {
             wireColoredFrame = combineFrames(wireColoredFrame, greenWireOverlayFrames[k]);
         } else {
             wireColoredFrame = combineFrames(wireColoredFrame, redWireOverlayFrames[k]);
@@ -579,6 +551,7 @@ function initialize() {
         }
     }
     frames.push(combineFrames(bitonic1Frame, networkFrame));
+
     // Bitonic 2
     let bitonic2Frame = dashedLine;
     for (let i = 0; i < networkFrame.network.size / 2; i++) {
@@ -594,28 +567,29 @@ function initialize() {
     frames.push(bitonic2Frame);
 
 
-    // currentFrameIdx = 17
+    function calcHeightFromWires(drawSettings, count) {
+        return count * (drawSettings.squareLength + drawSettings.squareOffset);
+    }
+
     let blueOverlayX = networkFrame.drawSettings.marginX +
                         networkFrame.drawSettings.squareLength +
                         networkFrame.drawSettings.squareOffset;
     let blueOverlayFrame = new OverlayFrame({
         position: {x: blueOverlayX, y: networkFrame.drawSettings.marginY},
         width: w * 0.4,
-        height: 8 * (networkFrame.drawSettings.squareLength + networkFrame.drawSettings.squareOffset) - networkFrame.drawSettings.squareOffset / 2,
+        height: calcHeightFromWires(networkFrame.drawSettings, 8) - networkFrame.drawSettings.squareOffset / 2,
         strokeColor: rgba(0, 0, 1, 0.5),
         fillColor: rgba(0, 0, 1, 0.5),
     });
-    currentFrameIdx = frames.length
     frames.push(combineFrames(blueOverlayFrame, bitonic2Frame));
 
     let blueOverlayFrame2 = new OverlayFrame({
         position: {x: blueOverlayX, 
-            y: networkFrame.drawSettings.marginY + 8 *
-            (networkFrame.drawSettings.squareLength +
-            networkFrame.drawSettings.squareOffset) -
+            y: networkFrame.drawSettings.marginY + 
+            calcHeightFromWires(networkFrame.drawSettings, 8) -
             networkFrame.drawSettings.squareOffset / 2},
         width: w * 0.4,
-        height: 8 * (networkFrame.drawSettings.squareLength + networkFrame.drawSettings.squareOffset) - networkFrame.drawSettings.squareOffset / 2,
+        height: calcHeightFromWires(networkFrame.drawSettings, 8) - networkFrame.drawSettings.squareOffset / 2,
         strokeColor: rgba(0, 0, 1, 0.5),
         fillColor: rgba(0, 0, 1, 0.5),
     });
@@ -624,76 +598,95 @@ function initialize() {
     let whiteOverlayFrame = new OverlayFrame({
         position: {x: blueOverlayX, y: networkFrame.drawSettings.marginY},
         width: w * 0.4,
-        height: 8 * (networkFrame.drawSettings.squareLength + networkFrame.drawSettings.squareOffset) - 
+        height: calcHeightFromWires(networkFrame.drawSettings, 8) - 
                 networkFrame.drawSettings.squareOffset,
         strokeColor: rgba(0, 0, 0, 1),
         fillColor: rgba(1, 1, 1, 1),
     });
 
-    frames.push(combineFrames(bitonic2Frame, whiteOverlayFrame, {
+    // Insert merge box overlay
+    let sortBoxOverlay1 = new TextBoxOverlay("SORT", {
+        position: {
+            x: defaultNetworkDrawSettings.marginX + defaultNetworkDrawSettings.squareLength + defaultNetworkDrawSettings.squareOffset, 
+            y: defaultNetworkDrawSettings.marginY},
+        width: defaultNetworkDrawSettings.wireLength / 2 - defaultNetworkDrawSettings.squareOffset,
+        height: calcHeightFromWires(defaultNetworkDrawSettings, 8) - defaultNetworkDrawSettings.squareOffset,
+        fontSize: 80,
+        font: "Arial",
+        strokeWidth: 3,
+        drawVertical: false
+    });
+    sortBoxOverlay1 = combineFrames(sortBoxOverlay1, {
         draw: function(ctx) {
-            ctx.font = '40px Arial';
-            ctx.fillText('Sort ASC', 300, 200);
+            /// Draw Down arrow
+            let overlay = sortBoxOverlay1.frames[0];
+            let drawSettings = overlay.drawSettings;
+            let height = drawSettings.height;
+            ctx.lineWidth = 5
+            ctx.textBaseline = 'top'
+            ctx.font = `${drawSettings.fontSize}px ${drawSettings.font}`;
+
+            let measure = ctx.measureText(overlay.text);
+            let arrowHeight = measure.actualBoundingBoxAscent + measure.actualBoundingBoxDescent + 10;
+            let y = drawSettings.position.y + height / 2;
+            let width = drawSettings.width;
+            let x = drawSettings.position.x + width / 2 + measure.width / 2 + 20;
+
+            drawVerticalArrow(x, y - arrowHeight / 2, arrowHeight, 20, 20, ctx)
         }
-    }));
+    });
+
+    let sortBoxOverlay2 = new TextBoxOverlay("SORT", {
+        position: {
+            x: defaultNetworkDrawSettings.marginX +
+                defaultNetworkDrawSettings.squareLength +
+                defaultNetworkDrawSettings.squareOffset, 
+            y: defaultNetworkDrawSettings.marginY +
+                calcHeightFromWires(defaultNetworkDrawSettings, 8)},
+        width: defaultNetworkDrawSettings.wireLength / 2 - defaultNetworkDrawSettings.squareOffset,
+        height: calcHeightFromWires(defaultNetworkDrawSettings, 8) - defaultNetworkDrawSettings.squareOffset,
+        fontSize: 80,
+        font: "Arial",
+        strokeWidth: 3,
+        drawVertical: false
+    });
+    sortBoxOverlay2 = combineFrames(sortBoxOverlay2, {
+        draw: function(ctx) {
+            /// Draw Up arrow
+            let overlay = sortBoxOverlay2.frames[0];
+            let drawSettings = overlay.drawSettings;
+            let height = drawSettings.height;
+            ctx.lineWidth = 5
+            ctx.textBaseline = 'top'
+            ctx.font = `${drawSettings.fontSize}px ${drawSettings.font}`;
+
+            let measure = ctx.measureText(overlay.text);
+            let arrowHeight = measure.actualBoundingBoxAscent + measure.actualBoundingBoxDescent + 10;
+            let y = drawSettings.position.y + height / 2;
+            let width = drawSettings.width;
+            let x = drawSettings.position.x + width / 2 + measure.width / 2 + 20;
+
+            drawVerticalArrow(x, y + arrowHeight / 2, -arrowHeight, 20, 20, ctx)        }
+    });
+
+
+
+    frames.push(combineFrames(bitonic2Frame, sortBoxOverlay1));
 
     let whiteOverlayFrame2 = new OverlayFrame({
         position: {x: blueOverlayX, 
-            y: networkFrame.drawSettings.marginY + 8 *
-            (networkFrame.drawSettings.squareLength +
-            networkFrame.drawSettings.squareOffset) -
+            y: networkFrame.drawSettings.marginY + 
+            calcHeightFromWires(networkFrame.drawSettings, 8) -
             networkFrame.drawSettings.squareOffset / 2 + 
             networkFrame.drawSettings.squareOffset * 0.5
          },
         width: w * 0.4,
-        height: 8 * (networkFrame.drawSettings.squareLength + networkFrame.drawSettings.squareOffset) - networkFrame.drawSettings.squareOffset,
+        height: calcHeightFromWires(networkFrame.drawSettings, 8) - networkFrame.drawSettings.squareOffset,
         strokeColor: rgba(0, 0, 0, 1),
         fillColor: rgba(1, 1, 1, 1),
     });
 
-    frames.push(combineFrames(frames[frames.length-1], whiteOverlayFrame2, {
-        draw: function(ctx) {
-            ctx.font = '40px Arial';
-            ctx.fillText('Sort DESC', 300, h / 2 + 200);
-        }
-    }))
-    
-
-
-
-    // frames.push(combineFrames(wireColoredFrame, networkFrame2));
-    // frames.push(combineFrames(wireColoredFrame, networkFrame));
-
-    // frames.push(combineFrames(combineFrames(greenOverlayFrame, redOverlayFrame), wireColoredFrame));
-
-    // frames.push(combineFrames(wireColoredFrame, dashedLine))
-    // frames.push(combineFrames(wireColoredFrame, dashedLine))
-
-    // TODO: Make the wire overlays sensitive to the placement of the arrow
-
-
-    // currentFrameIdx = frames.length
-    // Insert merge box overlay
-    let sortBoxOverlay1 = new TextBoxOverlay("SORT↓", {
-        position: {x: w / 2 - 250, y: 5},
-        width: 100,
-        height: (h - 100) / 2,
-        fontSize: 40,
-        font: "Arial",
-        strokeWidth: 3,
-        drawVertical: true
-    });
-    let sortBoxOverlay2 = new TextBoxOverlay("↑SORT", {
-        position: {x: w / 2 - 250, y: h / 2 - 40 + 5},
-        width: 100,
-        height: (h - 100) / 2 + 5,
-        fontSize: 40,
-        font: "Arial",
-        strokeWidth: 3,
-        drawVertical: true
-    });
-    let waawframe = combineFrames(cleanNetworkFrame, sortBoxOverlay1, sortBoxOverlay2, mergeBoxOverlay1);
-    // frames.push(waawframe);
+    frames.push(combineFrames(frames[frames.length-1], sortBoxOverlay2))
 
     let questionBoxOverlay = new TextBoxOverlay("SORT?", {
         position: {x: w / 2 + 200, y: 5},
@@ -833,8 +826,6 @@ function initialize() {
     }
 
     values = values.slice();
-    currentFrameIdx = frames.length-1
-
     function addCasFramesRec(start, n, drawSettings, values) {
         drawSettings = {
             ...drawSettings,
@@ -870,13 +861,213 @@ function initialize() {
         color: function(i, values, ctx) {
             let {r,g,b,a} = rgba(0, 1, 0, 0.5);
             ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
-            
         }
-    }))
+    }));
 
-    currentFrameIdx = frames.length
 
-    frames.push(wikiNetworkFrame)
+    let empty16NetworkFrame = new NetworkFrame(
+        new Network(16),
+        defaultNetworkDrawSettings,
+        false
+    );
+
+    frames.push(empty16NetworkFrame);
+    frames.push(combineFrames(greenOverlayFrame, empty16NetworkFrame));
+    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, empty16NetworkFrame));
+    // frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, networkFrame));
+    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, empty16NetworkFrame, ...mergeBoxOverlays.slice(0, 1)));
+    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, empty16NetworkFrame, ...mergeBoxOverlays.slice(0, 3)));
+    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, empty16NetworkFrame, ...mergeBoxOverlays.slice(0, 7)));
+    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, empty16NetworkFrame, ...mergeBoxOverlays.slice(0, 15)));
+    // frames.push(combineFrames(empty16NetworkFrame, greenOverlayFrame, redOverlayFrame, sortBoxOverlay1));
+    // frames.push(combineFrames(empty16NetworkFrame, greenOverlayFrame, redOverlayFrame, sortBoxOverlay1, sortBoxOverlay2));
+
+    let bitonicMergeNetwork = new NetworkFrame(new Network(16), {
+        ...defaultNetworkDrawSettings,
+        drawWireOverlay: true
+    }, false);
+
+
+    // bitonicMergeNetwork.network.values[0] = 0
+
+    for (let i = 0; i < 8; i++) {
+        bitonicMergeNetwork.network.addCompareAndSwap(0.5 + 0.01 * i, i, i + 8)    
+    }
+
+    let start = 0.67
+    for (let i = 0; i < 4; i++) {
+        bitonicMergeNetwork.network.addCompareAndSwap(start + 0.01 * i, i, i + 4)    
+        bitonicMergeNetwork.network.addCompareAndSwap(start + 0.01 * i, i + 8 , i + 12)    
+    }
+    start = 0.81
+    for (let i = 0; i < 2; i++) {
+        for (let j = 0; j < 16; j += 4) {
+            bitonicMergeNetwork.network.addCompareAndSwap(start + 0.01 * i, i + j, i + j + 2)    
+        }
+    }
+    start = 0.95
+    for (let i = 0; i < 16; i += 2) {
+        bitonicMergeNetwork.network.addCompareAndSwap(start, i, i + 1)    
+    }
+
+    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, bitonicMergeNetwork, ...mergeBoxOverlays.slice(1, 15)));
+    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, bitonicMergeNetwork, ...mergeBoxOverlays.slice(3, 15)));
+    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, bitonicMergeNetwork, ...mergeBoxOverlays.slice(7, 15)));
+    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, bitonicMergeNetwork));
+
+    frames.push(combineFrames(bitonicMergeNetwork, sortBoxOverlay1, sortBoxOverlay2));
+
+    let recOverlay = [];
+    for (let i = 0; i < 4; i++) {
+        let sortBoxOverlay = new TextBoxOverlay("SORT", {
+            position: {
+                x: defaultNetworkDrawSettings.marginX + defaultNetworkDrawSettings.squareLength + defaultNetworkDrawSettings.squareOffset, 
+                y: defaultNetworkDrawSettings.marginY + 
+                calcHeightFromWires(defaultNetworkDrawSettings, 4) * i},
+            width: defaultNetworkDrawSettings.wireLength / 4 - defaultNetworkDrawSettings.squareOffset,
+            height: calcHeightFromWires(defaultNetworkDrawSettings, 4) - defaultNetworkDrawSettings.squareOffset,
+            fontSize: 60,
+            font: "Arial",
+            strokeWidth: 3,
+            drawVertical: false
+        });
+        sortBoxOverlay = combineFrames(sortBoxOverlay, {
+            draw: function(ctx) {
+                /// Draw Down arrow
+                let overlay = sortBoxOverlay.frames[0];
+                let drawSettings = overlay.drawSettings;
+                let height = drawSettings.height;
+                ctx.lineWidth = 5
+                ctx.textBaseline = 'top'
+                ctx.font = `${drawSettings.fontSize}px ${drawSettings.font}`;
+
+                let measure = ctx.measureText(overlay.text);
+                let arrowHeight = measure.actualBoundingBoxAscent + measure.actualBoundingBoxDescent + 10;
+                let y = drawSettings.position.y + height / 2;
+                let width = drawSettings.width;
+                let x = drawSettings.position.x + width / 2 + measure.width / 2 + 20;
+
+                let direction = i % 2 == 1;
+                if (direction == 0) {
+                    drawVerticalArrow(x, y - arrowHeight / 2, arrowHeight, 20, 20, ctx)
+                } else {
+                    drawVerticalArrow(x, y + arrowHeight / 2, -arrowHeight, 20, 20, ctx)
+                }
+            }
+        });
+        recOverlay.push(sortBoxOverlay);
+    }
+    for (let i = 0; i < 2; i++) {
+        let mergeBoxOverlay = new TextBoxOverlay("MERGE", {
+            position: {
+                x: defaultNetworkDrawSettings.marginX + defaultNetworkDrawSettings.squareLength + defaultNetworkDrawSettings.squareOffset +
+                    defaultNetworkDrawSettings.wireLength / 4, 
+                y: defaultNetworkDrawSettings.marginY + 
+                calcHeightFromWires(defaultNetworkDrawSettings, 8) * i},
+            width: defaultNetworkDrawSettings.wireLength / 4 - defaultNetworkDrawSettings.squareOffset,
+            height: calcHeightFromWires(defaultNetworkDrawSettings, 8) - defaultNetworkDrawSettings.squareOffset,
+            fontSize: 60,
+            font: "Arial",
+            strokeWidth: 3,
+            drawVertical: false
+        });
+        mergeBoxOverlay = combineFrames(mergeBoxOverlay, {
+            draw: function(ctx) {
+                /// Draw Down arrow
+                let overlay = mergeBoxOverlay.frames[0];
+                let drawSettings = overlay.drawSettings;
+                let height = drawSettings.height;
+                ctx.lineWidth = 5
+                ctx.textBaseline = 'top'
+                ctx.font = `${drawSettings.fontSize}px ${drawSettings.font}`;
+
+                let measure = ctx.measureText(overlay.text);
+                let arrowHeight = measure.actualBoundingBoxAscent + measure.actualBoundingBoxDescent + 10;
+                let y = drawSettings.position.y + height / 2;
+                let width = drawSettings.width;
+                let x = drawSettings.position.x + width / 2 + measure.width / 2 + 20;
+
+                let direction = i % 2 == 1;
+                if (direction == 0) {
+                    drawVerticalArrow(x, y - arrowHeight / 2, arrowHeight, 20, 20, ctx)
+                } else {
+                    drawVerticalArrow(x, y + arrowHeight / 2, -arrowHeight, 20, 20, ctx)
+                }
+            }
+        });        
+        recOverlay.push(mergeBoxOverlay);
+    }
+
+    frames.push(combineFrames(bitonicMergeNetwork, ...recOverlay));
+
+    let bitonicMergeNetwork2 = new NetworkFrame(new Network(16), defaultNetworkDrawSettings, false);
+
+    for (let i = 0; i < 8; i++) {
+        bitonicMergeNetwork2.network.addCompareAndSwap(0.5 + 0.01 * i, i, i + 8)    
+    }
+    start = 0.67
+    for (let i = 0; i < 4; i++) {
+        bitonicMergeNetwork2.network.addCompareAndSwap(start + 0.01 * i, i, i + 4)    
+        bitonicMergeNetwork2.network.addCompareAndSwap(start + 0.01 * i, i + 8 , i + 12)    
+    }
+    start = 0.81
+    for (let i = 0; i < 2; i++) {
+        for (let j = 0; j < 16; j += 4) {
+            bitonicMergeNetwork2.network.addCompareAndSwap(start + 0.01 * i, i + j, i + j + 2)    
+        }
+    }
+    start = 0.95
+    for (let i = 0; i < 16; i += 2) {
+        bitonicMergeNetwork2.network.addCompareAndSwap(start, i, i + 1)    
+    }
+
+    // Left
+    start = 0.28
+    for (let i = 0; i < 4; i++) {
+        bitonicMergeNetwork2.network.addCompareAndSwap(start + 0.01 * i, i, i + 4)    
+        bitonicMergeNetwork2.network.addCompareAndSwap(start + 0.01 * i, i + 12 , i + 8)    
+    }
+    start = 0.36
+    for (let i = 0; i < 2; i++) {
+        for (let j = 0; j < 8; j += 4) {
+            bitonicMergeNetwork2.network.addCompareAndSwap(start + 0.01 * i, i + j, i + j + 2)    
+            bitonicMergeNetwork2.network.addCompareAndSwap(start + 0.01 * i, i + j + 10, i + j + 8)    
+        }
+    }
+    start = 0.44
+    for (let i = 0; i < 8; i += 2) {
+        bitonicMergeNetwork2.network.addCompareAndSwap(start, i, i + 1)
+        bitonicMergeNetwork2.network.addCompareAndSwap(start, i+9, i + 8)
+    }
+
+    bitonicSort(0, 4, DESCENDING, bitonicMergeNetwork2.network, 0.05);
+    bitonicSort(4, 4, ASCENDING, bitonicMergeNetwork2.network, 0.05);
+    bitonicSort(8, 4, DESCENDING, bitonicMergeNetwork2.network, 0.05);
+    bitonicSort(12, 4, ASCENDING, bitonicMergeNetwork2.network, 0.05);
+
+
+    frames.push(combineFrames(bitonicMergeNetwork2, ...recOverlay.slice(0, 4)));
+    frames.push(bitonicMergeNetwork2);
+
+    console.log(bitonicMergeNetwork2.network)
+    let bitonicMergeNetwork3 = new NetworkFrame(new Network(8), {
+        ...defaultNetworkDrawSettings,
+        wireLength: defaultNetworkDrawSettings.wireLength / 2,
+        marginX: w * 0.025
+    }, false);
+    frames.push(combineFrames(bitonicMergeNetwork3, ...recOverlay.slice(0, 2), recOverlay[4], {
+        draw: function(ctx) {
+            ctx.font = "40px Arial"
+            ctx.fillText("BitonicSort(a, start, n, dir):", w / 2 + w * 0.05, h * 0.1);
+            ctx.fillText("if n == 1: return", w / 2 + w * 0.075, h * 0.15);
+            ctx.fillText("BitonicSort(a, start, n/2, ASC)", w / 2 + w * 0.075, h * 0.25);
+            ctx.fillText("BitonicSort(a, start + n/2, n/2, DESC)", w / 2 + w * 0.075, h * 0.3);
+            ctx.fillText("BitonicMerge(a, start, n, dir)", w / 2 + w * 0.075, h * 0.35);
+
+            ctx.fillText("BitonicMerge(a, start, n, dir):", w / 2 + w * 0.05, h * 0.5);
+            ctx.fillText("if n == 1: return", w / 2 + w * 0.075, h * 0.55);
+        }
+    }));
 
     frames[currentFrameIdx].frameStart();
     requestAnimationFrame(draw);

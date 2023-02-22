@@ -148,14 +148,44 @@ class NetworkFrame {
         network.subscribe(this.createNetworkCasCallback());
     }
 
+    drawWireOverlay(ctx) {
+        for (let i = 0; i < this.network.size; i++) {
+            let y = this.drawSettings.marginY + 
+                    (this.drawSettings.squareLength +
+                        this.drawSettings.squareOffset) * i;
+            let x = this.drawSettings.marginX + 
+                        this.drawSettings.squareOffset + 
+                        this.drawSettings.squareLength;
+            let width = this.drawSettings.wireLength;
+            let height = this.drawSettings.squareLength;
+
+            if (this.network.values[i] < 8) {
+                ctx.strokeStyle = `rgba(0, 255, 0, 0.5)`;
+                ctx.fillStyle = `rgba(0, 255, 0, 0.5)`;
+            } else {
+                ctx.strokeStyle = `rgba(255, 0, 0, 0.5)`;
+                ctx.fillStyle = `rgba(255, 0, 0, 0.5)`;
+            }
+
+            if (this.network.values[i] != null) {
+                ctx.fillRect(x, y, width, height);
+                ctx.strokeRect(x, y, width, height);
+            }
+
+            let startCas = this.network.casByStartWire[i];
+            let endCas = this.network.casByEndWire[i];
+        }
+
+    }
+
     draw(ctx) {
         ctx.lineWidth = this.drawSettings.wireWidth;
 
-        let wireColor = [this.drawSettings.wireColor]
-        if (this.drawSettings.wireColor.length) {
-            wireColor = this.drawSettings.wireColor
-        } 
-
+        if (this.drawSettings.drawWireOverlay) {
+            this.drawWireOverlay(ctx);
+        }
+        ctx.fillStyle = this.arrow.color
+        
         // Left squares and wire
         for (let i = 0; i < this.network.size; ++i) {
             let lSquare = this.leftSquares[i];
@@ -163,7 +193,7 @@ class NetworkFrame {
             lSquare.text = this.network.get(i);
             lSquare.draw(ctx);
 
-            ctx.strokeStyle = wireColor[i % wireColor.length];
+            ctx.strokeStyle = this.drawSettings.wireColor;
             this.wires[i].draw(ctx);
         }
         
@@ -316,9 +346,8 @@ function bitonicSort(start, n, direction, network, pos) {
 }
 
 function bitonicMerge(start, n, direction, network, pos) {
-    if (n == 1) return;
-    let canv = document.getElementById('canvas');
-    var space = 0.02; // This value is good for n = 16
+    if (n == 1) return pos;
+    var space = 0.01; // This value is good for n = 16
     // var space = canv.width / 96000; //0.02; //canv.width / 1000;
 
     let m = n / 2;
@@ -326,10 +355,10 @@ function bitonicMerge(start, n, direction, network, pos) {
         addCas(i, i + m, direction, network, pos + space * (i - start));
     }
 
-    bitonicMerge(start, m, direction, network, pos + space * m + space);
-    bitonicMerge(start + m, m, direction, network, pos + space * m + space);
+    bitonicMerge(start, m, direction, network, pos + space * (m + 5));
+    pos = bitonicMerge(start + m, m, direction, network, pos + space * (m + 5));
 
-    return pos + space * n + space *5;
+    return pos  + space * 2
 }
 
 function addCas(i, j, direction, network, pos) {
