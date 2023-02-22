@@ -790,14 +790,29 @@ function initialize() {
     function addCasFrames(start, step, drawSettings, values) {
         frames.push(new BoxplotFrame(values, drawSettings));
         for (let i = start; i < start + step; ++i) {
+            let frame = new BoxplotFrame(values, drawSettings);
+            let c = combineFrames(frame, {
+                vals: values.slice(),
+                step,
+                draw: function(ctx) {
+                    let values = this.vals;
+                    ctx.lineWidth = 5
+                    drawCasBox(i, this.step, values, drawSettings, ctx);
+                
+                    let dashX = drawSettings.marginX - drawSettings.boxOffset / 2 + (drawSettings.width * (start + this.step) / values.length);
+                    drawDashLine(dashX, 30, dashX, 860, [10, 10], ctx);
+            }});
+            frames.push(c);
+
             values = values.slice();
             if (values[i] > values[i + step]) {
                 let tmp = values[i];
                 values[i] = values[i + step];
                 values[i + step] = tmp;
             }
-            let frame = new BoxplotFrame(values, drawSettings);
-            let c = combineFrames(frame, {
+
+            frame = new BoxplotFrame(values, drawSettings);
+            c = combineFrames(frame, {
                 vals: values.slice(),
                 step,
                 draw: function(ctx) {
@@ -816,17 +831,14 @@ function initialize() {
     values = values.slice();
     currentFrameIdx = frames.length-1
 
-    let lboxPlotDrawSettings = {
-        ...boxPlotDrawSettings,
-    };
-    // /// TODO RECURSIVELY SORT 
-    for (let j = 4; j >= 1; j /= 2) {
-        lboxPlotDrawSettings = {
-            ...boxPlotDrawSettings,
+    function addCasFramesRec(start, n, drawSettings, values) {
+        console.log('rec', start, n);
+        drawSettings = {
+            ...drawSettings,
             color: function(i, values, ctx) {
                 let c = rgba(0.2, 0.2, 0.2, 0.5);
-                if (i < 2 * j) {
-                    if (values[i] <= j) {
+                if (i < start + n && i >= start) { // The range we are sorting
+                    if (values[i] <= start + n / 2) { // The lower half of the range
                         c = rgba(0, 1, 0, 0.5);
                     } else {
                         c = rgba(1, 0, 0, 0.5);
@@ -835,161 +847,21 @@ function initialize() {
                 let {r,g,b,a} = c;
                 ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
             },
-        };
-        values = addCasFrames(0, j, lboxPlotDrawSettings, values);
+        }
+
+        if (n != 16) { // Special case, we ignore 16 since we have already added it
+            values = addCasFrames(start, n / 2, drawSettings, values);
+        }
+
+        if (n > 2) {
+            values = addCasFramesRec(start, n / 2, drawSettings, values);
+            values = addCasFramesRec(start + n / 2, n / 2, drawSettings, values);
+
+        }
+        return values;
     }
 
-    // start == 2
-    let start = 2;
-    for (let j = 1; j >= 1; j /= 2) {
-        lboxPlotDrawSettings = {
-            ...lboxPlotDrawSettings,
-            color: function(i, values, ctx) {
-                let c = rgba(0.2, 0.2, 0.2, 0.5);
-                console.log(this)
-                if (i < this.start + 2 * j && i >= this.start) {
-                    if (values[i] <= this.start + j) {
-                        c = rgba(0, 1, 0, 0.5);
-                    } else {
-                        c = rgba(1, 0, 0, 0.5);
-                    }
-                }             
-                let {r,g,b,a} = c;
-                ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
-            }.bind({start}),
-        }
-        values = addCasFrames(start, j, lboxPlotDrawSettings, values);
-    }
-
-    start = 4;
-    for (let j = 2; j >= 1; j /= 2) {
-        lboxPlotDrawSettings = {
-            ...lboxPlotDrawSettings,
-            color: function(i, values, ctx) {
-                let c = rgba(0.2, 0.2, 0.2, 0.5);
-                if (i < this.start + 2 * j && i >= this.start) {
-                    if (values[i] <= this.start + j) {
-                        c = rgba(0, 1, 0, 0.5);
-                    } else {
-                        c = rgba(1, 0, 0, 0.5);
-                    }
-                }             
-                let {r,g,b,a} = c;
-                ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
-            }.bind({start}),
-        }
-        values = addCasFrames(start, j, lboxPlotDrawSettings, values);
-    }
-
-    start = 6;
-    for (let j = 1; j >= 1; j /= 2) {
-        lboxPlotDrawSettings = {
-            ...lboxPlotDrawSettings,
-            color: function(i, values, ctx) {
-                let c = rgba(0.2, 0.2, 0.2, 0.5);
-                if (i < this.start + 2 * j && i >= this.start) {
-                    if (values[i] <= this.start + j) {
-                        c = rgba(0, 1, 0, 0.5);
-                    } else {
-                        c = rgba(1, 0, 0, 0.5);
-                    }
-                }             
-                let {r,g,b,a} = c;
-                ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
-            }.bind({start}),
-        }
-        values = addCasFrames(start, j, lboxPlotDrawSettings, values);
-    }
-
-    start = 8;
-    for (let j = 4; j >= 1; j /= 2) {
-        lboxPlotDrawSettings = {
-            ...lboxPlotDrawSettings,
-            color: function(i, values, ctx) {
-                let c = rgba(0.2, 0.2, 0.2, 0.5);
-                if (i < this.start + 2 * j && i >= this.start) {
-                    if (values[i] <= this.start + j) {
-                        c = rgba(0, 1, 0, 0.5);
-                    } else {
-                        c = rgba(1, 0, 0, 0.5);
-                    }
-                }             
-                let {r,g,b,a} = c;
-                ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
-            }.bind({start}),
-        }
-        values = addCasFrames(start, j, lboxPlotDrawSettings, values);
-    }
-
-    start = 10;
-    for (let j = 1; j >= 1; j /= 2) {
-        lboxPlotDrawSettings = {
-            ...lboxPlotDrawSettings,
-            color: function(i, values, ctx) {
-                let c = rgba(0.2, 0.2, 0.2, 0.5);
-                if (i < this.start + 2 * j && i >= this.start) {
-                    if (values[i] <= this.start + j) {
-                        c = rgba(0, 1, 0, 0.5);
-                    } else {
-                        c = rgba(1, 0, 0, 0.5);
-                    }
-                }             
-                let {r,g,b,a} = c;
-                ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
-            }.bind({start}),
-        }
-        values = addCasFrames(start, j, lboxPlotDrawSettings, values);
-    }
-
-    start = 12;
-    for (let j = 2; j >= 1; j /= 2) {
-        lboxPlotDrawSettings = {
-            ...lboxPlotDrawSettings,
-            color: function(i, values, ctx) {
-                let c = rgba(0.2, 0.2, 0.2, 0.5);
-                if (i < this.start + 2 * j && i >= this.start) {
-                    if (values[i] <= this.start + j) {
-                        c = rgba(0, 1, 0, 0.5);
-                    } else {
-                        c = rgba(1, 0, 0, 0.5);
-                    }
-                }             
-                let {r,g,b,a} = c;
-                ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
-            }.bind({start}),
-        }
-        values = addCasFrames(start, j, lboxPlotDrawSettings, values);
-    }
-
-    start = 14;
-    for (let j = 1; j >= 1; j /= 2) {
-        lboxPlotDrawSettings = {
-            ...lboxPlotDrawSettings,
-            color: function(i, values, ctx) {
-                let c = rgba(0.2, 0.2, 0.2, 0.5);
-                if (i < this.start + 2 * j && i >= this.start) {
-                    if (values[i] <= this.start + j) {
-                        c = rgba(0, 1, 0, 0.5);
-                    } else {
-                        c = rgba(1, 0, 0, 0.5);
-                    }
-                }             
-                let {r,g,b,a} = c;
-                ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
-            }.bind({start}),
-        }
-        values = addCasFrames(start, j, lboxPlotDrawSettings, values);
-    }
-
-    currentFrameIdx = frames.length;
-    frames.push(new BoxplotFrame(values, {
-        ...lboxPlotDrawSettings,
-        color: function(i, values, ctx) {
-            let {r,g,b,a} = rgba(0, 1, 0, 0.5);
-            ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
-            
-        }
-    }))
+    addCasFramesRec(0, 16, boxPlotDrawSettings, values)
 
     frames[currentFrameIdx].frameStart();
     requestAnimationFrame(draw);
