@@ -1049,26 +1049,38 @@ function initialize() {
     frames.push(combineFrames(bitonicMergeNetwork2, ...recOverlay.slice(0, 4)));
     frames.push(bitonicMergeNetwork2);
 
-    console.log(bitonicMergeNetwork2.network)
+    //// -----------------  CODE SLIDES  -----------------------
     let bitonicMergeNetwork3 = new NetworkFrame(new Network(8), {
         ...defaultNetworkDrawSettings,
         wireLength: defaultNetworkDrawSettings.wireLength / 2,
         marginX: w * 0.025
     }, false);
-    frames.push(combineFrames(bitonicMergeNetwork3, ...recOverlay.slice(0, 2), recOverlay[4], {
-        draw: function(ctx) {
+
+    let textPositionTuples = [
+        ["BitonicSort(a, start, n, dir):", w/2 + w * 0.05, h*0.1],
+        ["if n == 1: return", w/2 + w * 0.075, h*0.15],
+        ["BitonicSort(a, start, n/2, ASC)", w / 2 + w * 0.075, h * 0.25],
+        ["BitonicSort(a, start + n/2, n/2, DESC)", w / 2 + w * 0.075, h * 0.3],
+        ["BitonicMerge(a, start, n, dir)", w / 2 + w * 0.075, h * 0.35],
+        ["BitonicMerge(a, start, n, dir):", w / 2 + w * 0.05, h * 0.5],
+        ["if n == 1: return", w / 2 + w * 0.075, h * 0.55],
+        ["for i in range(start, start + n/2):", w / 2 + w * 0.075, h * 0.65],
+        ["CompareAndSwap(a, i, i+n/2, dir)", w / 2 + w * 0.1, h * 0.70],
+        ["BitonicMerge(a, start, n/2, dir)", w / 2 + w * 0.075, h * 0.8],
+        ["BitonicMerge(a, start + n/2, n/2, dir)", w / 2 + w * 0.075, h * 0.85]
+    ];
+    let codeDrawCalls =  textPositionTuples.map(t => {
+        let [text, x, y] = t;
+        return {draw: function(ctx) {
             ctx.font = "40px Arial"
-            ctx.fillText("BitonicSort(a, start, n, dir):", w / 2 + w * 0.05, h * 0.1);
-            ctx.fillText("if n == 1: return", w / 2 + w * 0.075, h * 0.15);
-            ctx.fillText("BitonicSort(a, start, n/2, ASC)", w / 2 + w * 0.075, h * 0.25);
-            ctx.fillText("BitonicSort(a, start + n/2, n/2, DESC)", w / 2 + w * 0.075, h * 0.3);
-            ctx.fillText("BitonicMerge(a, start, n, dir)", w / 2 + w * 0.075, h * 0.35);
+            ctx.fillText(text, x, y);
+        }};
+    });
+    for (let i = 0; i <= codeDrawCalls.length; i++) {
+        frames.push(combineFrames(bitonicMergeNetwork3, ...recOverlay.slice(0, 2), recOverlay[4], ...codeDrawCalls.slice(0, i)))
+    }
 
-            ctx.fillText("BitonicMerge(a, start, n, dir):", w / 2 + w * 0.05, h * 0.5);
-            ctx.fillText("if n == 1: return", w / 2 + w * 0.075, h * 0.55);
-        }
-    }));
-
+    /// -------------- END OF SLIDES ----------------------
     frames[currentFrameIdx].frameStart();
     requestAnimationFrame(draw);
 }
