@@ -215,6 +215,18 @@ class TextBoxOverlay {
         }
 
     }
+    left() {
+        return this.drawSettings.position.x;
+    }
+    right() {
+        return this.drawSettings.position.x + this.drawSettings.width
+    }
+    top() {
+        return this.drawSettings.position.y;
+    }
+    bottom() {
+        return this.drawSettings.position.y + this.drawSettings.height;
+    }
 
     mouseMove() {}
     mouseDown() {}
@@ -270,8 +282,6 @@ function initialize() {
         draw: function(ctx) {
             ctx.font = '80px Arial';
             ctx.lineWidth = 3;
-            let text = "Practical information (PhD, feedback therefore recording, \
-                student participation, can cut out if need)";
 
             fillTextCenter('Practical Information', 100, ctx);
 
@@ -284,7 +294,6 @@ function initialize() {
             for (let i = 0; i < bullets.length; i++) {
                 const bullet = bullets[i];
                 ctx.fillText(bullet, 100, 200 + 100 * i);
-                
             }
         }
     }));
@@ -477,7 +486,6 @@ function initialize() {
         mergeBoxOverlayX += defaultNetworkDrawSettings.wireLength * mergeBoxWidths[i] + defaultNetworkDrawSettings.wireLength / 12;
 
         frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, networkFrame, ...mergeBoxOverlays));
-
     }
 
     frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, networkFrame, {
@@ -1079,6 +1087,257 @@ function initialize() {
     for (let i = 0; i <= codeDrawCalls.length; i++) {
         frames.push(combineFrames(bitonicMergeNetwork3, ...recOverlay.slice(0, 2), recOverlay[4], ...codeDrawCalls.slice(0, i)))
     }
+
+
+    //// -------------- ANALYSIS SLIDES -------------------
+    /// Highligh tree structure of merge/sort calls
+
+
+    let bigMergeBoxes = [
+        new TextBoxOverlay("MERGING", {
+            position: {
+                x: wikiNetworkDrawSettings.marginX +
+                    wikiNetworkDrawSettings.squareLength +
+                    wikiNetworkDrawSettings.squareOffset + 
+                    wikiNetworkDrawSettings.wireLength * 0.6, 
+                y: wikiNetworkDrawSettings.marginY - wikiNetworkDrawSettings.squareOffset / 2
+            },
+            width: wikiNetworkDrawSettings.wireLength * 0.4,
+            height: calcHeightFromWires(wikiNetworkDrawSettings, 16),
+            fontSize: 80,
+            font: "Arial",
+            strokeWidth: 3,
+            drawVertical: false
+        })]
+    for (let i = 0; i < 2; i++) {
+        bigMergeBoxes.push(
+            new TextBoxOverlay("MERGING", {
+                position: {
+                    x: wikiNetworkDrawSettings.marginX +
+                        wikiNetworkDrawSettings.squareLength +
+                        wikiNetworkDrawSettings.squareOffset + 
+                        wikiNetworkDrawSettings.wireLength * 0.33, 
+                    y: wikiNetworkDrawSettings.marginY - wikiNetworkDrawSettings.squareOffset / 4 + calcHeightFromWires(wikiNetworkDrawSettings, 8) * i
+                },
+                width: wikiNetworkDrawSettings.wireLength * 0.2,
+                height: calcHeightFromWires(wikiNetworkDrawSettings, 8) - wikiNetworkDrawSettings.squareOffset / 2,
+                fontSize: 60,
+                font: "Arial",
+                strokeWidth: 3,
+                drawVertical: false
+            })
+        );
+    }
+    for (let i = 0; i < 4; i++) {
+        bigMergeBoxes.push(
+            new TextBoxOverlay("MERGING", {
+                position: {
+                    x: wikiNetworkDrawSettings.marginX +
+                        wikiNetworkDrawSettings.squareLength +
+                        wikiNetworkDrawSettings.squareOffset + 
+                        wikiNetworkDrawSettings.wireLength * 0.165, 
+                    y: wikiNetworkDrawSettings.marginY - wikiNetworkDrawSettings.squareOffset / 4 + calcHeightFromWires(wikiNetworkDrawSettings, 4) * i
+                },
+                width: wikiNetworkDrawSettings.wireLength * 0.1,
+                height: calcHeightFromWires(wikiNetworkDrawSettings, 4) - wikiNetworkDrawSettings.squareOffset / 2,
+                fontSize: 30,
+                font: "Arial",
+                strokeWidth: 3,
+                drawVertical: false
+            })
+        );
+    }
+    for (let i = 0; i < 8; i++) {
+        bigMergeBoxes.push(
+            new TextBoxOverlay("MERGING", {
+                position: {
+                    x: wikiNetworkDrawSettings.marginX +
+                        wikiNetworkDrawSettings.squareLength +
+                        wikiNetworkDrawSettings.squareOffset + 
+                        wikiNetworkDrawSettings.wireLength * 0.075, 
+                    y: wikiNetworkDrawSettings.marginY - wikiNetworkDrawSettings.squareOffset / 4 + calcHeightFromWires(wikiNetworkDrawSettings, 2) * i
+                },
+                width: wikiNetworkDrawSettings.wireLength * 0.05,
+                height: calcHeightFromWires(wikiNetworkDrawSettings, 2) - wikiNetworkDrawSettings.squareOffset / 2,
+                fontSize: 15,
+                font: "Arial",
+                strokeWidth: 3,
+                drawVertical: false
+            })
+        );
+    }
+    frames.push(wikiNetworkFrame);
+    for (let i = 1; i <= 4; i++) {
+        frames.push(combineFrames(wikiNetworkFrame, ...bigMergeBoxes.slice(0, 2**i - 1)));
+    }
+
+    let mergeBoxArrows = {
+        draw: function(ctx) {
+            /// Draw left arrows 
+            ctx.lineWidth = 5
+
+            let x = bigMergeBoxes[0].left();
+            let rightX = bigMergeBoxes[1].right();
+            let width = rightX - x;
+            for (let i = 0; i < 2; i++) {
+                let y = bigMergeBoxes[0].top() + 
+                            calcHeightFromWires(wikiNetworkDrawSettings, 4) +
+                            calcHeightFromWires(wikiNetworkDrawSettings, 8) *  i;
+                drawHorizontalArrow(x, y, width, 25, 20, ctx);
+            }
+
+            x = bigMergeBoxes[1].left();
+            rightX = bigMergeBoxes[3].right();
+            width = rightX - x;
+            for (let i = 0; i < 4; i++) {
+                let y = bigMergeBoxes[0].top() + 
+                            calcHeightFromWires(wikiNetworkDrawSettings, 2) +
+                            calcHeightFromWires(wikiNetworkDrawSettings, 4) *  i;
+                drawHorizontalArrow(x, y, width, 25, 20, ctx);
+            }
+
+            x = bigMergeBoxes[3].left();
+            rightX = bigMergeBoxes[7].right();
+            width = rightX - x;
+            for (let i = 0; i < 8; i++) {
+                let y = bigMergeBoxes[0].top() + 
+                            calcHeightFromWires(wikiNetworkDrawSettings, 1) +
+                            calcHeightFromWires(wikiNetworkDrawSettings, 2) *  i;
+                drawHorizontalArrow(x, y, width, 25, 20, ctx);
+            }
+        }
+    }
+
+    frames.push(combineFrames(...bigMergeBoxes.slice(0, 2**4 - 1), mergeBoxArrows));
+
+    frames.push(combineFrames(wikiNetworkFrame, {
+        draw: function(ctx) {
+         //    
+         ctx.clearRect(0, 0, bigMergeBoxes[0].left(), h);
+        }
+    }, ...bigMergeBoxes.slice(1), mergeBoxArrows, {
+        draw: function(ctx) {
+            let x = bigMergeBoxes[0].left();
+            let y = bigMergeBoxes[0].top();
+            let width = bigMergeBoxes[0].drawSettings.width
+            let height = bigMergeBoxes[0].drawSettings.height
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = 'rgba(0, 0, 0, 1)';
+            ctx.strokeRect(x, y, width, height);
+        }
+    }));
+
+    let wikiMergeBoxOverlays = [];
+    let wikiMergeBoxWidths = [0.09, 0.06, 0.035, 0.025];
+    let wikiMergeBoxFonts = [50, 40, 30, 13];
+    let wikiMergeBoxOverlayX = bigMergeBoxes[0].left() + w / 50;
+    for (let i = 0; i < 4; i++) {
+        for (let j = 0; j < 2**i; ++j) {
+            let overlayHeight = calcHeightFromWires(wikiNetworkDrawSettings, 16 / (2**i));
+            let mergeBoxOverlayY = bigMergeBoxes[0].top() + j * overlayHeight + wikiNetworkDrawSettings.squareOffset / 8;
+            let mergeBoxOverlay = new TextBoxOverlay("MERGE", {
+                position: {x: wikiMergeBoxOverlayX, y: mergeBoxOverlayY },
+                width: wikiNetworkDrawSettings.wireLength * wikiMergeBoxWidths[i],
+                height: overlayHeight - wikiNetworkDrawSettings.squareOffset /4,
+                fontSize: wikiMergeBoxFonts[i],
+                font: "Arial",
+                strokeWidth: 3,
+                drawVertical: true
+            });        
+            wikiMergeBoxOverlays.push(mergeBoxOverlay);
+        }
+        wikiMergeBoxOverlayX += wikiNetworkDrawSettings.wireLength * wikiMergeBoxWidths[i] + wikiNetworkDrawSettings.wireLength / 30;
+    }
+
+    frames.push(combineFrames(wikiNetworkFrame, {
+        draw: function(ctx) {
+            ctx.clearRect(0, 0, bigMergeBoxes[0].left(), h);
+        }
+    }, ...bigMergeBoxes.slice(1), mergeBoxArrows, {
+        draw: function(ctx) {
+            let x = bigMergeBoxes[0].left();
+            let y = bigMergeBoxes[0].top();
+            let width = bigMergeBoxes[0].drawSettings.width
+            let height = bigMergeBoxes[0].drawSettings.height
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = 'rgba(0, 0, 0, 1)';
+            ctx.strokeRect(x, y, width, height);
+        }
+    }, ...wikiMergeBoxOverlays));
+
+    let innerMergeBoxArrows = {
+        draw: function(ctx) {
+            /// Draw left arrows 
+            ctx.lineWidth = 5
+
+            let x = wikiMergeBoxOverlays[0].right();
+            let rightX = wikiMergeBoxOverlays[1].left();
+            let width = rightX - x;
+            for (let i = 0; i < 2; i++) {
+                let y = wikiMergeBoxOverlays[i+1].top() + 
+                        wikiMergeBoxOverlays[i+1].drawSettings.height / 2;
+                drawHorizontalArrow(x, y, width, 25, 20, ctx);
+            }
+
+            x = wikiMergeBoxOverlays[1].right();
+            rightX = wikiMergeBoxOverlays[3].left();
+            width = rightX - x;
+            for (let i = 0; i < 4; i++) {
+                let y = wikiMergeBoxOverlays[i+3].top() + 
+                        wikiMergeBoxOverlays[i+3].drawSettings.height / 2;
+                drawHorizontalArrow(x, y, width, 25, 20, ctx);
+            }
+
+            x = wikiMergeBoxOverlays[3].right();
+            rightX = wikiMergeBoxOverlays[7].left();
+            width = rightX - x;
+            for (let i = 0; i < 8; i++) {
+                let y = wikiMergeBoxOverlays[i+7].top() + 
+                        wikiMergeBoxOverlays[i+7].drawSettings.height / 2;
+                drawHorizontalArrow(x, y, width, 25, 20, ctx);
+            }
+        }
+    }
+
+
+    frames.push(combineFrames( {
+        draw: function(ctx) {
+            ctx.clearRect(0, 0, bigMergeBoxes[0].left(), h);
+        }
+    }, ...bigMergeBoxes.slice(1), mergeBoxArrows, {
+        draw: function(ctx) {
+            let x = bigMergeBoxes[0].left();
+            let y = bigMergeBoxes[0].top();
+            let width = bigMergeBoxes[0].drawSettings.width
+            let height = bigMergeBoxes[0].drawSettings.height
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = 'rgba(0, 0, 0, 1)';
+            ctx.strokeRect(x, y, width, height);
+        }
+    }, ...wikiMergeBoxOverlays, innerMergeBoxArrows));
+
+
+    /// -------------- SLIDES ON WHY SORTING NETWORKS ---------------------
+    // frames.push(combineFrames({
+    //     draw: function(ctx) {
+    //         ctx.font = '80px Arial';
+    //         ctx.lineWidth = 3;
+
+    //         fillTextCenter('Why Sorting Networks?', h * 0.1, ctx);
+
+    //         ctx.font = '60px Arial';
+    //         let bullets = [
+    //             '• Data Oblivousness',
+    //             '• GPU Sorting',
+    //             '• Circuits'
+    //         ];
+    //         for (let i = 0; i < bullets.length; i++) {
+    //             const bullet = bullets[i];
+    //             ctx.fillText(bullet, w * 0.1, h*0.2 + 100 * i);
+    //         }
+    //     }
+    // }));
+
 
     /// -------------- END OF SLIDES ----------------------
     frames[currentFrameIdx].frameStart();
