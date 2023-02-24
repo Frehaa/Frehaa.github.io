@@ -1324,6 +1324,7 @@ function initialize() {
         }
     }, ...wikiMergeBoxOverlays, innerMergeBoxArrows));
 
+    // TODO SLIDE ON THE AMOUNT OF WORK
 
     /// -------------- SLIDES ON WHY SORTING NETWORKS ---------------------
     // frames.push(combineFrames({
