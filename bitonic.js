@@ -294,8 +294,10 @@ function initialize() {
             }
         }
     }));
+    /// TODO 1 SLIDE PER BULLET
 
 
+    /// TODO 1 SLIDE TO TALK ABOUT SORTING NETWORKS BEFORE SMALL EXAMPLE
 
     // I show them how it works 1
     let tinyExampleNetwork = new Network(3);
@@ -363,21 +365,21 @@ function initialize() {
     }, true);
     frames.push(bubbleExampleNetworkFrame);
 
-    let bitonicDrawSettings = {
-            marginX: 50, 
-            marginY: 50,
-            width: 1600,
-            height: 50,
-            innerColor: 'rgba(255, 0, 0, 0.7)', // `#FF0000`,
-            outColor: 'rgba(0, 255, 0, 0.7)', // `#00FF00`,
-            borderColor: `#000000`,
-            inOutSeperatorColor: 'rgba(255, 0, 0, 0.2)', // `#777777`,
-            borderColor: '#000000',
-            lineWidth: 3,
-            offset: 100,
-    };
-    let bitonicSliderFrame = new BitonicSliderFrame(bitonicDrawSettings);
-    frames.push(bitonicSliderFrame);
+    // let bitonicDrawSettings = {
+    //         marginX: 50, 
+    //         marginY: 50,
+    //         width: 1600,
+    //         height: 50,
+    //         innerColor: 'rgba(255, 0, 0, 0.7)', // `#FF0000`,
+    //         outColor: 'rgba(0, 255, 0, 0.7)', // `#00FF00`,
+    //         borderColor: `#000000`,
+    //         inOutSeperatorColor: 'rgba(255, 0, 0, 0.2)', // `#777777`,
+    //         borderColor: '#000000',
+    //         lineWidth: 3,
+    //         offset: 100,
+    // };
+    // let bitonicSliderFrame = new BitonicSliderFrame(bitonicDrawSettings);
+    // frames.push(bitonicSliderFrame);
 
     // ctx.scale(2, 2);
 
@@ -730,8 +732,8 @@ function initialize() {
     
     let values3 = values1.concat(values2);
 
-    values = [16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
-    values3 = values; 
+    // values = [16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+    // values3 = values; 
 
     function drawCasBox(i, step, values, drawSettings, ctx) {
         let max = Math.max(...values);
@@ -1092,6 +1094,7 @@ function initialize() {
     for (let i = 0; i <= codeDrawCalls.length; i++) {
         frames.push(combineFrames(bitonicMergeNetwork3, ...recOverlay.slice(0, 2), recOverlay[4], ...codeDrawCalls.slice(0, i)))
     }
+    // TODO: Add diagram for Bitonic merge to code slides
 
 
     //// -------------- ANALYSIS SLIDES -------------------
