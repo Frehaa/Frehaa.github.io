@@ -8,6 +8,7 @@ const END_KEY = "End";
 const PAGE_DOWN_KEY = "PageDown";
 const PAGE_UP_KEY = "PageUp";
 const BAKCSPACE_KEY = "Backspace";
+const Z_KEY = "z";
 
 var mousePosition = {x:0, y: 0};
 
@@ -88,10 +89,6 @@ function initializeEventListeners() {
         let frame = frames[currentFrameIdx];
         if (frame.isInteractable) frame.mouseUp();
     });
-
-    document.body.addEventListener('resize', function(e) {
-        console.log(e)
-    })
 
     document.addEventListener('keydown', function(e) {
         let prevFrameIdx = currentFrameIdx;
@@ -306,11 +303,16 @@ function initialize() {
     tinyExampleNetwork.values[1] = 3
     tinyExampleNetwork.values[2] = 1
     let tinyExampleNetworkFrame = new NetworkFrame(tinyExampleNetwork, {
-        marginX: w * 0.03,
-        marginY: h * 0.1,
-        squareLength: w * 0.05, 
-        squareOffset: w * 0.02, 
-        wireLength: w * 0.8,
+        marginX: h * 0.05,
+        marginY: h * 0.2,
+        squareLength: h * 0.15, 
+        squareOffset: h * 0.05, 
+        wireLength: w - (2 * h * 0.05 + 2 * h * 0.15 + 2 * h * 0.05),
+        // marginX: w * 0.03,
+        // marginY: h * 0.2,
+        // squareLength: w * 0.05, 
+        // squareOffset: w * 0.02, 
+        // wireLength: w * 0.8,
         squareBorderColor: '#000000', 
         lineWidth: 10, 
         circleRadius: 10, 
@@ -361,21 +363,21 @@ function initialize() {
     }, true);
     frames.push(bubbleExampleNetworkFrame);
 
-    // let bitonicDrawSettings = {
-    //         marginX: 50, 
-    //         marginY: 50,
-    //         width: 1600,
-    //         height: 50,
-    //         innerColor: 'rgba(255, 0, 0, 0.7)', // `#FF0000`,
-    //         outColor: 'rgba(0, 255, 0, 0.7)', // `#00FF00`,
-    //         borderColor: `#000000`,
-    //         inOutSeperatorColor: 'rgba(255, 0, 0, 0.2)', // `#777777`,
-    //         borderColor: '#000000',
-    //         lineWidth: 3,
-    //         offset: 100,
-    // };
-    // let bitonicSliderFrame = new BitonicSliderFrame(bitonicDrawSettings);
-    // frames.push(bitonicSliderFrame);
+    let bitonicDrawSettings = {
+            marginX: 50, 
+            marginY: 50,
+            width: 1600,
+            height: 50,
+            innerColor: 'rgba(255, 0, 0, 0.7)', // `#FF0000`,
+            outColor: 'rgba(0, 255, 0, 0.7)', // `#00FF00`,
+            borderColor: `#000000`,
+            inOutSeperatorColor: 'rgba(255, 0, 0, 0.2)', // `#777777`,
+            borderColor: '#000000',
+            lineWidth: 3,
+            offset: 100,
+    };
+    let bitonicSliderFrame = new BitonicSliderFrame(bitonicDrawSettings);
+    frames.push(bitonicSliderFrame);
 
     // ctx.scale(2, 2);
 
@@ -472,7 +474,7 @@ function initialize() {
         for (let j = 0; j < 2**i; ++j) {
             let mergeBoxOverlayHeight = 16 / (2**i) * (defaultNetworkDrawSettings.squareLength + defaultNetworkDrawSettings.squareOffset);
             let mergeBoxOverlayY = defaultNetworkDrawSettings.marginY + j * mergeBoxOverlayHeight;
-            let mergeBoxOverlay = new TextBoxOverlay("MERGE", {
+            let mergeBoxOverlay = new TextBoxOverlay("SPLIT", {
                 position: {x: mergeBoxOverlayX, y: mergeBoxOverlayY },
                 width: defaultNetworkDrawSettings.wireLength * mergeBoxWidths[i],
                 height: mergeBoxOverlayHeight - defaultNetworkDrawSettings.squareOffset,
@@ -727,6 +729,9 @@ function initialize() {
     values2.sort((a, b) => a < b)
     
     let values3 = values1.concat(values2);
+
+    values = [16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+    values3 = values; 
 
     function drawCasBox(i, step, values, drawSettings, ctx) {
         let max = Math.max(...values);
@@ -1235,7 +1240,7 @@ function initialize() {
         for (let j = 0; j < 2**i; ++j) {
             let overlayHeight = calcHeightFromWires(wikiNetworkDrawSettings, 16 / (2**i));
             let mergeBoxOverlayY = bigMergeBoxes[0].top() + j * overlayHeight + wikiNetworkDrawSettings.squareOffset / 8;
-            let mergeBoxOverlay = new TextBoxOverlay("MERGE", {
+            let mergeBoxOverlay = new TextBoxOverlay("SPLIT", {
                 position: {x: wikiMergeBoxOverlayX, y: mergeBoxOverlayY },
                 width: wikiNetworkDrawSettings.wireLength * wikiMergeBoxWidths[i],
                 height: overlayHeight - wikiNetworkDrawSettings.squareOffset /4,
@@ -1327,7 +1332,7 @@ function initialize() {
 
     //         ctx.font = '60px Arial';
     //         let bullets = [
-    //             '• Data Oblivousness',
+    //             '• Data Oblivousness / Privacy',
     //             '• GPU Sorting',
     //             '• Circuits'
     //         ];

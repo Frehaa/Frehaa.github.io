@@ -20,15 +20,19 @@ function circle(x, y, radius) {
         y,
         radius,
         draw: function (ctx) {
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, radius, 0, 2 * Math.PI);
-            ctx.fill();
+            drawCircle(this.x, this.y, this.radius, ctx);
         }, 
         isInside(point) {
             return false;
         }
     };
     return r;
+}
+
+function drawCircle(x, y, radius, ctx) {
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, 2 * Math.PI);
+    ctx.fill();
 }
 
 function horline(x, y, length) {

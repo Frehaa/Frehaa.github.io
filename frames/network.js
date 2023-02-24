@@ -5,6 +5,7 @@ class Network {
         this.size = size;
         this.values = [];
         this.callbacks = [];
+        this.ids = [];
         for (let i = 0; i < size; ++i) {
             this.values.push(null);
         }
@@ -15,7 +16,6 @@ class Network {
         for (let i = 0; i < this.size; i++) {
             this.casByStartWire.push([]);
             this.casByEndWire.push([]);
-            
         }
     }
     set(i, value) {
@@ -38,14 +38,27 @@ class Network {
             }
         };
         let id = this.compareAndSwaps.insertBeforePredicate(value, n => n.position > position);
+        this.ids.push(id);
         value.id = id;
         this.casById[id] = value;
         this.casByStartWire[i].push(value);
         this.casByEndWire[j].push(value);
         this.callbacks.forEach(c => c(id, position, i, j));
     }
+    removeLastCompareAndSwap() {
+        let id = this.ids.pop();
+        if (id == undefined) return;
+
+        let wire = this.casById[id];
+
+        this.casById[id] = null;
+        this.casByStartWire[wire.i].pop()
+        this.casByEndWire[wire.j].pop()
+
+        this.compareAndSwaps.remove(id);
+    }
     *getCompareAndSwaps() {
-        for (let cas of this.compareAndSwaps) {
+        for (let cas of this.compareAndSwaps.items()) {
             yield cas
         }
     }
@@ -96,6 +109,7 @@ class NetworkFrame {
             ...drawSettings // Overwrite if available
         };
         this.checkInvariants()
+        this.boundedKeyDownCallback = this.keyDownCallback.bind(this);
 
 
         this.isInteractable = isInteractable;
@@ -220,9 +234,12 @@ class NetworkFrame {
         this.updateRightSquares();
         this.rightSquares.forEach(s => s.draw(ctx));
         ctx.lineWidth = this.drawSettings.arrowWidth;
-        for (let k in this.arrows) {
-            this.arrows[k].forEach(d => d.draw(ctx));
+        for (let cas of this.network.getCompareAndSwaps()) {
+            this.drawArrow(cas, ctx);
         }
+        // for (let k in this.arrows) {
+        //     this.arrows[k].forEach(d => d.draw(ctx));
+        // }
     }
     mouseMove() {
         this.hoverWireIdx = null;
@@ -275,17 +292,16 @@ class NetworkFrame {
         }
         else if (key == 'h') { // Toggle display of right squares
             this.displayRightSquares = !this.displayRightSquares;
+        } else if (this.isInteractable && e.ctrlKey && key == Z_KEY) {
+            // Remove last arrow
+            this.network.removeLastCompareAndSwap()
         }
     }
     frameStart() {
-        document.addEventListener('keydown', (e) => {
-            this.keyDownCallback(e);
-        });
+        document.addEventListener('keydown', this.boundedKeyDownCallback);
     }
     frameEnd(){
-        document.removeEventListener('keydown', (e) => {
-            this.keyDownCallback(e);
-        });
+        document.removeEventListener('keydown', this.boundedKeyDownCallback);
     }
     keyUp() {}
     updateRightSquares() {
@@ -299,6 +315,18 @@ class NetworkFrame {
                 this.rightSquares[i].text = null;
             }
         }
+    }
+
+    drawArrow(compareAndSwap, ctx) {
+        let xOffset = this.drawSettings.marginX + this.drawSettings.squareLength + this.drawSettings.squareOffset;
+        let position = compareAndSwap.position;
+
+        let x = xOffset + position * this.drawSettings.wireLength;
+        let y1 = this.wires[compareAndSwap.i].y;
+        let y2 = this.wires[compareAndSwap.j].y;
+
+        drawCircle(x, y1, this.drawSettings.circleRadius, ctx)
+        drawVerticalArrow(x, y1, y2 - y1, this.drawSettings.tipLength, this.drawSettings.tipWidth, ctx);
     }
 
     createNetworkCasCallback() {
