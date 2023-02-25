@@ -268,56 +268,23 @@ function initialize() {
     frames.push(combineFrames(wikiNetworkFrame, {
         draw: function(ctx) {
             ctx.font = '80px Arial';
-            ctx.lineWidth = 3;
             let text = "Sorting Networks and Bitonic Merge Sort";
-            fillTextCenter(text, 100, ctx);
+            fillTextCenter(text, h * 0.1, ctx);
         }
     }));
 
     // BIT OF PRACTICAL INFORMATION
+    let bulletPointSlideDrawSettings = {
+        titleFont: '80px Arial',
+        bulletFont: '60px Arial'
+    };
     let practicalInfoBullets = [
         '• PhD student',
         '• Recording',
         '• Participation'
     ];
-    frames.push(combineFrames({
-        draw: function(ctx) {
-            ctx.font = '80px Arial';
-            ctx.lineWidth = 3;
-            fillTextCenter('Practical Information', 100, ctx);
-            ctx.font = '60px Arial';
-            for (let i = 0; i < 1; i++) {
-                const bullet = practicalInfoBullets[i];
-                ctx.fillText(bullet, 100, 200 + 100 * i);
-            }
-        }
-    }));
-    frames.push(combineFrames({
-        draw: function(ctx) {
-            ctx.font = '80px Arial';
-            ctx.lineWidth = 3;
-            fillTextCenter('Practical Information', 100, ctx);
-            ctx.font = '60px Arial';
-            for (let i = 0; i < 2; i++) {
-                const bullet = practicalInfoBullets[i];
-                ctx.fillText(bullet, 100, 200 + 100 * i);
-            }
-        }
-    }));
-    frames.push(combineFrames({
-        draw: function(ctx) {
-            ctx.font = '80px Arial';
-            ctx.lineWidth = 3;
-            fillTextCenter('Practical Information', 100, ctx);
-            ctx.font = '60px Arial';
-            for (let i = 0; i < 3; i++) {
-                const bullet = practicalInfoBullets[i];
-                ctx.fillText(bullet, 100, 200 + 100 * i);
-            }
-        }
-    }));
-
-
+    createBulletPointSlides('Practical Information', practicalInfoBullets, bulletPointSlideDrawSettings);
+  
     /// TODO 1 SLIDE TO TALK ABOUT SORTING NETWORKS BEFORE SMALL EXAMPLE
 
     // I show them how it works 1
@@ -1348,26 +1315,26 @@ function initialize() {
     // TODO SLIDE ON THE AMOUNT OF WORK
 
     /// -------------- SLIDES ON WHY SORTING NETWORKS ---------------------
-    // frames.push(combineFrames({
-    //     draw: function(ctx) {
-    //         ctx.font = '80px Arial';
-    //         ctx.lineWidth = 3;
-
-    //         fillTextCenter('Why Sorting Networks?', h * 0.1, ctx);
-
-    //         ctx.font = '60px Arial';
-    //         let bullets = [
-    //             '• Data Oblivousness / Privacy',
-    //             '• GPU Sorting',
-    //             '• Circuits'
-    //         ];
-    //         for (let i = 0; i < bullets.length; i++) {
-    //             const bullet = bullets[i];
-    //             ctx.fillText(bullet, w * 0.1, h*0.2 + 100 * i);
-    //         }
-    //     }
-    // }));
-
+    function createBulletPointSlides(title, bullets, drawSettings) {
+        for (let i = 0; i < bullets.length; i++) {
+            frames.push(combineFrames({
+                draw: function(ctx) {
+                    ctx.font = drawSettings.titleFont;
+                    fillTextCenter(title, h * 0.1, ctx);
+                    ctx.font = drawSettings.bulletFont;
+                    for (let j = 0; j <= i; j++) {
+                        ctx.fillText(bullets[j], w * 0.1, h * 0.2 + 100 * j);
+                    }
+                }
+            }));    
+        }
+    }
+    let whySortingNetworksBullets = [
+        '• Data Oblivousness / Privacy',
+        '• GPU Sorting',
+        '• Circuits'
+    ];
+    createBulletPointSlides('Why Sorting Networks?', whySortingNetworksBullets, bulletPointSlideDrawSettings);
 
     /// -------------- END OF SLIDES ----------------------
     frames[currentFrameIdx].frameStart();
