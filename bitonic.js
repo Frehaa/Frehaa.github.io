@@ -240,6 +240,25 @@ function fillTextCenter(text, y, ctx) {
     ctx.fillText(text, x, y);
 }
 
+function createBulletPointSlides(title, bullets, drawSettings) {
+    for (let i = 0; i < bullets.length; i++) {
+        frames.push(combineFrames({
+            draw: function(ctx) {
+                ctx.font = drawSettings.titleFont;
+                fillTextCenter(title, drawSettings.titleStart, ctx);
+                ctx.font = drawSettings.bulletFont;
+                for (let j = 0; j <= i; j++) {
+                    ctx.fillText(drawSettings.bullet + ' ' + bullets[j],
+                                drawSettings.bulletStartLeft, 
+                                drawSettings.bulletStartTop +
+                                    drawSettings.bulletOffset * j
+                    );
+                }
+            }
+        }));    
+    }
+}
+
 function initialize() {
     initializeEventListeners();
     let canvas = document.getElementById('canvas');
@@ -265,25 +284,30 @@ function initialize() {
     let wikiNetworkFrame = new NetworkFrame(wikiNetwork, wikiNetworkDrawSettings, false);
     bitonicSort(0, 16, DESCENDING, wikiNetwork, 0.1);
 
+    let bulletPointSlideDrawSettings = {
+        titleFont: '80px Arial',
+        bulletFont: '60px Arial',
+        titleStart: h * 0.1,
+        bulletStartLeft: w * 0.1,
+        bulletStartTop: h * 0.2,
+        bulletOffset: 100,
+        bullet: '•'
+    };
+
     frames.push(combineFrames(wikiNetworkFrame, {
         draw: function(ctx) {
-            ctx.font = '80px Arial';
+            ctx.font = bulletPointSlideDrawSettings.titleFont;
             let text = "Sorting Networks and Bitonic Merge Sort";
             fillTextCenter(text, h * 0.1, ctx);
         }
     }));
 
     // BIT OF PRACTICAL INFORMATION
-    let bulletPointSlideDrawSettings = {
-        titleFont: '80px Arial',
-        bulletFont: '60px Arial'
-    };
-    let practicalInfoBullets = [
-        '• PhD student',
-        '• Recording',
-        '• Participation'
-    ];
-    createBulletPointSlides('Practical Information', practicalInfoBullets, bulletPointSlideDrawSettings);
+    createBulletPointSlides('Practical Information', [
+        'PhD student',
+        'Recording',
+        'Participation'
+    ], bulletPointSlideDrawSettings);
   
     /// TODO 1 SLIDE TO TALK ABOUT SORTING NETWORKS BEFORE SMALL EXAMPLE
 
@@ -1315,26 +1339,11 @@ function initialize() {
     // TODO SLIDE ON THE AMOUNT OF WORK
 
     /// -------------- SLIDES ON WHY SORTING NETWORKS ---------------------
-    function createBulletPointSlides(title, bullets, drawSettings) {
-        for (let i = 0; i < bullets.length; i++) {
-            frames.push(combineFrames({
-                draw: function(ctx) {
-                    ctx.font = drawSettings.titleFont;
-                    fillTextCenter(title, h * 0.1, ctx);
-                    ctx.font = drawSettings.bulletFont;
-                    for (let j = 0; j <= i; j++) {
-                        ctx.fillText(bullets[j], w * 0.1, h * 0.2 + 100 * j);
-                    }
-                }
-            }));    
-        }
-    }
-    let whySortingNetworksBullets = [
-        '• Data Oblivousness / Privacy',
-        '• GPU Sorting',
-        '• Circuits'
-    ];
-    createBulletPointSlides('Why Sorting Networks?', whySortingNetworksBullets, bulletPointSlideDrawSettings);
+    createBulletPointSlides('Why Sorting Networks?', [
+        'Data Oblivousness / Privacy',
+        'Parallelism / GPU Sorting',
+        'Circuits'
+    ], bulletPointSlideDrawSettings);
 
     /// -------------- END OF SLIDES ----------------------
     frames[currentFrameIdx].frameStart();
