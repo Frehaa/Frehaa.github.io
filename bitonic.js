@@ -275,26 +275,47 @@ function initialize() {
     }));
 
     // BIT OF PRACTICAL INFORMATION
+    let practicalInfoBullets = [
+        '• PhD student',
+        '• Recording',
+        '• Participation'
+    ];
     frames.push(combineFrames({
         draw: function(ctx) {
             ctx.font = '80px Arial';
             ctx.lineWidth = 3;
-
             fillTextCenter('Practical Information', 100, ctx);
-
             ctx.font = '60px Arial';
-            let bullets = [
-                '• PhD student                      ',
-                '• Recording                         ',
-                '• Participation                     '
-            ];
-            for (let i = 0; i < bullets.length; i++) {
-                const bullet = bullets[i];
+            for (let i = 0; i < 1; i++) {
+                const bullet = practicalInfoBullets[i];
                 ctx.fillText(bullet, 100, 200 + 100 * i);
             }
         }
     }));
-    /// TODO 1 SLIDE PER BULLET
+    frames.push(combineFrames({
+        draw: function(ctx) {
+            ctx.font = '80px Arial';
+            ctx.lineWidth = 3;
+            fillTextCenter('Practical Information', 100, ctx);
+            ctx.font = '60px Arial';
+            for (let i = 0; i < 2; i++) {
+                const bullet = practicalInfoBullets[i];
+                ctx.fillText(bullet, 100, 200 + 100 * i);
+            }
+        }
+    }));
+    frames.push(combineFrames({
+        draw: function(ctx) {
+            ctx.font = '80px Arial';
+            ctx.lineWidth = 3;
+            fillTextCenter('Practical Information', 100, ctx);
+            ctx.font = '60px Arial';
+            for (let i = 0; i < 3; i++) {
+                const bullet = practicalInfoBullets[i];
+                ctx.fillText(bullet, 100, 200 + 100 * i);
+            }
+        }
+    }));
 
 
     /// TODO 1 SLIDE TO TALK ABOUT SORTING NETWORKS BEFORE SMALL EXAMPLE
