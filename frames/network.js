@@ -111,7 +111,6 @@ class NetworkFrame {
         this.checkInvariants()
         this.boundedKeyDownCallback = this.keyDownCallback.bind(this);
 
-
         this.isInteractable = isInteractable;
         this.network = network;
         this.compareAndSwaps = new LinkedList();
@@ -146,50 +145,57 @@ class NetworkFrame {
             this.leftSquares.push(writableSquare(this.drawSettings.marginX, squareY, squareLength));
             this.wires.push(horline(this.drawSettings.marginX + squareLength + squareOffset, wireY, wireLength));
             this.rightSquares.push(writableSquare(this.drawSettings.marginX + wireLength + squareLength + 2 * squareOffset, squareY, squareLength));
-            if (this.drawSettings.drawBox) {
-                this.leftSquares[i].borderColor = this.drawSettings.squareBorderColor;
-                this.rightSquares[i].borderColor = this.drawSettings.squareBorderColor;
-            } else {
-                this.leftSquares[i].borderColor = 'rgba(0,0,0,0)';
-                this.rightSquares[i].borderColor = 'rgba(0,0,0,0)';
-                this.leftSquares[i].hoverColor = 'rgba(0,0,0,0)';
-                this.rightSquares[i].hoverColor = 'rgba(0,0,0,0)';
-                this.leftSquares[i].focusColor = 'rgba(0,0,0,0)';
-                this.rightSquares[i].focusColor = 'rgba(0,0,0,0)';
-            }
+            this.leftSquares[i].borderColor = this.drawSettings.squareBorderColor;
+            this.rightSquares[i].borderColor = this.drawSettings.squareBorderColor;
+
         }
 
         network.subscribe(this.createNetworkCasCallback());
     }
+    drawSingleWireOverlay(wire, start, end, color, ctx) {
+        let y = this.drawSettings.marginY + 
+                (this.drawSettings.squareLength +
+                    this.drawSettings.squareOffset) * wire;
+        let x = this.drawSettings.marginX + 
+                    this.drawSettings.squareOffset + 
+                    this.drawSettings.squareLength + 
+                    this.drawSettings.wireLength * start;
 
-    drawWireOverlay(ctx) {
-        for (let i = 0; i < this.network.size; i++) {
-            let y = this.drawSettings.marginY + 
-                    (this.drawSettings.squareLength +
-                        this.drawSettings.squareOffset) * i;
-            let x = this.drawSettings.marginX + 
-                        this.drawSettings.squareOffset + 
-                        this.drawSettings.squareLength;
-            let width = this.drawSettings.wireLength;
-            let height = this.drawSettings.squareLength;
+        let width = this.drawSettings.wireLength * (end - start) ;
+        let height = this.drawSettings.squareLength;
 
-            if (this.network.values[i] < 8) {
-                ctx.strokeStyle = `rgba(0, 255, 0, 0.5)`;
-                ctx.fillStyle = `rgba(0, 255, 0, 0.5)`;
-            } else {
-                ctx.strokeStyle = `rgba(255, 0, 0, 0.5)`;
-                ctx.fillStyle = `rgba(255, 0, 0, 0.5)`;
-            }
-
-            if (this.network.values[i] != null) {
-                ctx.fillRect(x, y, width, height);
-                ctx.strokeRect(x, y, width, height);
-            }
-
-            let startCas = this.network.casByStartWire[i];
-            let endCas = this.network.casByEndWire[i];
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, width, height);
+    }
+    getWireOverlayColor(value) {
+        let color = 'rgba(255, 255, 255, 1)';
+        if (value == 1) {
+            color = 'rgba(0, 255, 0, 0.5)';
+        } else if (value == 2) {
+            color = 'rgba(0, 0, 255, 0.5)';
+        } else if (value == 3) {
+            color = 'rgba(255, 0, 0, 0.5)';
         }
-
+        return color;
+    }
+    drawWireOverlay(ctx) {
+        console.log('a')
+        let a = this.network.values.slice(0);
+        let start = 0;
+        let cas = [...this.network.getCompareAndSwaps()]
+        for (const c of cas) {
+            for (let i = 0; i < this.wires.length; i++) {
+                let color = this.getWireOverlayColor(a[i]);
+                this.drawSingleWireOverlay(i, start, c.position, color, ctx);
+            }
+            c.cas(a)
+            start = c.position;
+        }
+        for (let i = 0; i < this.wires.length; i++) {
+            let color = this.getWireOverlayColor(a[i]);
+            this.drawSingleWireOverlay(i, start, 1, color, ctx);
+        }
     }
 
     draw(ctx) {
@@ -205,7 +211,9 @@ class NetworkFrame {
             let lSquare = this.leftSquares[i];
             lSquare.focus = (i == this.focusSquareIdx);
             lSquare.text = this.network.get(i);
-            lSquare.draw(ctx);
+            if (this.drawSettings.drawBox) {
+                lSquare.draw(ctx);
+            }
 
             ctx.strokeStyle = this.drawSettings.wireColor;
             this.wires[i].draw(ctx);
@@ -231,8 +239,10 @@ class NetworkFrame {
 
         ctx.lineWidth = this.drawSettings.wireWidth;
         // Simulate network, draw right square results, and draw arrows
-        this.updateRightSquares();
-        this.rightSquares.forEach(s => s.draw(ctx));
+        if (this.drawSettings.drawBox) {
+            this.updateRightSquares();
+            this.rightSquares.forEach(s => s.draw(ctx));
+        }
         ctx.lineWidth = this.drawSettings.arrowWidth;
         for (let cas of this.network.getCompareAndSwaps()) {
             this.drawArrow(cas, ctx);

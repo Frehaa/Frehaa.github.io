@@ -309,9 +309,24 @@ function initialize() {
         'Participation'
     ], bulletPointSlideDrawSettings);
   
-    /// TODO 1 SLIDE TO TALK ABOUT SORTING NETWORKS BEFORE SMALL EXAMPLE
+    let tinyExampleNetworkFrame1 = new NetworkFrame(new Network(3), {
+        marginX: h * 0.05,
+        marginY: h * 0.2,
+        squareLength: h * 0.15, 
+        squareOffset: h * 0.05, 
+        wireLength: w - (2 * h * 0.05 + 2 * h * 0.15 + 2 * h * 0.05),
+        squareBorderColor: '#000000', 
+        lineWidth: 10, 
+        circleRadius: 10, 
+        tipLength: 20, 
+        tipWidth: 15, 
+        drawBox: false
+    }, true);
+    frames.push(tinyExampleNetworkFrame1);
+
 
     // I show them how it works 1
+    currentFrameIdx = frames.length
     let tinyExampleNetwork = new Network(3);
     tinyExampleNetwork.values[0] = 2
     tinyExampleNetwork.values[1] = 3
@@ -322,20 +337,14 @@ function initialize() {
         squareLength: h * 0.15, 
         squareOffset: h * 0.05, 
         wireLength: w - (2 * h * 0.05 + 2 * h * 0.15 + 2 * h * 0.05),
-        // marginX: w * 0.03,
-        // marginY: h * 0.2,
-        // squareLength: w * 0.05, 
-        // squareOffset: w * 0.02, 
-        // wireLength: w * 0.8,
         squareBorderColor: '#000000', 
         lineWidth: 10, 
         circleRadius: 10, 
         tipLength: 20, 
         tipWidth: 15, 
-        drawBox: true
-
+        drawBox: true,
+        drawWireOverlay: true
     }, true);
-
     frames.push(tinyExampleNetworkFrame);
 
 
@@ -515,6 +524,8 @@ function initialize() {
         }
     }));
 
+    // TODO: Redo the wire coloring 
+
     // Frames which do not sort correctly
     let failingSequence = [ 8, 2, 3, 14, 15, 5, 6, 10, 1, 9, 12, 11, 7, 0, 4, 13 ];
     let wireColoredFrame = dashedLine
@@ -532,6 +543,18 @@ function initialize() {
         }
         frames.push(combineFrames(wireColoredFrame, networkFrame))
     }
+    frames.push(combineFrames(networkFrame, {
+        draw: function(ctx) {
+        },
+        frameStart: function() {
+            networkFrame.drawSettings.drawWireOverlay = true;
+            networkFrame.network.values[0] = 3
+            networkFrame.network.values[8] = 1
+        },
+        frameEnd: function() {
+            networkFrame.drawSettings.drawWireOverlay = false;
+        }
+    }))
 
     // Example frames which do
     // Already sorted 1 
