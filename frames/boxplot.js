@@ -34,8 +34,9 @@ class BoxplotFrame {
         for (let i = 0; i < length; i++) {
             let v = this.values[i];
             let t = v / max;
+            let boxWidth = t * width;
             this.colorBox(i, t, ctx)
-            ctx.fillRect(leftX, topY + (boxHeight +offset )* i , width, boxHeight);
+            ctx.fillRect(leftX, topY + (boxHeight +offset )* i , boxWidth, boxHeight);
         }
     }
 
