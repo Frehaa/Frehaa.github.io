@@ -9,11 +9,15 @@ const PAGE_DOWN_KEY = "PageDown";
 const PAGE_UP_KEY = "PageUp";
 const BAKCSPACE_KEY = "Backspace";
 const Z_KEY = "z";
+const O_KEY = "o";
+const F1_KEY = "F1";
+const F2_KEY = "F2";
 
 var mousePosition = {x:0, y: 0};
 
 let frames = [];
 let currentFrameIdx = 0;
+let showSlideNumber = false;
 
 function rgba(r, g, b, a) {
     return { r, g, b, a };
@@ -28,7 +32,9 @@ function draw() {
     frames[currentFrameIdx].draw(ctx);
     ctx.restore();
 
-    ctx.strokeText((currentFrameIdx + 1).toString(), canvas.width - 100, canvas.height - 50);
+    if (showSlideNumber) {
+        ctx.strokeText((currentFrameIdx + 1).toString(), canvas.width - 100, canvas.height - 50);
+    }
 
     requestAnimationFrame(draw);
 }
@@ -72,6 +78,7 @@ let rectangleFrame = {
 function initializeEventListeners() {
     let canvas = document.getElementById('canvas');
     canvas.addEventListener('mousemove', function(e) {
+        // TODO: CONVERT MOUSE POSITION TO CANVAS SPACE
         mousePosition = {
             x: e.pageX - e.target.offsetLeft, 
             y:e.pageY - e.target.offsetTop
@@ -111,9 +118,12 @@ function initializeEventListeners() {
             case PAGE_UP_KEY: {
                 currentFrameIdx = Math.max(currentFrameIdx - 10, 0);
             } break;
-            case 't': {
+            case F1_KEY: {
                 console.log(mousePosition)
                 console.log(frames[currentFrameIdx])
+            } break;
+            case F2_KEY: {
+                showSlideNumber = !showSlideNumber;
             } break;
            default: return;
         }
@@ -279,7 +289,16 @@ function initialize() {
         circleRadius: h / 110, 
         tipLength: h / 50, 
         tipWidth: h / 90, 
-        drawBox: false
+        drawBox: false,        
+        wireOverlayColor: function(value) {
+            if (value == 0) {
+                return 'rgba(0, 255, 0, 0.5)';
+            } else if (value == 1) {
+                return 'rgba(255, 0, 0, 0.5)';
+            } else {
+                return 'rgba(0, 0, 0, 0)';
+            }
+        }
     };
     let wikiNetworkFrame = new NetworkFrame(wikiNetwork, wikiNetworkDrawSettings, false);
     bitonicSort(0, 16, DESCENDING, wikiNetwork, 0.1);
@@ -320,7 +339,16 @@ function initialize() {
         circleRadius: 10, 
         tipLength: 20, 
         tipWidth: 15, 
-        drawBox: false
+        drawBox: false,        
+        wireOverlayColor: function(value) {
+            if (value == 0) {
+                return 'rgba(0, 255, 0, 0.5)';
+            } else if (value == 1) {
+                return 'rgba(255, 0, 0, 0.5)';
+            } else {
+                return 'rgba(0, 0, 0, 0)';
+            }
+        }
     }, true);
     frames.push(tinyExampleNetworkFrame1);
 
@@ -343,7 +371,16 @@ function initialize() {
         tipLength: 20, 
         tipWidth: 15, 
         drawBox: true,
-        drawWireOverlay: true
+        drawWireOverlay: true,
+        wireOverlayColor: function(value) {
+            if (value == 1) {
+                return 'rgba(0, 255, 0, 0.5)';
+            } else if (value == 2) {
+                return 'rgba(0, 0, 255, 0.5)';
+            } else {
+                return 'rgba(255, 0, 0, 0.5)';
+            }
+        }
     }, true);
     frames.push(tinyExampleNetworkFrame);
 
@@ -362,8 +399,16 @@ function initialize() {
         tipLength: h / 50, 
         tipWidth: w / 200,
         // strokeWidth: ???, // TODO: The square width is not customizable
-        drawBox: true
-
+        drawBox: true,
+        wireOverlayColor: function(value) {
+            if (value == 0) {
+                return 'rgba(0, 255, 0, 0.5)';
+            } else if (value == 1) {
+                return 'rgba(255, 0, 0, 0.5)';
+            } else {
+                return 'rgba(0, 0, 0, 0)';
+            }
+        }
     }, true);
     frames.push(selfExampleNetworkFrame);
 
@@ -381,8 +426,16 @@ function initialize() {
         tipLength: h / 50, 
         tipWidth: w / 200,
         // strokeWidth: ???, // TODO: The square width is not customizable
-        drawBox: false
-
+        drawBox: false,
+        wireOverlayColor: function(value) {
+            if (value == 0) {
+                return 'rgba(0, 255, 0, 0.5)';
+            } else if (value == 1) {
+                return 'rgba(255, 0, 0, 0.5)';
+            } else {
+                return 'rgba(0, 0, 0, 0)';
+            }
+        }
     }, true);
     frames.push(bubbleExampleNetworkFrame);
 
@@ -416,7 +469,17 @@ function initialize() {
         circleRadius: h / 110, 
         tipLength: h / 50, 
         tipWidth: h / 90, 
-        drawBox: false
+        drawBox: false,
+        wireOverlayColor: function(value) {
+            if (value == 0) {
+                return 'rgba(0, 255, 0, 0.5)';
+            } else if (value == 1) {
+                return 'rgba(255, 0, 0, 0.5)';
+            } else {
+                return 'rgba(0, 0, 0, 0)';
+            }
+        },
+        drawWireOverlay: true
     };
     let networkFrame = new NetworkFrame(network16, defaultNetworkDrawSettings, true);
 
@@ -428,7 +491,6 @@ function initialize() {
         strokeColor: rgba(0, 1, 0, 0.5),
         fillColor: rgba(0, 1, 0, 0.5),
     });
-
     let redOverlayFrame = new OverlayFrame({
         position: {x: w / 2, y: networkFrame.drawSettings.marginY + calcHeightFromWires(networkFrame.drawSettings, 8.5) - 
                 networkFrame.drawSettings.squareOffset},
@@ -439,54 +501,27 @@ function initialize() {
         fillColor: rgba(1, 0, 0, 0.5),
     });
 
-    function createWireOverlay(i, drawSettings, color) {
-        let y = drawSettings.marginY +
-                (drawSettings.squareLength +
-                    drawSettings.squareOffset) * i
-        let x = drawSettings.marginX + 
-                    drawSettings.squareOffset +
-                    drawSettings.squareLength;
-        return new OverlayFrame({
-            position: {x, y},
-            width: drawSettings.wireLength,
-            height: drawSettings.squareLength,
-            strokeColor: color,
-            fillColor: color
-        });
-    }
-
-    let greenWireOverlayFrames = []
-    let redWireOverlayFrames = []
-    for (let i = 0; i < networkFrame.network.size; i++) {
-        let gframe = createWireOverlay(i, networkFrame.drawSettings, rgba(0, 1, 0, 0.5));
-        let rframe = createWireOverlay(i, networkFrame.drawSettings, rgba(1, 0, 0, 0.5));
-        greenWireOverlayFrames.push(gframe)
-        redWireOverlayFrames.push(rframe)
-    }
-
-    function drawDashLine(x1, y1, x2, y2, dash, ctx) {
-        ctx.beginPath();
-        ctx.setLineDash(dash);
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
-    }
-
-    let dashedLine = {
-        draw: function(ctx) {
-            let y = networkFrame.drawSettings.marginY + 
-                8 * (networkFrame.drawSettings.squareLength + networkFrame.drawSettings.squareOffset) -
+    let nullSequence = [ null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null ];
+    function drawCenterDashLine(ctx) {
+        let y = networkFrame.drawSettings.marginY + 
+                calcHeightFromWires(networkFrame.drawSettings, 8) - 
                 networkFrame.drawSettings.squareOffset / 2 ;
+        ctx.lineWidth = 3
+        drawDashLine(networkFrame.drawSettings.marginX, y, 
+                        w - networkFrame.drawSettings.marginX, y, [10, 10], ctx);
 
-            ctx.lineWidth = 3
-            drawDashLine(networkFrame.drawSettings.marginX, y, w -
-            networkFrame.drawSettings.marginX, y, [10, 10], ctx);
-        }
     }
-    frames.push(networkFrame);
 
-    frames.push(combineFrames(greenOverlayFrame, networkFrame));
-    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, networkFrame));
+    let resetValuesFrame = combineFrames(networkFrame, {
+        draw: function() {},
+        frameStart: function() {
+            networkFrame.network.values = nullSequence;
+            networkFrame.network.compareAndSwaps = new LinkedList();
+        }
+    })
+    frames.push(resetValuesFrame);
+    frames.push(combineFrames(greenOverlayFrame, resetValuesFrame));
+    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, resetValuesFrame));
 
     // Insert merge box overlays
     let mergeBoxOverlays = [];
@@ -516,6 +551,7 @@ function initialize() {
     frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, networkFrame, {
         draw: function() {},
         frameStart: function() {
+            networkFrame.network.values = nullSequence;
             // Dirty trick to make sure the network is initialized
             if (network16.compareAndSwaps.size > 0) return 
             for (let i = 0; i < network16.size / 2; i++) {
@@ -524,95 +560,67 @@ function initialize() {
         }
     }));
 
-    // TODO: Redo the wire coloring 
-
     // Frames which do not sort correctly
-    let failingSequence = [ 8, 2, 3, 14, 15, 5, 6, 10, 1, 9, 12, 11, 7, 0, 4, 13 ];
-    let wireColoredFrame = dashedLine
-    for (let i = 0; i < networkFrame.network.size / 2; i++) {
-        if (failingSequence[i] < 8) {
-            wireColoredFrame = combineFrames(wireColoredFrame, greenWireOverlayFrames[i]);
-        } else {
-            wireColoredFrame = combineFrames(wireColoredFrame, redWireOverlayFrames[i]);
-        }
-        let k = i + failingSequence.length / 2;
-        if (failingSequence[k] < 8) {
-            wireColoredFrame = combineFrames(wireColoredFrame, greenWireOverlayFrames[k]);
-        } else {
-            wireColoredFrame = combineFrames(wireColoredFrame, redWireOverlayFrames[k]);
-        }
-        frames.push(combineFrames(wireColoredFrame, networkFrame))
+    let failingSequence = [ 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1 ];
+    for (let i = 0; i < failingSequence.length/2; i++) {
+        frames.push(combineFrames(networkFrame, {
+            draw: drawCenterDashLine,
+            frameStart: function() {
+                networkFrame.network.values = nullSequence.slice();
+                for (let j = 0; j <= i; j++) {
+                    networkFrame.network.values[j] = failingSequence[j];
+                    networkFrame.network.values[j + 8] = failingSequence[j + 8];
+                }
+            }
+        }));
     }
-    frames.push(combineFrames(networkFrame, {
-        draw: function(ctx) {
-        },
-        frameStart: function() {
-            networkFrame.drawSettings.drawWireOverlay = true;
-            networkFrame.network.values[0] = 3
-            networkFrame.network.values[8] = 1
-        },
-        frameEnd: function() {
-            networkFrame.drawSettings.drawWireOverlay = false;
-        }
-    }))
 
-    // Example frames which do
+    // Example frames which do work
     // Already sorted 1 
-    let sorted1Frame = dashedLine;
-    for (let i = 0; i < networkFrame.network.size / 2; i++) {
-        sorted1Frame = combineFrames(sorted1Frame, greenWireOverlayFrames[i]);
-        sorted1Frame = combineFrames(sorted1Frame, redWireOverlayFrames[i+8]);
-    }
-    frames.push(combineFrames(sorted1Frame, networkFrame));
+    let sortedSequence1 = failingSequence.slice().sort((a, b) => a > b);
+    frames.push(combineFrames(networkFrame, {
+        draw: drawCenterDashLine, 
+        frameStart: function() {
+            networkFrame.network.values = sortedSequence1;
+        }
+    }));
 
     // Already sorted 2 
-    let sorted2Frame = dashedLine;
-    for (let i = 0; i < networkFrame.network.size / 2; i++) {
-        sorted2Frame = combineFrames(sorted2Frame, redWireOverlayFrames[i]);
-        sorted2Frame = combineFrames(sorted2Frame, greenWireOverlayFrames[i+8]);
-    }
-    frames.push(combineFrames(sorted2Frame, networkFrame));
+    let sortedSequence2 = failingSequence.slice().sort((a, b) => a < b);
+    frames.push(combineFrames(networkFrame, {
+        draw: drawCenterDashLine,
+        frameStart: function() {
+            networkFrame.network.values = sortedSequence2;
+        }
+    }));
 
     // Odd-even
-    let oddEvenFrame = dashedLine;
-    for (let i = 0; i < networkFrame.network.size / 2; i++) {
-        if (i % 2 == 0) {
-            oddEvenFrame = combineFrames(oddEvenFrame, greenWireOverlayFrames[i]);
-            oddEvenFrame = combineFrames(oddEvenFrame, redWireOverlayFrames[i+8]);
-        } else {
-            oddEvenFrame = combineFrames(oddEvenFrame, redWireOverlayFrames[i]);
-            oddEvenFrame = combineFrames(oddEvenFrame, greenWireOverlayFrames[i+8]);
+    let oddEvenSequence = [0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0];
+    frames.push(combineFrames(networkFrame, {
+        draw: drawCenterDashLine,
+        frameStart: function() {
+            networkFrame.network.values = oddEvenSequence;
         }
-    }
-    frames.push(combineFrames(oddEvenFrame, networkFrame));
+    }));
 
     // Bitonic 1
-    let bitonic1Frame = dashedLine;
-    for (let i = 0; i < networkFrame.network.size / 2; i++) {
-        if (i >= 4 ) {
-            bitonic1Frame = combineFrames(bitonic1Frame, greenWireOverlayFrames[i]);
-            bitonic1Frame = combineFrames(bitonic1Frame, redWireOverlayFrames[i+8]);
-        } else {
-            bitonic1Frame = combineFrames(bitonic1Frame, redWireOverlayFrames[i]);
-            bitonic1Frame = combineFrames(bitonic1Frame, greenWireOverlayFrames[i+8]);
+    let bitonicSequence1 = [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1];
+    frames.push(combineFrames(networkFrame, {
+        draw: drawCenterDashLine,
+        frameStart: function() {
+            networkFrame.network.values = bitonicSequence1;
         }
-    }
-    frames.push(combineFrames(bitonic1Frame, networkFrame));
+    }));
 
     // Bitonic 2
-    let bitonic2Frame = dashedLine;
-    for (let i = 0; i < networkFrame.network.size / 2; i++) {
-        if (i < 4 ) {
-            bitonic2Frame = combineFrames(bitonic2Frame, greenWireOverlayFrames[i]);
-            bitonic2Frame = combineFrames(bitonic2Frame, redWireOverlayFrames[i+8]);
-        } else {
-            bitonic2Frame = combineFrames(bitonic2Frame, redWireOverlayFrames[i]);
-            bitonic2Frame = combineFrames(bitonic2Frame, greenWireOverlayFrames[i+8]);
+    let bitonicSequence2 = [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0];
+    let bitonic2Frame = combineFrames(networkFrame, {
+        draw: drawCenterDashLine,
+        frameStart: function() {
+            networkFrame.network.values = bitonicSequence2;
         }
-    }
-    bitonic2Frame = combineFrames(bitonic2Frame, networkFrame);
+    });
     frames.push(bitonic2Frame);
-
 
     function calcHeightFromWires(drawSettings, count) {
         return count * (drawSettings.squareLength + drawSettings.squareOffset);
@@ -1132,9 +1140,8 @@ function initialize() {
     // TODO: Add diagram for Bitonic merge to code slides
 
 
-    //// -------------- ANALYSIS SLIDES -------------------
+    /// -------------- ANALYSIS SLIDES -------------------
     /// Highligh tree structure of merge/sort calls
-
 
     let bigMergeBoxes = [
         new TextBoxOverlay("MERGING", {
@@ -1341,7 +1348,6 @@ function initialize() {
             }
         }
     }
-
 
     frames.push(combineFrames( {
         draw: function(ctx) {

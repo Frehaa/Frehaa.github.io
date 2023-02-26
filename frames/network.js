@@ -169,18 +169,9 @@ class NetworkFrame {
         ctx.fillRect(x, y, width, height);
     }
     getWireOverlayColor(value) {
-        let color = 'rgba(255, 255, 255, 1)';
-        if (value == 1) {
-            color = 'rgba(0, 255, 0, 0.5)';
-        } else if (value == 2) {
-            color = 'rgba(0, 0, 255, 0.5)';
-        } else if (value == 3) {
-            color = 'rgba(255, 0, 0, 0.5)';
-        }
-        return color;
+        return this.drawSettings.wireOverlayColor(value);
     }
     drawWireOverlay(ctx) {
-        console.log('a')
         let a = this.network.values.slice(0);
         let start = 0;
         let cas = [...this.network.getCompareAndSwaps()]
@@ -305,6 +296,8 @@ class NetworkFrame {
         } else if (this.isInteractable && e.ctrlKey && key == Z_KEY) {
             // Remove last arrow
             this.network.removeLastCompareAndSwap()
+        } else if (this.isInteractable && key === O_KEY) {
+            this.drawSettings.drawWireOverlay = !this.drawSettings.drawWireOverlay;
         }
     }
     frameStart() {

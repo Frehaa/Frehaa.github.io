@@ -56,6 +56,14 @@ function horline(x, y, length) {
     return r;
 }
 
+function drawDashLine(x1, y1, x2, y2, dash, ctx) {
+    ctx.beginPath();
+    ctx.setLineDash(dash);
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+}
+
 function drawVerticalArrow(x, y, length, tipLength, tipWidth, ctx) {
     let directionY = Math.sign(length);
     let arrowEndY = y + length;
