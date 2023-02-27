@@ -28,6 +28,7 @@ function draw() {
     let ctx = canvas.getContext('2d');
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
     ctx.save();
     frames[currentFrameIdx].draw(ctx);
     ctx.restore();
@@ -78,10 +79,9 @@ let rectangleFrame = {
 function initializeEventListeners() {
     let canvas = document.getElementById('canvas');
     canvas.addEventListener('mousemove', function(e) {
-        // TODO: CONVERT MOUSE POSITION TO CANVAS SPACE
         mousePosition = {
-            x: e.pageX - e.target.offsetLeft, 
-            y:e.pageY - e.target.offsetTop
+            x: (e.pageX - e.target.offsetLeft) * (canvas.width / canvas.clientWidth), 
+            y: (e.pageY - e.target.offsetTop) * (canvas.height / canvas.clientHeight)
         };
         let frame = frames[currentFrameIdx];
         if (frame.isInteractable) frame.mouseMove();
