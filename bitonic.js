@@ -235,7 +235,11 @@ function initialize() {
         'I hope for some light participation'
     ], bulletPointSlideDrawSettings);
   
-    let tinyExampleNetworkFrame1 = new NetworkFrame(new Network(3), {
+    let tinyExampleNetwork = new Network(3);
+    tinyExampleNetwork.values[0] = 2
+    tinyExampleNetwork.values[1] = 3
+    tinyExampleNetwork.values[2] = 1
+    let tinyExampleNetworkDrawSettings = {
         marginX: h * 0.05,
         marginY: h * 0.2,
         squareLength: h * 0.15, 
@@ -248,61 +252,40 @@ function initialize() {
         tipWidth: 15, 
         drawBox: false,        
         wireOverlayColor: function(value) {
-            if (value == 0) {
-                return 'rgba(0, 255, 0, 0.5)';
-            } else if (value == 1) {
-                return 'rgba(255, 0, 0, 0.5)';
-            } else {
-                return 'rgba(0, 0, 0, 0)';
-            }
-        }
-    }, true);
-    frames.push(combineFrames(tinyExampleNetworkFrame1, {
-        draw: function(ctx) {
-            ctx.font = bulletPointSlideDrawSettings.titleFont;
-            fillTextCenter("Wires, Arrows & Sorting", bulletPointSlideDrawSettings.titleStart, ctx);
-        }
-    }));
-
-
-    // I show them how it works 1
-    let tinyExampleNetwork = new Network(3);
-    tinyExampleNetwork.values[0] = 2
-    tinyExampleNetwork.values[1] = 3
-    tinyExampleNetwork.values[2] = 1
-    let tinyExampleNetworkFrame = new NetworkFrame(tinyExampleNetwork, {
-        marginX: h * 0.05,
-        marginY: h * 0.2,
-        squareLength: h * 0.15, 
-        squareOffset: h * 0.05, 
-        wireLength: w - (2 * h * 0.05 + 2 * h * 0.15 + 2 * h * 0.05),
-        squareBorderColor: '#000000', 
-        lineWidth: 10, 
-        circleRadius: 10, 
-        tipLength: 20, 
-        tipWidth: 15, 
-        drawBox: true,
-        drawWireOverlay: false,
-        wireOverlayColor: function(value) {
             if (value == 1) {
                 return 'rgba(0, 255, 0, 0.5)';
             } else if (value == 2) {
                 return 'rgba(0, 0, 255, 0.5)';
-            } else {
+            } else if (value == 3){
                 return 'rgba(255, 0, 0, 0.5)';
             }
         }
-    }, true);
+    }
+    let tinyExampleNetworkFrame = new NetworkFrame(tinyExampleNetwork, tinyExampleNetworkDrawSettings, true);
     frames.push(combineFrames(tinyExampleNetworkFrame, {
         draw: function(ctx) {
             ctx.font = bulletPointSlideDrawSettings.titleFont;
             fillTextCenter("Wires, Arrows & Sorting", bulletPointSlideDrawSettings.titleStart, ctx);
+        },
+        frameStart: function() {
+            tinyExampleNetworkFrame.drawSettings.drawBox = false;
+        }
+    }));
+
+    // I show them how it works 1
+    frames.push(combineFrames(tinyExampleNetworkFrame, {
+        draw: function(ctx) {
+            ctx.font = bulletPointSlideDrawSettings.titleFont;
+            fillTextCenter("Wires, Arrows & Sorting", bulletPointSlideDrawSettings.titleStart, ctx);
+        }, 
+        frameStart: function() {
+            tinyExampleNetworkFrame.drawSettings.drawBox = true;
         }
     }));
 
     /// -------------- SLIDES ON WHY SORTING NETWORKS ---------------------
     createBulletPointSlides('Why Sorting Networks?', [
-        'Circuits',
+        'Circuits (Switching Networks, FPGA)',
         'Parallelism / GPU Sorting',
         'Data Oblivousness / Privacy',
     ], bulletPointSlideDrawSettings);
