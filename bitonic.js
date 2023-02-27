@@ -278,11 +278,13 @@ function initialize() {
     // TITLE 
     // WIKIPEDIA NETWORK
     let wikiNetwork = new Network(16);
+    wikiNetwork.values = Array.from(Array(16), (_, i) => 16 - i);
+
     let wikiNetworkDrawSettings = {
         marginX: w * 0.03,
         marginY: h * 0.18,
-        squareLength: 0, 
-        squareOffset: h / 22, 
+        squareLength: h / 44, 
+        squareOffset: h / 44, 
         wireLength: w - (2 * h / 20 + w * 0.06),
         squareBorderColor: '#FFFFFF', 
         lineWidth: h / 175, 
@@ -291,14 +293,15 @@ function initialize() {
         tipWidth: h / 90, 
         drawBox: false,        
         wireOverlayColor: function(value) {
-            if (value == 0) {
-                return 'rgba(0, 255, 0, 0.5)';
-            } else if (value == 1) {
-                return 'rgba(255, 0, 0, 0.5)';
+            let t = value / 16;
+            if (value <= 8) {
+                return `rgba(0, ${lerp(255, 50, t / 2)}, 0, 0.5)`;
             } else {
-                return 'rgba(0, 0, 0, 0)';
+                return `rgba(${lerp(50, 255, t * 2)}, 0, 0, 0.5)`;
             }
-        }
+            
+        },
+        drawWireOverlay: false
     };
     let wikiNetworkFrame = new NetworkFrame(wikiNetwork, wikiNetworkDrawSettings, false);
     bitonicSort(0, 16, DESCENDING, wikiNetwork, 0.1);
@@ -323,9 +326,9 @@ function initialize() {
 
     // BIT OF PRACTICAL INFORMATION
     createBulletPointSlides('Practical Information', [
-        'PhD student',
-        'Recording',
-        'Participation'
+        // 'PhD student',
+        'This will be recorded',
+        'Some light participation'
     ], bulletPointSlideDrawSettings);
   
     let tinyExampleNetworkFrame1 = new NetworkFrame(new Network(3), {
@@ -354,7 +357,6 @@ function initialize() {
 
 
     // I show them how it works 1
-    currentFrameIdx = frames.length
     let tinyExampleNetwork = new Network(3);
     tinyExampleNetwork.values[0] = 2
     tinyExampleNetwork.values[1] = 3
