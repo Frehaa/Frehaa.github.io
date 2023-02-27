@@ -149,100 +149,6 @@ function initializeEventListeners() {
     // });
 }
 
-class OverlayFrame {
-    constructor(drawSettings) {
-        this.drawSettings = {
-            ...drawSettings
-        }
-    }
-    draw(ctx) {
-        let x = this.drawSettings.position.x
-        let y = this.drawSettings.position.y
-        let width = this.drawSettings.width
-        let height = this.drawSettings.height
-        let sr = this.drawSettings.strokeColor.r * 255
-        let sg = this.drawSettings.strokeColor.g * 255
-        let sb = this.drawSettings.strokeColor.b * 255
-        let sa = this.drawSettings.strokeColor.a 
-        let fr = this.drawSettings.fillColor.r * 255
-        let fg = this.drawSettings.fillColor.g * 255
-        let fb = this.drawSettings.fillColor.b * 255
-        let fa = this.drawSettings.fillColor.a 
-        ctx.strokeStyle = `rgba(${sr}, ${sg}, ${sb}, ${sa})`;
-        ctx.fillStyle = `rgba(${fr}, ${fg}, ${fb}, ${fa})`;
-        ctx.fillRect(x, y, width, height)
-        ctx.strokeRect(x, y, width, height)
-    }
-    mouseMove() {}
-    mouseDown() {}
-    mouseUp() {}
-    frameStart() {}
-    frameEnd(){}
-    keyUp() {}
-}
-
-class TextBoxOverlay {
-    constructor(text, drawSettings) {
-        this.text = text;
-        this.drawSettings = drawSettings;
-    }
-    draw(ctx) {
-        let x = this.drawSettings.position.x; 
-        let width = this.drawSettings.width; 
-        let y = this.drawSettings.position.y;
-        let textHeight = this.drawSettings.fontSize; 
-        let font = this.drawSettings.font;
-        let height = this.drawSettings.height; 
-        let word = this.text; 
-        let combinedTextHeight = textHeight * word.length;
-        let drawVertical = this.drawSettings.drawVertical;
-        ctx.font = `${textHeight}px ${font}`
-
-        ctx.lineWidth = this.drawSettings.strokeWidth;
-        ctx.clearRect(x, y, width, height);
-        ctx.strokeRect(x, y, width, height);
-        if (drawVertical) {
-            for (let i = 0; i < word.length; i++) {
-                let measure = ctx.measureText(word[i]);
-                let centerX = x + width / 2 - measure.width / 2;
-                let centerY = y + (height - combinedTextHeight) / 2;
-                ctx.fillText(word[i], centerX, centerY + textHeight * i + measure.actualBoundingBoxAscent)    
-            }
-        } else {
-            ctx.textAlign = 'center'
-            ctx.textBaseline = 'top'
-            let measure = ctx.measureText(word);
-            let textHeight = measure.actualBoundingBoxDescent + measure.actualBoundingBoxAscent;
-            let centerX = x + width / 2;
-            let centerY = y + height / 2 - textHeight / 2 + measure.actualBoundingBoxAscent;
-            ctx.fillText(word, centerX, centerY);
-            // ctx.strokeRect(x, y + height / 2, width, 1)
-            // ctx.strokeRect(x + width /2, y, 1, height)
-            // ctx.strokeRect(centerX - measure.width /2, centerY - measure.actualBoundingBoxAscent, measure.width, textHeight)
-        }
-
-    }
-    left() {
-        return this.drawSettings.position.x;
-    }
-    right() {
-        return this.drawSettings.position.x + this.drawSettings.width
-    }
-    top() {
-        return this.drawSettings.position.y;
-    }
-    bottom() {
-        return this.drawSettings.position.y + this.drawSettings.height;
-    }
-
-    mouseMove() {}
-    mouseDown() {}
-    mouseUp() {}
-    frameStart() {}
-    frameEnd(){}
-    keyUp() {}
-}
-
 function fillTextCenter(text, y, ctx) {
     let canvas = ctx.canvas;
     let measure = ctx.measureText(text);
@@ -275,8 +181,7 @@ function initialize() {
     let w = canvas.width;
     let h = canvas.height;
 
-    // TITLE 
-    // WIKIPEDIA NETWORK
+    // TITLE + WIKIPEDIA NETWORK
     let wikiNetwork = new Network(16);
     wikiNetwork.values = Array.from(Array(16), (_, i) => 16 - i);
 
@@ -299,7 +204,6 @@ function initialize() {
             } else {
                 return `rgba(${lerp(50, 255, t * 2)}, 0, 0, 0.5)`;
             }
-            
         },
         drawWireOverlay: false
     };
