@@ -157,7 +157,7 @@ function fillTextCenter(text, y, ctx) {
 }
 
 function createBulletPointSlides(title, bullets, drawSettings) {
-    for (let i = 0; i < bullets.length; i++) {
+    for (let i = bullets.length-1; i < bullets.length; i++) {
         frames.push(combineFrames({
             draw: function(ctx) {
                 ctx.font = drawSettings.titleFont;
@@ -215,8 +215,8 @@ function initialize() {
         bulletFont: '60px Arial',
         titleStart: h * 0.1,
         bulletStartLeft: w * 0.1,
-        bulletStartTop: h * 0.2,
-        bulletOffset: 100,
+        bulletStartTop: h * 0.25,
+        bulletOffset: 120,
         bullet: '•'
     };
 
@@ -232,7 +232,7 @@ function initialize() {
     createBulletPointSlides('Practical Information', [
         // 'PhD student',
         'This will be recorded',
-        'Some light participation'
+        'I hope for some light participation'
     ], bulletPointSlideDrawSettings);
   
     let tinyExampleNetworkFrame1 = new NetworkFrame(new Network(3), {
@@ -257,7 +257,12 @@ function initialize() {
             }
         }
     }, true);
-    frames.push(tinyExampleNetworkFrame1);
+    frames.push(combineFrames(tinyExampleNetworkFrame1, {
+        draw: function(ctx) {
+            ctx.font = bulletPointSlideDrawSettings.titleFont;
+            fillTextCenter("Wires, Arrows & Sorting", bulletPointSlideDrawSettings.titleStart, ctx);
+        }
+    }));
 
 
     // I show them how it works 1
@@ -277,7 +282,7 @@ function initialize() {
         tipLength: 20, 
         tipWidth: 15, 
         drawBox: true,
-        drawWireOverlay: true,
+        drawWireOverlay: false,
         wireOverlayColor: function(value) {
             if (value == 1) {
                 return 'rgba(0, 255, 0, 0.5)';
@@ -288,7 +293,20 @@ function initialize() {
             }
         }
     }, true);
-    frames.push(tinyExampleNetworkFrame);
+    frames.push(combineFrames(tinyExampleNetworkFrame, {
+        draw: function(ctx) {
+            ctx.font = bulletPointSlideDrawSettings.titleFont;
+            fillTextCenter("Wires, Arrows & Sorting", bulletPointSlideDrawSettings.titleStart, ctx);
+        }
+    }));
+
+    /// -------------- SLIDES ON WHY SORTING NETWORKS ---------------------
+    createBulletPointSlides('Why Sorting Networks?', [
+        'Circuits',
+        'Parallelism / GPU Sorting',
+        'Data Oblivousness / Privacy',
+    ], bulletPointSlideDrawSettings);
+
 
 
     // Let them do it
@@ -1272,13 +1290,6 @@ function initialize() {
     }, ...wikiMergeBoxOverlays, innerMergeBoxArrows));
 
     // TODO SLIDE ON THE AMOUNT OF WORK
-
-    /// -------------- SLIDES ON WHY SORTING NETWORKS ---------------------
-    createBulletPointSlides('Why Sorting Networks?', [
-        'Data Oblivousness / Privacy',
-        'Parallelism / GPU Sorting',
-        'Circuits'
-    ], bulletPointSlideDrawSettings);
 
     /// -------------- END OF SLIDES ----------------------
     frames[currentFrameIdx].frameStart();
