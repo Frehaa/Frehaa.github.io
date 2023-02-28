@@ -10,6 +10,7 @@ const PAGE_UP_KEY = "PageUp";
 const BAKCSPACE_KEY = "Backspace";
 const Z_KEY = "z";
 const O_KEY = "o";
+const B_KEY = "b";
 const F1_KEY = "F1";
 const F2_KEY = "F2";
 
@@ -180,6 +181,11 @@ function initialize() {
     let canvas = document.getElementById('canvas');
     let w = canvas.width;
     let h = canvas.height;
+    let generalDrawSettings = {
+        green: '',
+        red: '',
+        blue: ''
+    };
 
     // TITLE + WIKIPEDIA NETWORK
     let wikiNetwork = new Network(16);
@@ -200,9 +206,9 @@ function initialize() {
         wireOverlayColor: function(value) {
             let t = value / 16;
             if (value <= 8) {
-                return `rgba(0, ${lerp(255, 50, t / 2)}, 0, 0.5)`;
+                return `rgba(0, ${lerp(255, 50, t / 2)}, 0, 1)`;
             } else {
-                return `rgba(${lerp(50, 255, t * 2)}, 0, 0, 0.5)`;
+                return `rgba(${lerp(50, 255, t * 2)}, 0, 0, 1)`;
             }
         },
         drawWireOverlay: false
@@ -252,20 +258,28 @@ function initialize() {
         tipWidth: 15, 
         drawBox: false,        
         wireOverlayColor: function(value) {
+            // if (value == 1) {
+            //     return 'rgba(0, 255, 0, 0.5)';
+            // } else if (value == 2) {
+            //     return 'rgba(0, 0, 255, 0.5)';
+            // } else if (value == 3){
+            //     return 'rgba(255, 0, 0, 0.5)';
+            // }
             if (value == 1) {
-                return 'rgba(0, 255, 0, 0.5)';
+                return 'rgb(152, 251, 152)';
             } else if (value == 2) {
-                return 'rgba(0, 0, 255, 0.5)';
+                return 'rgb(50, 205, 50)';
             } else if (value == 3){
-                return 'rgba(255, 0, 0, 0.5)';
+                return 'rgb(0, 100, 0)';
             }
         }
     }
     let tinyExampleNetworkFrame = new NetworkFrame(tinyExampleNetwork, tinyExampleNetworkDrawSettings, true);
+    let tinyExampleTitle = "Sorting Networks - Wires, Arrows & Sorting";
     frames.push(combineFrames(tinyExampleNetworkFrame, {
         draw: function(ctx) {
             ctx.font = bulletPointSlideDrawSettings.titleFont;
-            fillTextCenter("Wires, Arrows & Sorting", bulletPointSlideDrawSettings.titleStart, ctx);
+            fillTextCenter(tinyExampleTitle, bulletPointSlideDrawSettings.titleStart, ctx);
         },
         frameStart: function() {
             tinyExampleNetworkFrame.drawSettings.drawBox = false;
@@ -276,10 +290,11 @@ function initialize() {
     frames.push(combineFrames(tinyExampleNetworkFrame, {
         draw: function(ctx) {
             ctx.font = bulletPointSlideDrawSettings.titleFont;
-            fillTextCenter("Wires, Arrows & Sorting", bulletPointSlideDrawSettings.titleStart, ctx);
+            fillTextCenter(tinyExampleTitle, bulletPointSlideDrawSettings.titleStart, ctx);
         }, 
         frameStart: function() {
             tinyExampleNetworkFrame.drawSettings.drawBox = true;
+            tinyExampleNetworkFrame.drawSettings.drawWireOverlay = false;
         }
     }));
 
@@ -308,13 +323,23 @@ function initialize() {
         // strokeWidth: ???, // TODO: The square width is not customizable
         drawBox: true,
         wireOverlayColor: function(value) {
-            if (value == 0) {
-                return 'rgba(0, 255, 0, 0.5)';
-            } else if (value == 1) {
-                return 'rgba(255, 0, 0, 0.5)';
-            } else {
-                return 'rgba(0, 0, 0, 0)';
+            switch (Number(value)) {
+                case 1:
+                    return '#fee0f9';
+                case 2:
+                    return '#f1dafb';
+                case 3:
+                    return '#e4d3fc';
+                case 4:
+                    return '#d7cdfe';
+                case 5:
+                    return '#cac7ff';
+                case 6:
+                    return '#c095e4';
+                default:
+                    return 'rgba(0, 0, 0, 0)';
             }
+            
         }
     }, true);
     frames.push(selfExampleNetworkFrame);
@@ -322,27 +347,9 @@ function initialize() {
     // Bubble sort
     let bubbleExampleNetwork = new Network(6);
     let bubbleExampleNetworkFrame = new NetworkFrame(bubbleExampleNetwork, {
-        marginX: h / 20,
-        marginY: h / 20,
-        squareLength: h / 9, 
-        squareOffset: w / 100, 
-        wireLength: w - (2 * w / 100 + 2 * h / 9 + 2 * h / 20),
-        squareBorderColor: '#000000', 
-        lineWidth: h / 100, 
-        circleRadius: h / 100, 
-        tipLength: h / 50, 
-        tipWidth: w / 200,
-        // strokeWidth: ???, // TODO: The square width is not customizable
-        drawBox: false,
-        wireOverlayColor: function(value) {
-            if (value == 0) {
-                return 'rgba(0, 255, 0, 0.5)';
-            } else if (value == 1) {
-                return 'rgba(255, 0, 0, 0.5)';
-            } else {
-                return 'rgba(0, 0, 0, 0)';
-            }
-        }
+        ...selfExampleNetworkFrame.drawSettings,
+        squareOffset: h * 0.005,
+        drawBox: false
     }, true);
     frames.push(bubbleExampleNetworkFrame);
 
@@ -379,9 +386,9 @@ function initialize() {
         drawBox: false,
         wireOverlayColor: function(value) {
             if (value == 0) {
-                return 'rgba(0, 255, 0, 0.5)';
+                return 'rgba(90, 255, 93, 0.5)';
             } else if (value == 1) {
-                return 'rgba(255, 0, 0, 0.5)';
+                return 'rgba(249, 114, 123, 0.5)';
             } else {
                 return 'rgba(0, 0, 0, 0)';
             }
@@ -395,8 +402,8 @@ function initialize() {
         width: w * 0.45,
         height: calcHeightFromWires(networkFrame.drawSettings, 8) -
                 networkFrame.drawSettings.squareOffset,
-        strokeColor: rgba(0, 1, 0, 0.5),
-        fillColor: rgba(0, 1, 0, 0.5),
+        strokeColor: '#b4e35d',
+        fillColor: '#b4e35d',
     });
     let redOverlayFrame = new OverlayFrame({
         position: {x: w / 2, y: networkFrame.drawSettings.marginY + calcHeightFromWires(networkFrame.drawSettings, 8.5) - 
@@ -404,8 +411,8 @@ function initialize() {
         width: w * 0.45,
         height: calcHeightFromWires(networkFrame.drawSettings, 8) - 
                 networkFrame.drawSettings.squareOffset,
-        strokeColor: rgba(1, 0, 0, 0.5),
-        fillColor: rgba(1, 0, 0, 0.5),
+        strokeColor: '#f9727b',
+        fillColor: '#f9727b'
     });
 
     let nullSequence = [ null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null ];
@@ -540,8 +547,8 @@ function initialize() {
         position: {x: blueOverlayX, y: networkFrame.drawSettings.marginY},
         width: w * 0.4,
         height: calcHeightFromWires(networkFrame.drawSettings, 8) - networkFrame.drawSettings.squareOffset / 2,
-        strokeColor: rgba(0, 0, 1, 0.5),
-        fillColor: rgba(0, 0, 1, 0.5),
+        strokeColor: '#ccdbfd', 
+        fillColor: '#ccdbfd' 
     });
     frames.push(combineFrames(blueOverlayFrame, bitonic2Frame));
 
@@ -552,19 +559,10 @@ function initialize() {
             networkFrame.drawSettings.squareOffset / 2},
         width: w * 0.4,
         height: calcHeightFromWires(networkFrame.drawSettings, 8) - networkFrame.drawSettings.squareOffset / 2,
-        strokeColor: rgba(0, 0, 1, 0.5),
-        fillColor: rgba(0, 0, 1, 0.5),
+        strokeColor: blueOverlayFrame.drawSettings.strokeColor,
+        fillColor: blueOverlayFrame.drawSettings.strokeColor
     });
     frames.push(combineFrames(blueOverlayFrame2, bitonic2Frame));
-
-    let whiteOverlayFrame = new OverlayFrame({
-        position: {x: blueOverlayX, y: networkFrame.drawSettings.marginY},
-        width: w * 0.4,
-        height: calcHeightFromWires(networkFrame.drawSettings, 8) - 
-                networkFrame.drawSettings.squareOffset,
-        strokeColor: rgba(0, 0, 0, 1),
-        fillColor: rgba(1, 1, 1, 1),
-    });
 
     // Insert merge box overlay
     let sortBoxOverlay1 = new TextBoxOverlay("SORT", {
@@ -634,42 +632,7 @@ function initialize() {
 
 
     frames.push(combineFrames(bitonic2Frame, sortBoxOverlay1));
-
-    let whiteOverlayFrame2 = new OverlayFrame({
-        position: {x: blueOverlayX, 
-            y: networkFrame.drawSettings.marginY + 
-            calcHeightFromWires(networkFrame.drawSettings, 8) -
-            networkFrame.drawSettings.squareOffset / 2 + 
-            networkFrame.drawSettings.squareOffset * 0.5
-         },
-        width: w * 0.4,
-        height: calcHeightFromWires(networkFrame.drawSettings, 8) - networkFrame.drawSettings.squareOffset,
-        strokeColor: rgba(0, 0, 0, 1),
-        fillColor: rgba(1, 1, 1, 1),
-    });
-
     frames.push(combineFrames(frames[frames.length-1], sortBoxOverlay2))
-
-    let questionBoxOverlay = new TextBoxOverlay("SORT?", {
-        position: {x: w / 2 + 200, y: 5},
-        width: 100,
-        height: (h - 80) / 2,
-        fontSize: 40,
-        font: "Arial",
-        strokeWidth: 3,
-        drawVertical: true
-    });
-
-    let mergeBoxOverlay4 = new TextBoxOverlay("MERGE", {
-        position: {x: w / 2 + 400, y: 5},
-        width: 100,
-        height: (h - 80) / 2,
-        fontSize: 40,
-        font: "Arial",
-        strokeWidth: 3,
-        drawVertical: true
-    });
-
 
     // -------------- Beginning of boxplot sorting frames -----------------------
     let values = [13, 12, 3, 1, 7, 9, 15, 2, 16, 14, 5, 6, 8, 10, 11, 4]; 

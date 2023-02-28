@@ -178,7 +178,7 @@ class NetworkFrame {
         for (const c of cas) {
             for (let i = 0; i < this.wires.length; i++) {
                 let color = this.getWireOverlayColor(a[i]);
-                this.drawSingleWireOverlay(i, start, c.position, color, ctx);
+                this.drawSingleWireOverlay(i, start, c.position + 0.001, color, ctx);
             }
             c.cas(a)
             start = c.position;
@@ -298,6 +298,8 @@ class NetworkFrame {
             this.network.removeLastCompareAndSwap()
         } else if (this.isInteractable && key === O_KEY) {
             this.drawSettings.drawWireOverlay = !this.drawSettings.drawWireOverlay;
+        } else if (this.isInteractable && key === B_KEY) {
+            this.drawSettings.drawBox = !this.drawSettings.drawBox;
         }
     }
     frameStart() {
