@@ -1,5 +1,3 @@
-// TODO: Move compare and swap logic in here
-// TODO: Make compare and swap positioned in a normalized manner (0 - 1)
 class Network {
     constructor(size) {
         this.size = size;
@@ -43,7 +41,6 @@ class Network {
         this.casById[id] = value;
         this.casByStartWire[i].push(value);
         this.casByEndWire[j].push(value);
-        this.callbacks.forEach(c => c(id, position, i, j));
     }
     removeLastCompareAndSwap() {
         let id = this.ids.pop();
@@ -67,12 +64,6 @@ class Network {
         this.compareAndSwaps.forEach(c => c.cas(result));
         return result;
     }
-
-    subscribe(callback) {
-        this.callbacks.push(callback);
-    }
-
-    // TODO: Unsubscribe
 
 }
 
@@ -149,8 +140,6 @@ class NetworkFrame {
             this.rightSquares[i].borderColor = this.drawSettings.squareBorderColor;
 
         }
-
-        network.subscribe(this.createNetworkCasCallback());
     }
     drawSingleWireOverlay(wire, start, end, color, ctx) {
         let y = this.drawSettings.marginY + 
@@ -238,9 +227,6 @@ class NetworkFrame {
         for (let cas of this.network.getCompareAndSwaps()) {
             this.drawArrow(cas, ctx);
         }
-        // for (let k in this.arrows) {
-        //     this.arrows[k].forEach(d => d.draw(ctx));
-        // }
     }
     mouseMove() {
         this.hoverWireIdx = null;
@@ -332,28 +318,6 @@ class NetworkFrame {
 
         drawCircle(x, y1, this.drawSettings.circleRadius, ctx)
         drawVerticalArrow(x, y1, y2 - y1, this.drawSettings.tipLength, this.drawSettings.tipWidth, ctx);
-    }
-
-    createNetworkCasCallback() {
-        let xOffset = this.drawSettings.marginX + this.drawSettings.squareLength + this.drawSettings.squareOffset;
-        let wires = this.wires;
-        let wireLength = this.drawSettings.wireLength;
-        let arrowTipLength = this.drawSettings.tipLength;
-        let arrowTipWidth = this.drawSettings.tipWidth;
-        let circleRadius = this.drawSettings.circleRadius;
-
-        return (id, position, startWireIdx, endWireIdx) => {
-            // Create new drawables 
-            let x = xOffset + position * wireLength;
-            let y1 = wires[startWireIdx].y;
-            let y2 = wires[endWireIdx].y;
-            let arrow = verticalArrow(x, y1, y2 - y1, arrowTipLength, arrowTipWidth);
-            arrow.color = this.drawSettings.arrowColor;
-            let arrowStartCircle = circle(x, y1, circleRadius);
-
-            // Add compare-and-swap in correct order
-            this.arrows[id] = [arrowStartCircle, arrow];
-        };
     }
 
     checkInvariants() {
