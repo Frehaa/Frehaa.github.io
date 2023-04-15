@@ -167,7 +167,7 @@ class NetworkFrame {
         for (const c of cas) {
             for (let i = 0; i < this.wires.length; i++) {
                 let color = this.getWireOverlayColor(a[i]);
-                this.drawSingleWireOverlay(i, start, c.position + 0.001, color, ctx);
+                this.drawSingleWireOverlay(i, start, c.position, color, ctx);
             }
             c.cas(a)
             start = c.position;

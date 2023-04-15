@@ -14,6 +14,9 @@ const B_KEY = "b";
 const F1_KEY = "F1";
 const F2_KEY = "F2";
 
+const DIRECTION_DOWN = "DOWN";
+const DIRECTION_UP = "UP";
+
 var mousePosition = {x:0, y: 0};
 
 let frames = [];
@@ -182,9 +185,11 @@ function initialize() {
     let w = canvas.width;
     let h = canvas.height;
     let generalDrawSettings = {
-        green: '',
-        red: '',
-        blue: ''
+        green: 'rgba(54, 174, 124, 0.5)',
+        red: 'rgba(235, 83, 83, 0.5)',
+        blue: 'rgba(24, 116, 152, 0.8)',
+        yellow: 'rgba(249, 217, 35, 0.8)',
+        grey: 'rgba(100, 100, 100, 0.5)'
     };
 
     // TITLE + WIKIPEDIA NETWORK
@@ -238,7 +243,8 @@ function initialize() {
     createBulletPointSlides('Practical Information', [
         // 'PhD student',
         'This will be recorded',
-        'I hope for some light participation'
+        'I hope for some light participation',
+        'This is not about Priority Queues!'
     ], bulletPointSlideDrawSettings);
   
     let tinyExampleNetwork = new Network(3);
@@ -266,25 +272,25 @@ function initialize() {
             //     return 'rgba(255, 0, 0, 0.5)';
             // }
             if (value == 1) {
-                return 'rgb(152, 251, 152)';
+                return generalDrawSettings.green;
             } else if (value == 2) {
-                return 'rgb(50, 205, 50)';
+                return generalDrawSettings.blue;
             } else if (value == 3){
-                return 'rgb(0, 100, 0)';
+                return generalDrawSettings.red;
             }
         }
     }
     let tinyExampleNetworkFrame = new NetworkFrame(tinyExampleNetwork, tinyExampleNetworkDrawSettings, true);
     let tinyExampleTitle = "Sorting Networks - Wires, Arrows & Sorting";
-    frames.push(combineFrames(tinyExampleNetworkFrame, {
-        draw: function(ctx) {
-            ctx.font = bulletPointSlideDrawSettings.titleFont;
-            fillTextCenter(tinyExampleTitle, bulletPointSlideDrawSettings.titleStart, ctx);
-        },
-        frameStart: function() {
-            tinyExampleNetworkFrame.drawSettings.drawBox = false;
-        }
-    }));
+    // frames.push(combineFrames(tinyExampleNetworkFrame, {
+    //     draw: function(ctx) {
+    //         ctx.font = bulletPointSlideDrawSettings.titleFont;
+    //         fillTextCenter(tinyExampleTitle, bulletPointSlideDrawSettings.titleStart, ctx);
+    //     },
+    //     frameStart: function() {
+    //         tinyExampleNetworkFrame.drawSettings.drawBox = false;
+    //     }
+    // }));
 
     // I show them how it works 1
     frames.push(combineFrames(tinyExampleNetworkFrame, {
@@ -300,12 +306,10 @@ function initialize() {
 
     /// -------------- SLIDES ON WHY SORTING NETWORKS ---------------------
     createBulletPointSlides('Why Sorting Networks?', [
+        'Data Oblivousness / Privacy',
         'Circuits (Switching Networks, FPGA)',
         'Parallelism / GPU Sorting',
-        'Data Oblivousness / Privacy',
     ], bulletPointSlideDrawSettings);
-
-
 
     // Let them do it
     let selfExampleNetwork = new Network(5);
@@ -353,6 +357,13 @@ function initialize() {
     }, true);
     frames.push(bubbleExampleNetworkFrame);
 
+    createBulletPointSlides('Mini Recap', [
+        'Sorting Networks',
+        'Wires',
+        'Compare-and-Swaps',
+        'Span & Work'
+    ], bulletPointSlideDrawSettings);
+
     // let bitonicDrawSettings = {
     //         marginX: 50, 
     //         marginY: 50,
@@ -386,9 +397,9 @@ function initialize() {
         drawBox: false,
         wireOverlayColor: function(value) {
             if (value == 0) {
-                return 'rgba(90, 255, 93, 0.5)';
+                return generalDrawSettings.green;
             } else if (value == 1) {
-                return 'rgba(249, 114, 123, 0.5)';
+                return generalDrawSettings.red;
             } else {
                 return 'rgba(0, 0, 0, 0)';
             }
@@ -402,8 +413,8 @@ function initialize() {
         width: w * 0.45,
         height: calcHeightFromWires(networkFrame.drawSettings, 8) -
                 networkFrame.drawSettings.squareOffset,
-        strokeColor: '#b4e35d',
-        fillColor: '#b4e35d',
+        strokeColor: generalDrawSettings.green,
+        fillColor: generalDrawSettings.green
     });
     let redOverlayFrame = new OverlayFrame({
         position: {x: w / 2, y: networkFrame.drawSettings.marginY + calcHeightFromWires(networkFrame.drawSettings, 8.5) - 
@@ -411,8 +422,8 @@ function initialize() {
         width: w * 0.45,
         height: calcHeightFromWires(networkFrame.drawSettings, 8) - 
                 networkFrame.drawSettings.squareOffset,
-        strokeColor: '#f9727b',
-        fillColor: '#f9727b'
+        strokeColor: generalDrawSettings.red,
+        fillColor: generalDrawSettings.red
     });
 
     let nullSequence = [ null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null ];
@@ -434,8 +445,8 @@ function initialize() {
         }
     })
     frames.push(resetValuesFrame);
-    frames.push(combineFrames(greenOverlayFrame, resetValuesFrame));
-    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, resetValuesFrame));
+    // frames.push(combineFrames(greenOverlayFrame, resetValuesFrame));
+    // frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, resetValuesFrame));
 
     // Insert merge box overlays
     let mergeBoxOverlays = [];
@@ -467,10 +478,10 @@ function initialize() {
         frameStart: function() {
             networkFrame.network.values = nullSequence;
             // Dirty trick to make sure the network is initialized
-            if (network16.compareAndSwaps.size > 0) return 
-            for (let i = 0; i < network16.size / 2; i++) {
-                network16.addCompareAndSwap(0.5 + 0.01 * i, i, i + 8)    
-            }
+            // if (network16.compareAndSwaps.size > 0) return 
+            // for (let i = 0; i < network16.size / 2; i++) {
+            //     network16.addCompareAndSwap(0.5 + 0.01 * i, i, i + 8)    
+            // }
         }
     }));
 
@@ -509,13 +520,13 @@ function initialize() {
     }));
 
     // Odd-even
-    let oddEvenSequence = [0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0];
-    frames.push(combineFrames(networkFrame, {
-        draw: drawCenterDashLine,
-        frameStart: function() {
-            networkFrame.network.values = oddEvenSequence;
-        }
-    }));
+    // let oddEvenSequence = [0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0];
+    // frames.push(combineFrames(networkFrame, {
+    //     draw: drawCenterDashLine,
+    //     frameStart: function() {
+    //         networkFrame.network.values = oddEvenSequence;
+    //     }
+    // }));
 
     // Bitonic 1
     let bitonicSequence1 = [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1];
@@ -540,29 +551,33 @@ function initialize() {
         return count * (drawSettings.squareLength + drawSettings.squareOffset);
     }
 
-    let blueOverlayX = networkFrame.drawSettings.marginX +
-                        networkFrame.drawSettings.squareLength +
-                        networkFrame.drawSettings.squareOffset;
-    let blueOverlayFrame = new OverlayFrame({
-        position: {x: blueOverlayX, y: networkFrame.drawSettings.marginY},
-        width: w * 0.4,
-        height: calcHeightFromWires(networkFrame.drawSettings, 8) - networkFrame.drawSettings.squareOffset / 2,
-        strokeColor: '#ccdbfd', 
-        fillColor: '#ccdbfd' 
-    });
-    frames.push(combineFrames(blueOverlayFrame, bitonic2Frame));
+    frames.push(combineFrames(bitonic2Frame, {
+        draw: function(ctx) {
+            let x = networkFrame.drawSettings.marginX +
+                                networkFrame.drawSettings.squareLength +
+                                networkFrame.drawSettings.squareOffset;
+            let width= defaultNetworkDrawSettings.wireLength / 2 - defaultNetworkDrawSettings.squareOffset;
+            let height= calcHeightFromWires(networkFrame.drawSettings, 8) - networkFrame.drawSettings.squareOffset;
+            ctx.lineWidth = 5;
+            // ctx.strokeStyle = generalDrawSettings.blue;
+            ctx.strokeStyle = '#000000' //generalDrawSettings.blue;
+            ctx.strokeRect(x, networkFrame.drawSettings.marginY, width, height);
+        }
+    }));
 
-    let blueOverlayFrame2 = new OverlayFrame({
-        position: {x: blueOverlayX, 
-            y: networkFrame.drawSettings.marginY + 
-            calcHeightFromWires(networkFrame.drawSettings, 8) -
-            networkFrame.drawSettings.squareOffset / 2},
-        width: w * 0.4,
-        height: calcHeightFromWires(networkFrame.drawSettings, 8) - networkFrame.drawSettings.squareOffset / 2,
-        strokeColor: blueOverlayFrame.drawSettings.strokeColor,
-        fillColor: blueOverlayFrame.drawSettings.strokeColor
-    });
-    frames.push(combineFrames(blueOverlayFrame2, bitonic2Frame));
+    frames.push(combineFrames(bitonic2Frame, {
+        draw: function(ctx) {
+            let x = networkFrame.drawSettings.marginX +
+                                networkFrame.drawSettings.squareLength +
+                                networkFrame.drawSettings.squareOffset;
+            let y = networkFrame.drawSettings.marginY + calcHeightFromWires(networkFrame.drawSettings, 8);
+            let width= defaultNetworkDrawSettings.wireLength / 2 - defaultNetworkDrawSettings.squareOffset;
+            let height= calcHeightFromWires(networkFrame.drawSettings, 8) - networkFrame.drawSettings.squareOffset;
+            ctx.lineWidth = 5;
+            ctx.strokeStyle = '#000000' //generalDrawSettings.blue;
+            ctx.strokeRect(x, y, width, height);
+        }
+    }));
 
     // Insert merge box overlay
     let sortBoxOverlay1 = new TextBoxOverlay("SORT", {
@@ -576,26 +591,7 @@ function initialize() {
         strokeWidth: 3,
         drawVertical: false
     });
-    sortBoxOverlay1 = combineFrames(sortBoxOverlay1, {
-        draw: function(ctx) {
-            /// Draw Down arrow
-            let overlay = sortBoxOverlay1.frames[0];
-            let drawSettings = overlay.drawSettings;
-            let height = drawSettings.height;
-            ctx.lineWidth = 5
-            ctx.textBaseline = 'top'
-            ctx.font = `${drawSettings.fontSize}px ${drawSettings.font}`;
-
-            let measure = ctx.measureText(overlay.text);
-            let arrowHeight = measure.actualBoundingBoxAscent + measure.actualBoundingBoxDescent + 10;
-            let y = drawSettings.position.y + height / 2;
-            let width = drawSettings.width;
-            let x = drawSettings.position.x + width / 2 + measure.width / 2 + 20;
-
-            drawVerticalArrow(x, y - arrowHeight / 2, arrowHeight, 20, 20, ctx)
-        }
-    });
-
+    sortBoxOverlay1 = addTextOverlayArrow(sortBoxOverlay1, DIRECTION_DOWN);
     let sortBoxOverlay2 = new TextBoxOverlay("SORT", {
         position: {
             x: defaultNetworkDrawSettings.marginX +
@@ -610,44 +606,12 @@ function initialize() {
         strokeWidth: 3,
         drawVertical: false
     });
-    sortBoxOverlay2 = combineFrames(sortBoxOverlay2, {
-        draw: function(ctx) {
-            /// Draw Up arrow
-            let overlay = sortBoxOverlay2.frames[0];
-            let drawSettings = overlay.drawSettings;
-            let height = drawSettings.height;
-            ctx.lineWidth = 5
-            ctx.textBaseline = 'top'
-            ctx.font = `${drawSettings.fontSize}px ${drawSettings.font}`;
-
-            let measure = ctx.measureText(overlay.text);
-            let arrowHeight = measure.actualBoundingBoxAscent + measure.actualBoundingBoxDescent + 10;
-            let y = drawSettings.position.y + height / 2;
-            let width = drawSettings.width;
-            let x = drawSettings.position.x + width / 2 + measure.width / 2 + 20;
-
-            drawVerticalArrow(x, y + arrowHeight / 2, -arrowHeight, 20, 20, ctx)        }
-    });
-
-
+    sortBoxOverlay2 = addTextOverlayArrow(sortBoxOverlay2, DIRECTION_UP);
 
     frames.push(combineFrames(bitonic2Frame, sortBoxOverlay1));
     frames.push(combineFrames(frames[frames.length-1], sortBoxOverlay2))
 
     // -------------- Beginning of boxplot sorting frames -----------------------
-    let values = [13, 12, 3, 1, 7, 9, 15, 2, 16, 14, 5, 6, 8, 10, 11, 4]; 
-
-    let values1 = values.slice(0, 8);
-    let values2 = values.slice(8, 16);
-
-    values1.sort((a, b) => a > b)
-    values2.sort((a, b) => a < b)
-    
-    let values3 = values1.concat(values2);
-
-    // values = [16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
-    // values3 = values; 
-
     function drawCasBox(i, step, values, drawSettings, ctx) {
         let max = Math.max(...values);
         let leftX = drawSettings.marginX;
@@ -670,18 +634,20 @@ function initialize() {
         ctx.strokeRect(leftX + (boxWidth + offset) * i, topY + height - boxHeight, boxWidth, boxHeight);
         ctx.strokeRect(leftX + (boxWidth + offset) * (i + step), topY + height - boxHeight2, boxWidth, boxHeight2);
     }
-
     let boxPlotDrawSettings = {
         marginX: w / 2 - w * 0.35,
         marginY: 50,
         height: 800,
         width: w * 0.7,
         boxOffset: 15,
-        startColor: rgba(0, 1, 0, 0.5),
-        endColor: rgba(1, 0, 0, 0.5),
+        startColor: generalDrawSettings.green, //rgba(0, 1, 0, 0.5),
+        endColor: generalDrawSettings.red, //rgba(1, 0, 0, 0.5),
         drawHorizontal: false
     };
-    values = values3
+
+    let values = [1, 2, 3, 7, 9, 12, 13, 15, 16, 14, 11, 10, 8, 6, 5, 4]
+    // values = [16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+
     values = addCasFrames(0, values.length / 2, boxPlotDrawSettings, values)
 
     // Boxed 4 biggest on left
@@ -758,16 +724,16 @@ function initialize() {
         drawSettings = {
             ...drawSettings,
             color: function(i, values, ctx) {
-                let c = rgba(0.2, 0.2, 0.2, 0.5);
+                let c = generalDrawSettings.grey; //rgba(0.2, 0.2, 0.2, 0.5);
                 if (i < start + n && i >= start) { // The range we are sorting
                     if (values[i] <= start + n / 2) { // The lower half of the range
-                        c = rgba(0, 1, 0, 0.5);
+                        c = generalDrawSettings.green;
                     } else {
-                        c = rgba(1, 0, 0, 0.5);
+                        c = generalDrawSettings.red;
                     }
                 }             
-                let {r,g,b,a} = c;
-                ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
+                // let {r,g,b,a} = c;
+                ctx.fillStyle = c; //`rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
             },
         }
 
@@ -788,7 +754,7 @@ function initialize() {
         ...boxPlotDrawSettings,
         color: function(i, values, ctx) {
             let {r,g,b,a} = rgba(0, 1, 0, 0.5);
-            ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
+            ctx.fillStyle = generalDrawSettings.green; //`rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
         }
     }));
 
@@ -799,9 +765,9 @@ function initialize() {
         false
     );
 
-    frames.push(empty16NetworkFrame);
-    frames.push(combineFrames(greenOverlayFrame, empty16NetworkFrame));
-    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, empty16NetworkFrame));
+    // frames.push(empty16NetworkFrame);
+    // frames.push(combineFrames(greenOverlayFrame, empty16NetworkFrame));
+    // frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, empty16NetworkFrame));
     // frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, networkFrame));
     frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, empty16NetworkFrame, ...mergeBoxOverlays.slice(0, 1)));
     frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, empty16NetworkFrame, ...mergeBoxOverlays.slice(0, 3)));
@@ -859,32 +825,17 @@ function initialize() {
             strokeWidth: 3,
             drawVertical: false
         });
-        sortBoxOverlay = combineFrames(sortBoxOverlay, {
+        recOverlay.push(addTextOverlayArrow(sortBoxOverlay, i % 2? DIRECTION_UP : DIRECTION_DOWN));
+    }
+    function addTextOverlayArrow(overlay, direction) {
+        overlay.text += "  ";
+        return combineFrames(overlay, {
             draw: function(ctx) {
-                /// Draw Down arrow
-                let overlay = sortBoxOverlay.frames[0];
-                let drawSettings = overlay.drawSettings;
-                let height = drawSettings.height;
-                ctx.lineWidth = 5
-                ctx.textBaseline = 'top'
-                ctx.font = `${drawSettings.fontSize}px ${drawSettings.font}`;
-
-                let measure = ctx.measureText(overlay.text);
-                let arrowHeight = measure.actualBoundingBoxAscent + measure.actualBoundingBoxDescent + 10;
-                let y = drawSettings.position.y + height / 2;
-                let width = drawSettings.width;
-                let x = drawSettings.position.x + width / 2 + measure.width / 2 + 20;
-
-                let direction = i % 2 == 1;
-                if (direction == 0) {
-                    drawVerticalArrow(x, y - arrowHeight / 2, arrowHeight, 20, 20, ctx)
-                } else {
-                    drawVerticalArrow(x, y + arrowHeight / 2, -arrowHeight, 20, 20, ctx)
-                }
+                drawTextOverlayArrow(overlay, direction, ctx);
             }
         });
-        recOverlay.push(sortBoxOverlay);
     }
+    
     for (let i = 0; i < 2; i++) {
         let mergeBoxOverlay = new TextBoxOverlay("MERGE", {
             position: {
@@ -899,31 +850,7 @@ function initialize() {
             strokeWidth: 3,
             drawVertical: false
         });
-        mergeBoxOverlay = combineFrames(mergeBoxOverlay, {
-            draw: function(ctx) {
-                /// Draw Down arrow
-                let overlay = mergeBoxOverlay.frames[0];
-                let drawSettings = overlay.drawSettings;
-                let height = drawSettings.height;
-                ctx.lineWidth = 5
-                ctx.textBaseline = 'top'
-                ctx.font = `${drawSettings.fontSize}px ${drawSettings.font}`;
-
-                let measure = ctx.measureText(overlay.text);
-                let arrowHeight = measure.actualBoundingBoxAscent + measure.actualBoundingBoxDescent + 10;
-                let y = drawSettings.position.y + height / 2;
-                let width = drawSettings.width;
-                let x = drawSettings.position.x + width / 2 + measure.width / 2 + 20;
-
-                let direction = i % 2 == 1;
-                if (direction == 0) {
-                    drawVerticalArrow(x, y - arrowHeight / 2, arrowHeight, 20, 20, ctx)
-                } else {
-                    drawVerticalArrow(x, y + arrowHeight / 2, -arrowHeight, 20, 20, ctx)
-                }
-            }
-        });        
-        recOverlay.push(mergeBoxOverlay);
+        recOverlay.push(addTextOverlayArrow(mergeBoxOverlay, i % 2? DIRECTION_UP : DIRECTION_DOWN));
     }
 
     frames.push(combineFrames(bitonicMergeNetwork, ...recOverlay));
@@ -985,17 +912,17 @@ function initialize() {
     }, false);
 
     let textPositionTuples = [
-        ["BitonicSort(a, start, n, dir):", w/2 + w * 0.05, h*0.1],
+        ["BitonicSort(a, startWire, n, dir):", w/2 + w * 0.05, h*0.1],
         ["if n == 1: return", w/2 + w * 0.075, h*0.15],
-        ["BitonicSort(a, start, n/2, ASC)", w / 2 + w * 0.075, h * 0.25],
-        ["BitonicSort(a, start + n/2, n/2, DESC)", w / 2 + w * 0.075, h * 0.3],
-        ["BitonicMerge(a, start, n, dir)", w / 2 + w * 0.075, h * 0.35],
-        ["BitonicMerge(a, start, n, dir):", w / 2 + w * 0.05, h * 0.5],
+        ["BitonicSort(a, startWire, n/2, ASC)", w / 2 + w * 0.075, h * 0.25],
+        ["BitonicSort(a, startWire + n/2, n/2, DESC)", w / 2 + w * 0.075, h * 0.3],
+        ["BitonicMerge(a, startWire, n, dir)", w / 2 + w * 0.075, h * 0.35],
+        ["BitonicMerge(a, startWire, n, dir):", w / 2 + w * 0.05, h * 0.5],
         ["if n == 1: return", w / 2 + w * 0.075, h * 0.55],
-        ["for i in range(start, start + n/2):", w / 2 + w * 0.075, h * 0.65],
+        ["for i in range(startWire, startWire + n/2):", w / 2 + w * 0.075, h * 0.65],
         ["CompareAndSwap(a, i, i+n/2, dir)", w / 2 + w * 0.1, h * 0.70],
-        ["BitonicMerge(a, start, n/2, dir)", w / 2 + w * 0.075, h * 0.8],
-        ["BitonicMerge(a, start + n/2, n/2, dir)", w / 2 + w * 0.075, h * 0.85]
+        ["BitonicMerge(a, startWire, n/2, dir)", w / 2 + w * 0.075, h * 0.8],
+        ["BitonicMerge(a, startWire + n/2, n/2, dir)", w / 2 + w * 0.075, h * 0.85]
     ];
     let codeDrawCalls =  textPositionTuples.map(t => {
         let [text, x, y] = t;
@@ -1004,11 +931,80 @@ function initialize() {
             ctx.fillText(text, x, y);
         }};
     });
-    for (let i = 0; i <= codeDrawCalls.length; i++) {
-        frames.push(combineFrames(bitonicMergeNetwork3, ...recOverlay.slice(0, 2), recOverlay[4], ...codeDrawCalls.slice(0, i)))
-    }
-    // TODO: Add diagram for Bitonic merge to code slides
+    let indicies = [0, 1, 2, 4, 5, 6];
+    indicies.forEach(idx => {
+        frames.push(combineFrames(bitonicMergeNetwork3, ...recOverlay.slice(0, 2), recOverlay[4], ...codeDrawCalls.slice(0, idx)));
+    });
 
+    indicies = [6, 7, 9];
+    indicies.forEach(idx => {
+        frames.push(combineFrames(bitonicMergeNetwork3, ...recOverlay.slice(0, 2), ...codeDrawCalls.slice(0, idx)));
+    });
+
+    function drawTextOverlayArrow(overlay, direction, ctx) {
+        let drawSettings = overlay.drawSettings;
+        ctx.lineWidth = 5
+        ctx.textBaseline = 'top'
+        ctx.font = `${drawSettings.fontSize}px ${drawSettings.font}`;
+
+        let measure = ctx.measureText(overlay.text);
+        let spaceMeasure = ctx.measureText("  ");
+        let arrowHeight = measure.actualBoundingBoxAscent + measure.actualBoundingBoxDescent + 10;
+        let y = drawSettings.position.y + drawSettings.height / 2;
+        let x = drawSettings.position.x + (drawSettings.width + measure.width - spaceMeasure.width) / 2;
+
+        if (direction == DIRECTION_DOWN) {
+            drawVerticalArrow(x, y - arrowHeight / 2, arrowHeight, spaceMeasure.width / 2, spaceMeasure.width / 2, ctx)
+        } else if (direction == DIRECTION_UP) {
+            drawVerticalArrow(x, y + arrowHeight / 2, -arrowHeight, spaceMeasure.width / 2, spaceMeasure.width / 2, ctx)
+        }
+    }
+
+
+    let smallMergeOverlays = [
+        combineFrames(new TextBoxOverlay('MERGE  ', {
+            position: {
+                x: recOverlay[4].frames[0].left() + recOverlay[4].frames[0].drawSettings.width * 0.3,
+                y: recOverlay[4].frames[0].top()},
+            width: recOverlay[4].frames[0].drawSettings.width * 0.7 , 
+            height: calcHeightFromWires(defaultNetworkDrawSettings, 4) - defaultNetworkDrawSettings.squareOffset,
+            fontSize: 60,
+            font: "Arial",
+            strokeWidth: 3,
+            drawVertical: false
+        }), {
+            draw: function(ctx) {
+                let overlay = smallMergeOverlays[0].frames[0];
+                drawTextOverlayArrow(overlay, DIRECTION_DOWN, ctx);
+            }
+        }),
+        combineFrames(new TextBoxOverlay('MERGE  ', {
+            position: {
+                x: recOverlay[4].frames[0].left() + recOverlay[4].frames[0].drawSettings.width * 0.3,
+                y: recOverlay[4].frames[0].top() + calcHeightFromWires(defaultNetworkDrawSettings, 4) },
+            width: recOverlay[4].frames[0].drawSettings.width * 0.7 , 
+            height: calcHeightFromWires(defaultNetworkDrawSettings, 4) - defaultNetworkDrawSettings.squareOffset,
+            fontSize: 60,
+            font: "Arial",
+            strokeWidth: 3,
+            drawVertical: false
+        }), {
+            draw: function(ctx) {
+                let overlay = smallMergeOverlays[1].frames[0];
+                drawTextOverlayArrow(overlay, DIRECTION_DOWN, ctx);
+            }
+        }),        
+    ]
+
+    for (let i = 9; i <= textPositionTuples.length-2; i++) { // Add small merge overlay
+        frames.push(combineFrames(bitonicMergeNetwork3, ...recOverlay.slice(0, 2), ...smallMergeOverlays,  ...codeDrawCalls.slice(0, i)))
+    }
+    frames.push(combineFrames(bitonicMergeNetwork3, ...recOverlay.slice(0, 2), ...smallMergeOverlays,  ...codeDrawCalls.slice(0, textPositionTuples.length)))
+
+    bitonicSort(0, 8, DESCENDING, bitonicMergeNetwork3.network, 0.011)
+    for (const cas of bitonicMergeNetwork3.network.getCompareAndSwaps()) {
+        cas.position *= 2.1;
+    }
 
     /// -------------- ANALYSIS SLIDES -------------------
     /// Highligh tree structure of merge/sort calls
@@ -1086,9 +1082,16 @@ function initialize() {
             })
         );
     }
-    frames.push(wikiNetworkFrame);
+    let analysisSpanTitleFrame = {
+        draw: function(ctx) {
+            ctx.font = bulletPointSlideDrawSettings.titleFont;
+            let text = "Analysis: Span";
+            fillTextCenter(text, h * 0.1, ctx);
+        }
+    };
+    frames.push(combineFrames(wikiNetworkFrame, analysisSpanTitleFrame));
     for (let i = 1; i <= 4; i++) {
-        frames.push(combineFrames(wikiNetworkFrame, ...bigMergeBoxes.slice(0, 2**i - 1)));
+        frames.push(combineFrames(wikiNetworkFrame, ...bigMergeBoxes.slice(0, 2**i - 1), analysisSpanTitleFrame));
     }
 
     let mergeBoxArrows = {
@@ -1128,7 +1131,7 @@ function initialize() {
         }
     }
 
-    frames.push(combineFrames(...bigMergeBoxes.slice(0, 2**4 - 1), mergeBoxArrows));
+    frames.push(combineFrames(...bigMergeBoxes.slice(0, 2**4 - 1), mergeBoxArrows, analysisSpanTitleFrame));
 
     frames.push(combineFrames(wikiNetworkFrame, {
         draw: function(ctx) {
@@ -1145,7 +1148,7 @@ function initialize() {
             ctx.strokeStyle = 'rgba(0, 0, 0, 1)';
             ctx.strokeRect(x, y, width, height);
         }
-    }));
+    }, analysisSpanTitleFrame));
 
     let wikiMergeBoxOverlays = [];
     let wikiMergeBoxWidths = [0.09, 0.06, 0.035, 0.025];
@@ -1183,7 +1186,7 @@ function initialize() {
             ctx.strokeStyle = 'rgba(0, 0, 0, 1)';
             ctx.strokeRect(x, y, width, height);
         }
-    }, ...wikiMergeBoxOverlays));
+    }, ...wikiMergeBoxOverlays, analysisSpanTitleFrame));
 
     let innerMergeBoxArrows = {
         draw: function(ctx) {
@@ -1233,9 +1236,105 @@ function initialize() {
             ctx.strokeStyle = 'rgba(0, 0, 0, 1)';
             ctx.strokeRect(x, y, width, height);
         }
-    }, ...wikiMergeBoxOverlays, innerMergeBoxArrows));
+    }, ...wikiMergeBoxOverlays, innerMergeBoxArrows, analysisSpanTitleFrame));
 
-    // TODO SLIDE ON THE AMOUNT OF WORK
+    frames.push(combineFrames(wikiNetworkFrame, {
+        draw: function(ctx) {
+            ctx.clearRect(0, 0, bigMergeBoxes[0].left(), h);
+            ctx.strokeStyle = generalDrawSettings.blue;
+            ctx.lineWidth = 5
+            createCasBox(wikiNetwork.getCompareAndSwaps(), {
+                ...wikiNetworkDrawSettings,
+                wireLeftX: wikiNetworkDrawSettings.marginX + wikiNetworkDrawSettings.squareLength + wikiNetworkDrawSettings.squareOffset,
+                wireTopY: wikiNetworkDrawSettings.marginY,
+                boxPadding: wikiNetworkDrawSettings.wireLength * 0.010,
+                boxHeight: calcHeightFromWires(wikiNetworkDrawSettings, 16) - wikiNetworkDrawSettings.squareOffset
+            }, 6, 16, ctx);
+        }
+    }, ...bigMergeBoxes.slice(1), mergeBoxArrows, {
+        draw: function(ctx) {
+            let x = bigMergeBoxes[0].left();
+            let y = bigMergeBoxes[0].top();
+            let width = bigMergeBoxes[0].drawSettings.width
+            let height = bigMergeBoxes[0].drawSettings.height
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = 'rgba(0, 0, 0, 1)';
+            ctx.strokeRect(x, y, width, height);
+        }
+    },  analysisSpanTitleFrame));
+
+    createBulletPointSlides("Analysis: Span", [
+        'Network has span of log(n) merges',
+        'Merges have span of O(log(n)) splits',
+        'Splits have span of 1 compare',
+        'Network Span ∈ O(log(n)⋅log(n))',
+    ], bulletPointSlideDrawSettings);
+
+    let analysisWorkTitleFrame = {
+        draw: function(ctx) {
+            ctx.font = bulletPointSlideDrawSettings.titleFont;
+            let text = "Analysis: Work";
+            fillTextCenter(text, h * 0.1, ctx);
+        }
+    };
+    frames.push(combineFrames(wikiNetworkFrame, analysisWorkTitleFrame));
+
+    function createCasBox(cass, drawSettings, col, n, ctx) {
+        // Find the min and max position in desired range
+        let min = 1;
+        let max = 0;
+        let counter = 0;
+        let m = n / 2;
+        let start = m * col
+        for (const c of cass) {
+            if (counter >= start) {
+                min = Math.min(min, c.position);
+                max = Math.max(max, c.position);
+            }
+            counter++;
+            if (counter >= start + m ) break;
+        }
+        // Draw
+        let x = drawSettings.wireLeftX + 
+                drawSettings.wireLength * min -
+                drawSettings.boxPadding;
+        let y = drawSettings.wireTopY
+        let width = drawSettings.wireLength * (max - min) + 2 * drawSettings.boxPadding;
+        let height = drawSettings.boxHeight 
+
+        ctx.strokeRect(x, y, width, height);
+    }
+
+
+    frames.push(combineFrames(wikiNetworkFrame, analysisWorkTitleFrame, {
+        draw: function(ctx) {
+            ctx.strokeStyle = generalDrawSettings.blue
+            ctx.lineWidth = 5
+            for (let i = 0; i < 10; i++) {
+                createCasBox(wikiNetwork.getCompareAndSwaps(), {
+                    ...wikiNetworkDrawSettings,
+                    wireLeftX: wikiNetworkDrawSettings.marginX + wikiNetworkDrawSettings.squareLength + wikiNetworkDrawSettings.squareOffset,
+                    wireTopY: wikiNetworkDrawSettings.marginY - wikiNetworkDrawSettings.squareOffset / 2,
+                    boxPadding: wikiNetworkDrawSettings.wireLength * 0.015,
+                    boxHeight: calcHeightFromWires(wikiNetworkDrawSettings, 16)
+                }, i, 16, ctx);
+            }
+
+        }
+    }));
+
+    createBulletPointSlides("Analysis: Work", [
+        'Network split columns ∈ O(log(n)⋅log(n))',
+        'Splits have 1/2n ∈ O(n) compares',
+        'Network Work ∈ O(n⋅log(n)⋅log(n))',
+    ], bulletPointSlideDrawSettings);
+
+    createBulletPointSlides('Recap', [
+        'Sorting Networks',
+        'Bitonic Merge Sort',
+        'Span: O(log(n)⋅log(n))',
+        'Work: O(n⋅log(n)⋅log(n))',
+    ], bulletPointSlideDrawSettings);
 
     /// -------------- END OF SLIDES ----------------------
     frames[currentFrameIdx].frameStart();

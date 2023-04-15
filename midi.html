@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>MIDI Input Test</title>
+</head>
+<body>
+  <h1>MIDI Input Test</h1>
+  <p>Connect your MIDI device and press some keys:</p>
+  <ul id="midi-input"></ul>
+
+  <script>
+    // Check if Web MIDI API is supported
+    if (navigator.requestMIDIAccess) {
+      // Request access to MIDI devices
+      navigator.requestMIDIAccess()
+        .then(function(midiAccess) {
+          // Get the list of MIDI inputs
+          var inputs = midiAccess.inputs.values();
+
+          // Iterate over each input and create a new list item for it
+          for (var input of inputs) {
+            // Create a new list item for the input
+            var li = document.createElement("li");
+            li.innerHTML = input.name;
+            document.getElementById("midi-input").appendChild(li);
+
+            // Add an event listener to the input to display the received data
+            input.onmidimessage = function(event) {
+              console.log("Received MIDI data:", event.data);
+            };
+          }
+        })
+        .catch(function(error) {
+          console.log("Failed to access MIDI devices:", error);
+        });
+    } else {
+      console.log("Web MIDI API is not supported");
+    }
+  </script>
+</body>
+</html>
+

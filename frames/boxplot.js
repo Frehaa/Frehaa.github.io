@@ -76,12 +76,14 @@ class BoxplotFrame {
         } else {
             let v = this.values[i];
             if (this.lowerHalf.findIndex(w => w == v) >= 0) {
-                let {r,g,b,a} = this.drawSettings.startColor;
-                ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
+                ctx.fillStyle = this.drawSettings.startColor;
+                // let {r,g,b,a} = this.drawSettings.startColor;
+                // ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
                 // ctx.fillStyle = '#00FF00'; 
             } else {
-                let {r,g,b,a} = this.drawSettings.endColor;
-                ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
+                ctx.fillStyle = this.drawSettings.endColor;
+                // let {r,g,b,a} = this.drawSettings.endColor;
+                // ctx.fillStyle = `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
                 // ctx.fillStyle =  '#FF0000'; 
             }
         }
