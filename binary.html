@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Binary File Inspector</title>
+  <script src="binary.js"></script>
+  <style>
+    #byte-table {
+        border-collapse: collapse;
+        border-spacing: 0;
+        table-layout: fixed;
+    }
+
+    #byte-table td {
+        display: table-cell;
+        border: 3px solid black;
+        width: 100px;
+        max-width: 100px;
+        height: 24px;
+        font-size: 18px;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: clip;
+        margin: 0;
+        padding: 0;
+    }
+    #byte-table td:first-child {
+        font-weight: bold;
+        background-color: lightgrey;
+        width: 70px;
+        max-width: 70px;
+    }
+    #count-histogram-canvas {
+        border: 1px solid black;
+        width: 1500px;
+        height: 500px;
+    }
+    .tablink {
+
+    }
+    .tabcontent {
+        display: none;
+    }
+    .activetab {
+        display: block;
+    }
+  </style>
+</head>
+<body onload="initialize()">
+    <input type="file" id="file-input">
+    <div>
+        <div>
+            <button class="tablink" onclick="openTab(event, 'byte-table-tab')">Byte Table</button>
+            <button class="tablink" onclick="openTab(event, 'byte-histogram-tab')">Histogram</button>
+        </div>
+        <div>
+            <div id="byte-table-tab" class="tabcontent">
+                <table id="byte-table"></table>
+                <input type="number" id="byte-table-start" value="0" min="0" step="16">
+                <select id="byte-table-format">
+                    <option value="hex">Hex</option>
+                    <option value="decimal">Decimal</option>
+                    <option value="char">Char</option>
+                    <option value="binary">Binary</option>
+                </select>
+                <input type="range" min="50" max="200" id="byte-table-cell-width">
+            </div>
+            <div id="byte-histogram-tab" class="tabcontent">
+                <canvas id="count-histogram-canvas" width="1500" height="500"></canvas>
+                <br>
+                <input type="range" min="50" max="200" id="count-histogram-window-count">
+                <input type="range" min="0" max="100" id="count-histogram-scroll">
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+

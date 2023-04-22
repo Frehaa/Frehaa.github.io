@@ -9,36 +9,6 @@
       width: 500px;
       height: 500px;
     }
-    #byte-table {
-        border-collapse: collapse;
-        border-spacing: 0;
-        table-layout: fixed;
-    }
-
-    #byte-table td {
-        display: table-cell;
-        border: 3px solid black;
-        width: 100px;
-        max-width: 100px;
-        height: 24px;
-        font-size: 18px;
-        text-align: center;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: clip;
-        margin: 0;
-        padding: 0;
-    }
-    #byte-table td:first-child {
-        font-weight: bold;
-        background-color: lightgrey;
-        width: 70px;
-        max-width: 70px;
-    }
-    #count-histogram-canvas {
-        width: 1500px;
-        height: 500px;
-    }
   </style>
 </head>
 <body onload="initialize()">
@@ -46,26 +16,7 @@
   <h1>MIDI Input Test</h1>
   <p>Connect your MIDI device and press some keys:</p>
   <ul id="midi-input"></ul>
-  <table>
-    <tr>
-        <td>
-            <textarea id="code-text-area"></textarea>
-        </td>
-        <td>
-            <table id="byte-table"></table>
-            <input type="number" id="byte-table-start" value="0" min="0" step="16">
-            <select id="byte-table-format">
-                <option value="hex">Hex</option>
-                <option value="decimal">Decimal</option>
-                <option value="char">Char</option>
-                <option value="binary">Binary</option>
-            </select>
-            <input type="range" min="50" max="200" id="byte-table-cell-width">
-            <input type="button" onclick="countBytes()" value="Count">
-        </td>
-    </tr>
-  </table>
-  <canvas id="count-histogram-canvas" width="1500" height="500"></canvas>
+  <textarea id="code-text-area"></textarea>
 </body>
 </html>
 
