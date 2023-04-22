@@ -11,6 +11,7 @@ function initializeFileInput() {
     reader.onload = (event) => {
         arrayBuffer = event.target.result;
         updateTable();
+        updateHistogram();
     };
 
     const fileInput = document.getElementById('file-input');
@@ -36,7 +37,7 @@ class ByteTable {
         for (let i = 0; i < rows; i++) {
             this.addRow();
         }
-        for (let i = 0; i < columns; i++) {
+        for (let i = 0; i < columns + 1; i++) {
             this.addColumn();
         }
     }
@@ -78,16 +79,28 @@ class ByteTable {
     }
 }
 
-function initializeTable() {
-    let rows = 20;
-    let columns = 16 + 1;
-    let table = new ByteTable(document.getElementById('byte-table'), rows, columns, format=HEX);
-    return table;
+let table = null;
+function initializeByteTable(rows, columns) {
+    table = new ByteTable(document.getElementById('byte-table'), rows, columns, format=HEX);
+
+    const cellWidthInput = document.getElementById('byte-table-cell-width');
+    cellWidthInput.addEventListener('input', function(e) {
+        // Get the stylesheet of the HTML document
+        const stylesheet = document.styleSheets[0];
+
+        // Find the rule for the "my-class" class in the stylesheet
+        const ruleIndex = Array.from(stylesheet.cssRules).findIndex(rule => rule.selectorText === '#byte-table td');
+        const rule = stylesheet.cssRules[ruleIndex];
+
+        // Modify the background color property of the "my-class" class
+        rule.style["width"] = e.target.value + "px";
+        rule.style["max-width"] = e.target.value + "px";
+    });
+    document.getElementById('byte-table-start').addEventListener('change', e => updateTable());
+    document.getElementById('byte-table-format').addEventListener('change', e => updateTable());
 }
 
 function updateTable() {
-    let table = globalTable;
-
     // Set left side
     table.format = HEX;
     let startIndexInput = document.getElementById('byte-table-start');
@@ -117,8 +130,7 @@ function updateTable() {
 
 let globalTable = null;
 
-function countBytes() {
-    let windowSize = 2;
+function countBytes(windowSize) {
     let dataView = new DataView(arrayBuffer);
     let a = Array(256**windowSize).fill(0);
     for (let i = 0; i < dataView.byteLength - (windowSize - 1); i++) {
@@ -128,44 +140,93 @@ function countBytes() {
         }
         a[val]++;
     }
-    l(a)
+    return a
 }
-let activeTab = null; 
-function openTab(e, id) {
-    activeTab.classList.remove('activetab');
-    let tab = document.getElementById(id);
-    tab.classList.add('activetab');
-    activeTab = tab;
+
+// Isolated code for managing tab functionality
+function initializeTabFunction(defaultTab) {
+    document.getElementById(defaultTab).classList.add('activetab');
+
+    let tablinks = document.getElementsByClassName('tablink')
+    for (let i = 0; i < tablinks.length; i++) {
+        tablinks[i].addEventListener('click', e => {
+            document.getElementsByClassName('activetab')[0].classList.remove('activetab');
+            let tabName = e.target.dataset['tabtarget'];
+            document.getElementById(tabName).classList.add('activetab');
+        });
+    }
+}
+
+function initializeHistogram() {
+}
+
+function updateHistogram() {
+    let counts = countBytes(1);
+    let canvas = document.getElementById('count-histogram-canvas');
+    let ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    ctx.clearRect(0, 0, width, height);
+
+    // Find the max value and round up to the nearest roundest number
+    let maxValue = Math.max(...counts);
+    const orderOfMagnitude = Math.floor(Math.log10(maxValue));
+    const roundestNumber = Math.pow(10, orderOfMagnitude);
+    const quotient = maxValue / roundestNumber;
+    maxValue = Math.ceil(quotient) * roundestNumber
+
+    const originX = 50;
+    const originY = 50;
+
+    const barWidth = 4; // width of each bar
+    const barSpacing = 1
+    const histogramHeight = height - 50;
+    const histogramWidth = width - 50;
+    const axisLineWidth = 1;
+
+    // ctx.strokeStyle = '#000000';
+
+    // draw x axis labels
+    for (let i = 0; i <= counts.length; i += 16) {
+        const labelX = originX + i * (barWidth + barSpacing);
+        const labelY = histogramHeight + 15
+        ctx.fillText(i, labelX, labelY);
+    }
+
+    // draw y axis labels
+    for (let i = 0; i <= maxValue; i += maxValue / 10) {
+        const labelX = originX - 30
+        const labelY = histogramHeight - (i / maxValue) * (histogramHeight - originY);
+        ctx.fillText(i, labelX, labelY);
+    }
+
+    // Draw bars
+    for (let i = 0; i < counts.length; i++) {
+        const value = counts[i];
+        const barHeight = (value / maxValue) * (histogramHeight - originY);
+        const x = originX + axisLineWidth + i * (barWidth + barSpacing);
+        const y = histogramHeight - barHeight - axisLineWidth;
+        // l(value, maxValue, histogramHeight, originY, x, y, barHeight)
+        ctx.fillRect(x, y, barWidth, barHeight);
+    }
+
+    ctx.lineWidth = axisLineWidth;
+    // ctx.strokeStyle = 'grey';
+    // draw y axis
+    ctx.beginPath();
+    ctx.moveTo(originX, originY);
+    ctx.lineTo(originX, histogramHeight + 1);
+
+    // draw x axis
+    ctx.moveTo(originX + 1, histogramHeight)
+    ctx.lineTo(histogramWidth - originX, histogramHeight);
+    ctx.stroke();
 }
 
 function initialize() {
-    globalTable = initializeTable();
+    initializeTabFunction('byte-histogram-tab');
+    initializeByteTable(20, 16);
+    initializeHistogram();
     initializeFileInput();
-
-    activeTab = document.getElementById('byte-table-tab');
-    openTab(null, 'byte-table-tab')
-
-    const cellWidthInput = document.getElementById('byte-table-cell-width');
-    cellWidthInput.onchange = function(event) {
-        // Get the stylesheet of the HTML document
-        const stylesheet = document.styleSheets[0];
-
-        // Find the rule for the "my-class" class in the stylesheet
-        const ruleIndex = Array.from(stylesheet.cssRules).findIndex(rule => rule.selectorText === '#byte-table td');
-        const rule = stylesheet.cssRules[ruleIndex];
-
-        // Modify the background color property of the "my-class" class
-        rule.style["width"] = cellWidthInput.value + "px";
-        rule.style["max-width"] = cellWidthInput.value + "px";
-    }
-
-    const startIndexInput = document.getElementById('byte-table-start');
-    startIndexInput.onchange = function(event) {
-        updateTable();
-    }
-
-    const formatInput = document.getElementById('byte-table-format');
-    formatInput.onchange = function(event) {
-        updateTable();
-    }
 }
