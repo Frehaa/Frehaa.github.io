@@ -176,52 +176,78 @@ function updateHistogram() {
     const quotient = maxValue / roundestNumber;
     maxValue = Math.ceil(quotient) * roundestNumber
 
-    const originX = 50;
-    const originY = 50;
 
-    const barWidth = 4; // width of each bar
-    const barSpacing = 1
-    const histogramHeight = height - 50;
-    const histogramWidth = width - 50;
+    const marginX = 50;
+    const marginY = 50;
+
+    let originX = marginX;
+    let originY = marginY;
+
+
+    const histogramHeight = height - 2 * marginY;
+    const histogramWidth = width - 2 * marginX;
     const axisLineWidth = 1;
 
+    ctx.beginPath();
+    ctx.moveTo(originX, originY);
+    ctx.lineTo(originX, histogramHeight + originY);
+    ctx.lineTo(originX + histogramWidth, histogramHeight + originY);
+    ctx.lineTo(originX + histogramWidth, originY);
+    ctx.closePath();
+    ctx.stroke();
+
+    ctx.font = "bold 18px serif"
+    const measure = ctx.measureText(maxValue);
+    const maxTextWidth = measure.width;
+    const textHeight = measure.actualBoundingBoxAscent + measure.actualBoundingBoxDescent;
+    let histogramBarAreaHeight = histogramHeight - 3 * textHeight;
+    let histogramBarAreaWidth = histogramWidth - maxTextWidth - measure.width / (2 * maxValue.toString().length) - maxTextWidth;
+
+    const barWidthRatio = 4; // width of each bar
+    const barSpacingRatio = 1
+    const barTotalRatio = barWidthRatio + barSpacingRatio;
+    const numberOfValues = 256;
+    const barWidth = histogramBarAreaWidth / numberOfValues * (barWidthRatio / barTotalRatio);
+    const barSpacing = histogramBarAreaWidth / numberOfValues * (barSpacingRatio / barTotalRatio);
+ 
     // ctx.strokeStyle = '#000000';
+    ctx.textBaseline = "top";
+    ctx.textAlign = "right"
+    originX += maxTextWidth
+
+    // draw y axises and labels
+    ctx.lineWidth = axisLineWidth;
+    for (let i = 0; i <= maxValue; i += maxValue / 10) {
+        const x = originX;
+        const y = originY + textHeight + histogramBarAreaHeight - (i / maxValue) * histogramBarAreaHeight;
+
+        ctx.beginPath();
+        ctx.moveTo(x, y)
+        ctx.lineTo(histogramWidth + marginX, y);
+        ctx.stroke();
+
+        ctx.fillText(i, x, y - textHeight / 2);
+    }
+    originX += measure.width / (2 * maxValue.toString().length)
+
 
     // draw x axis labels
     for (let i = 0; i <= counts.length; i += 16) {
-        const labelX = originX + i * (barWidth + barSpacing);
-        const labelY = histogramHeight + 15
-        ctx.fillText(i, labelX, labelY);
-    }
-
-    // draw y axis labels
-    for (let i = 0; i <= maxValue; i += maxValue / 10) {
-        const labelX = originX - 30
-        const labelY = histogramHeight - (i / maxValue) * (histogramHeight - originY);
+        const measure = ctx.measureText(i);
+        const labelX = originX + i * (barWidth + barSpacing) + measure.width / 2;
+        const labelY = originY + histogramHeight - 1.5 * textHeight
         ctx.fillText(i, labelX, labelY);
     }
 
     // Draw bars
     for (let i = 0; i < counts.length; i++) {
         const value = counts[i];
-        const barHeight = (value / maxValue) * (histogramHeight - originY);
-        const x = originX + axisLineWidth + i * (barWidth + barSpacing);
-        const y = histogramHeight - barHeight - axisLineWidth;
+        const barHeight = (value / maxValue) * histogramBarAreaHeight;
+        const x = originX + i * (barWidth + barSpacing);
+        const y = originY + histogramBarAreaHeight - barHeight + textHeight;
         // l(value, maxValue, histogramHeight, originY, x, y, barHeight)
         ctx.fillRect(x, y, barWidth, barHeight);
     }
-
-    ctx.lineWidth = axisLineWidth;
-    // ctx.strokeStyle = 'grey';
-    // draw y axis
-    ctx.beginPath();
-    ctx.moveTo(originX, originY);
-    ctx.lineTo(originX, histogramHeight + 1);
-
-    // draw x axis
-    ctx.moveTo(originX + 1, histogramHeight)
-    ctx.lineTo(histogramWidth - originX, histogramHeight);
-    ctx.stroke();
 }
 
 function initialize() {
