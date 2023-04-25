@@ -76,6 +76,12 @@ class ByteTable {
             }
         }
         this.table.children[row].children[col + 1].innerHTML = text;
+        this.table.children[row].children[col + 1].classList.remove('byte-cell-out-of-bounds')
+    }
+
+    setCellOutOfBounds(row, col) {
+        this.table.children[row].children[col + 1].innerHTML = "";
+        this.table.children[row].children[col + 1].classList.add('byte-cell-out-of-bounds')
     }
 }
 
@@ -120,10 +126,14 @@ function updateTable() {
         for (let column = 0; column < (table.columns - 1); column++) {
             let index = start + row * (table.columns - 1) + column;
             let text = "";
+            l(index, dataView.byteLength)
             if (index < dataView.byteLength) {
                 text = dataView.getUint8(index);
-            } 
-            table.writeCell(row, column, text);
+                table.writeCell(row, column, text);
+            } else {
+                l('t')
+                table.setCellOutOfBounds(row, column);
+            }
         }
     }
 }
@@ -251,7 +261,7 @@ function updateHistogram() {
 }
 
 function initialize() {
-    initializeTabFunction('byte-histogram-tab');
+    initializeTabFunction('byte-table-tab');
     initializeByteTable(20, 16);
     initializeHistogram();
     initializeFileInput();
