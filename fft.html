@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Playroom</title>
+<script src="linkedlist.js"></script>
+<script src="fft.js"></script>
+<style>
+canvas {
+    outline: solid 1px black;
+}
+#canvas-code {
+    width: 700px;
+    height: 3000px;
+}
+</style>
+</head>
+<body onload="initialize()">
+<canvas id="canvas" width="720" height="3000"></canvas>
+<textarea id="canvas-code">
+let k = 5;
+let offsetX = k * 10;  let offsetY = 20;
+let marginX = 20;      let marginY = 20;
+let scale = 2;
+let radius = 5;
+let circleSettings= {visible: true, alpha: 0.1, red: 0, green: 0, blue: 0}
+let lineSettings = {visible: true, alpha: 0.1, red: 0, green: 0, blue: 0};
+
+if (k > 13) return;
+
+let circles = {};
+for (let i = 0; i < 2**k; i++) {
+    for (let j = 0; j < k + 1; ++j) {
+        circles[[i, j]] = Circle(offsetX * j, offsetY * i, radius, circleSettings);
+    }
+}
+
+let arrows = {};
+for (let i = 0; i < 2**k; i++) {
+    for (let j = 0; j < k; ++j) {
+       let from = circles[[i, j]];
+       let to0 = circles[[i, j+1]];
+       let to1 = circles[[ij(i, j), j+1]];
+       arrows[[i, j, 0]] = Line(From(from), To(to0), lineSettings);
+       arrows[[i, j, 1]] = Line(From(from), To(to1), lineSettings);
+    }
+}
+
+ctx.transform(scale, 0, 0, scale, 0, 0);
+ctx.translate(marginX , marginY)
+
+colorPath(0, k, 0.8, 0, 0);
+//colorPathRev(0, 1, 1, 0, 0.0);
+
+//colorPath(1, k, 0, 0.8, 0);
+
+for (let t = k-1; t > 0; --t) {
+    for (let i = 2; i < 2**t; i += 2) {
+       // colorPathRev(i, t-1, 0, 0, 0);
+    }
+}
+
+function ij(i, j) { 
+    return i ^ (2**j)
+}
+
+function colorPath(i, j, red, green, blue) {
+    colorMixNode(i, j, red, green, blue, 1)
+    if (j == 0) return;
+    colorPath(i, j-1, red, green, blue);
+    let crossIdx = ij(i, j-1);
+    colorPath(crossIdx, j-1, red, green, blue);
+
+    colorMixArrow(i, j-1, 0, red, green, blue, 1)
+    colorMixArrow(crossIdx, j-1, 1, red, green, blue, 1)
+}
+
+function colorPathRev(i, j, red, green, blue) {
+    colorMixNode(i, j, red, green, blue, 1)
+    if (j == k) return;
+    colorPathRev(i, j+1, red, green, blue);
+    let crossIdx = ij(i, j);
+    colorPathRev(crossIdx, j+1, red, green, blue);
+
+    colorMixArrow(i, j, 0, red, green, blue, 1)
+    colorMixArrow(i, j, 1, red, green, blue, 1)
+}
+function colorMixNode(i, j, red, green, blue, alpha) {
+    circles[[i, j]].red += red;
+    circles[[i, j]].green += green;
+    circles[[i, j]].blue += blue;
+    circles[[i,j]].alpha += alpha;
+}
+
+function colorMixArrow(i, j, t, red, green, blue, alpha) {
+    let idx = [i,j,t];
+    arrows[idx].alpha = alpha;
+    arrows[idx].red+= red;
+    arrows[idx].green+= green;
+    arrows[idx].blue+= blue;
+}
+</textarea>
+</body>
+</html>
