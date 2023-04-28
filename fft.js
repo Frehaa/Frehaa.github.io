@@ -167,3 +167,39 @@ function initialize() {
     
     draw(); // Initial draw
 }
+
+/* 
+What do we want? 
+
+We want to draw gates based on something like an array of values I think? Or an array of arrays?
+
+[[1,1], [1,1]] -> 2 by 2 FFT with no recomputation
+
+[[1,1,1,1], [2,2,2,2],  [1,1, 1, 1]] -> 4 by 3 FFT with middle recomputation on all nodes
+[[1,1,1,1], [1,1,2,2],  [1,1, 1, 1]] -> 4 by 3 FFT with middle recomputation on two nodes. 
+
+This should lead to ids like 
+
+0, 0, 0 for the first top left input column
+
+1, 0, 1 for the first recomputation in the top in the second column
+
+These ids should be able to be used to draw lines arbitrarily.
+Lines should be colourable. 
+
+Shortcut FFT array function and then we can update values in a smarter way. 
+
+let fft3 = FFT(3) to get [[1,1,1,1], [1,1,1,1],  [1,1, 1, 1]]
+
+and then 
+fft[1][2] = 2
+fft[1][3] = 2
+
+to update it to 
+[[1,1,1,1], [1,1,2,2],  [1,1, 1, 1]]
+
+and maybe a setAll function which takes column and range and value and sets all 
+things in the range in the column to the desired value?
+
+setAll(1, [2,3], 2)
+*/
