@@ -166,6 +166,44 @@ function initialize() {
     })
     
     draw(); // Initial draw
+
+    let fft = FftFromArray([[1,1,1,1], [2,2,3,2],  [1,1, 1, 1]]);
+    l(fft)
+}
+function FftFromArray(a) {
+    function Gate(x, y, id) {
+        return {
+            x,
+            y,
+            id,
+            radius: 2,
+            draw: function(ctx) {
+                ctx.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
+            }
+        }
+    }
+    let fft = {};
+    let id = 0;
+    let hightestColumn = 0;
+    for (let column = 0; column < a.length; column++) {
+        const nodes = a[column];
+        let s = 0;
+        for (let row = 0; row < nodes.length; row++) {
+            let count = nodes[row];
+            // l(column, row, count);
+            for (let k = 0; k < count; k++) {
+                fft[[column,row,k]] = Gate(startOffsetX + column * spacingX, startOffsetY + row * spacingY, id++); 
+            }
+            s += count;
+            l(`${count} gates in column ${column} row ${row}`)
+        }
+        l(`${s} gates in column ${column}`)
+        if (s > hightestColumn) {
+            hightestColumn = s
+        }
+    }
+    l(`Highest column has ${hightestColumn} gates`);
+    return fft
 }
 
 /* 
