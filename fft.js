@@ -167,43 +167,116 @@ function initialize() {
     
     draw(); // Initial draw
 
-    let fft = FftFromArray([[1,1,1,1], [2,2,3,2],  [1,1, 1, 1]]);
-    l(fft)
+    let canvas = document.getElementById('canvas');
+    let ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    function fft(k) {
+        const nodes = [];
+        for (let i = 0; i <= k; i++) {
+            let column = [];
+            for (let j = 0; j < 2**k; j++) {
+                column.push(1);
+            }
+            nodes.push(column);
+        }
+
+        const connections = { from: {}, to: {} };
+        function addConnection(u, v) {
+            if (connections.from[u] === undefined) {
+                connections.from[u] = [];
+            }
+            connections.from[u].push(v);
+
+            if (connections.to[v] === undefined) {
+                connections.to[v] = [];
+            }
+            connections.to[v].push(u);
+        }
+
+        for (let i = 1; i <= k; i++) {
+            for (let j = 0; j < 2**k; j++) {
+                addConnection([i-1,j,0], [i,j,0]);
+                const jcross = j ^ (2**(i-1));
+                addConnection([i-1,jcross,0], [i,j,0])
+            }
+        }
+
+        return { nodes, connections};
+    }
+
+    l(fft(0), fft(1))
+
+    let fft2 = fft(3);
+    FftFromArray(fft2.nodes, fft2.connections, ctx);
 }
-function FftFromArray(a) {
-    function Gate(x, y, id) {
-        return {
-            x,
-            y,
-            id,
-            radius: 2,
-            draw: function(ctx) {
-                ctx.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
+function FftFromArray(a, connections, ctx) {
+    const height = ctx.canvas.height;
+    const width = ctx.canvas.width;
+    const xStart = width * 0.05;
+    const rowWidth = width * 0.9;
+    const yStartBot = height * 0.95;
+    const yHeight = height * 0.2;
+    const rowOffset = height * 0.05;
+
+    let numberOfRows = a.length;
+    for (let i = 0; i < numberOfRows; i++) {
+        const cols = a[i].length;
+        const boxTop = (yStartBot - yHeight) - (rowOffset + yHeight)  * i;
+        ctx.strokeRect(xStart, boxTop, rowWidth, yHeight)
+
+        const colWidth = rowWidth / cols
+        for (let j = 0; j < cols; j++) {
+            ctx.beginPath();
+            ctx.moveTo(xStart + j * colWidth, boxTop)
+            ctx.lineTo(xStart + j * colWidth, boxTop+yHeight);
+            ctx.stroke();
+
+            const nodeOffset = colWidth / a[i][j];
+            for (let k = 0; k < a[i][j]; k++) {
+                let x = xStart + j * colWidth + nodeOffset * k + nodeOffset/2;
+                let y = boxTop + yHeight/2;
+                // ctx.strokeText(`${k+1}`, x, y);
+                ctx.beginPath();
+                ctx.arc(x, y, 15, 0, 2 * Math.PI);
+                ctx.fill()
             }
         }
     }
-    let fft = {};
-    let id = 0;
-    let hightestColumn = 0;
-    for (let column = 0; column < a.length; column++) {
-        const nodes = a[column];
-        let s = 0;
-        for (let row = 0; row < nodes.length; row++) {
-            let count = nodes[row];
-            // l(column, row, count);
-            for (let k = 0; k < count; k++) {
-                fft[[column,row,k]] = Gate(startOffsetX + column * spacingX, startOffsetY + row * spacingY, id++); 
-            }
-            s += count;
-            l(`${count} gates in column ${column} row ${row}`)
-        }
-        l(`${s} gates in column ${column}`)
-        if (s > hightestColumn) {
-            hightestColumn = s
-        }
+
+    function idToPos(i, j, k) {
+        const colWidth = rowWidth / a[i].length;
+        const nodeOffset = colWidth / a[i][j];
+        const x = xStart + j * colWidth + nodeOffset * k + nodeOffset / 2;
+        const y = (yStartBot - yHeight) - (rowOffset + yHeight)  * i + yHeight / 2;
+        return {x, y};
     }
-    l(`Highest column has ${hightestColumn} gates`);
-    return fft
+    function drawEdge(from, to) {
+        ctx.beginPath();
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
+        ctx.stroke();
+    }
+
+
+    Object.keys(connections.from).forEach(key => {
+        let from = key.split(',').map(Number);
+        let start = idToPos(...from);
+        connections.from[from].forEach(to => {
+            let end = idToPos(...to);
+            drawEdge(start, end);
+        })
+    })
+
+    // connections.from.forEach(connection => {
+    //     let start = idToPos(...connection[0]);
+    //     let end = idToPos(...connection[1]);
+
+    //     ctx.beginPath();
+    //     ctx.moveTo(start.x, start.y);
+    //     ctx.lineTo(end.x, end.y);
+    //     ctx.stroke();
+    // });
 }
 
 /* 
