@@ -48,7 +48,7 @@
     .byte-cell-out-of-bounds {
         background-color: red;
     }
-    .byte-cell-search-match {
+    .byte-cell-search-hit {
         background-color: green;
     }
   </style>
@@ -71,6 +71,8 @@
                     <option value="binary">Binary</option>
                 </select>
                 <input type="range" min="50" max="200" id="byte-table-cell-width">
+                <input type="search" id="byte-table-search">
+                <textarea id="byte-table-search-results"></textarea>
             </div>
             <div id="byte-histogram-tab" class="tabcontent">
                 <canvas id="count-histogram-canvas" width="1500" height="500"></canvas>
