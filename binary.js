@@ -163,9 +163,10 @@ function hexToDec(hex) {
         hex = "0" + hex;
     }
 
-    for (let i = 0; i < hex.length/2; i += 2) {
+    for (let i = 0; i < hex.length; i += 2) {
         let big = parseInt(hex.charAt(i), 16);
-        let small = parseInt(hex.charAt(i+1));
+        let small = parseInt(hex.charAt(i+1), 16);
+        // l(hex.charAt(i), hex.charAt(i + 1), big, small)
         result.push(big * 16 + small);
     }
     return result;
@@ -216,7 +217,7 @@ function initializeByteTable(rows, columns) {
         }
         let results = search(needle, table.data);
         table.search = { needle, results };
-        l(results.length)
+        l(needle, results.length)
         let textArea = document.getElementById('byte-table-search-results');
         textArea.value = "";
         for (let i = 0; i < results.length; i++) {
