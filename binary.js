@@ -135,19 +135,38 @@ class ByteTable {
 
 }
 function search(needle, dataView) {
-    l(needle, dataView)
+    if (needle.length == 0) return;
     const M = needle.length;
     const N = dataView.byteLength;
     const result = [];
     for (let i = 0; i <= N - M; i++) {
         let j = 0;
         for (; j < M; j++) {
-            let c = needle.charCodeAt(j);
+            let c = needle[j];
             let d = dataView.getUint8(i + j);
             if (c != d)
                 break;
         }
         if (j == M) result.push(i);
+    }
+    return result;
+}
+
+function isHex(s) {
+    const pattern = /^[0-9A-Fa-f]+$/;
+    return pattern.test(s);
+}
+
+function hexToDec(hex) {
+    let result = [];
+    if (hex.length % 2 == 1) {
+        hex = "0" + hex;
+    }
+
+    for (let i = 0; i < hex.length/2; i += 2) {
+        let big = parseInt(hex.charAt(i), 16);
+        let small = parseInt(hex.charAt(i+1));
+        result.push(big * 16 + small);
     }
     return result;
 }
@@ -174,13 +193,35 @@ function initializeByteTable(rows, columns) {
     document.getElementById('byte-table-format').addEventListener('change', e => updateTable());
     document.getElementById('byte-table-search').addEventListener('change', e => {
         let needle = e.target.value;
+        let format = HEX;
+        switch (format) {
+            case BINARY: {
+
+            } break;
+            case HEX: {
+                if (!isHex(needle)) {
+                    throw new Error("Needle was not hex");
+                }
+                needle = hexToDec(needle);
+            } break;
+            case CHAR: {
+                let res = [];
+                for (let i = 0; i < needle.length; i++) {
+                    res.push(needle.charCodeAt(i));
+                }
+                needle = res;
+            } break;
+            default:
+                break;
+        }
         let results = search(needle, table.data);
         table.search = { needle, results };
+        l(results.length)
         let textArea = document.getElementById('byte-table-search-results');
-        textArea.innerHTML = "";
+        textArea.value = "";
         for (let i = 0; i < results.length; i++) {
-            textArea.innerHTML += results[i];
-            textArea.innerHTML += "\n";
+            textArea.value += results[i];
+            textArea.value += "\n";
         }
         updateTable()
     });
