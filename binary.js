@@ -8,11 +8,29 @@ const BINARY = 'binary';
 let arrayBuffer = new ArrayBuffer(1000);
 function initializeFileInput() {
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.addEventListener('load', event => {
         arrayBuffer = event.target.result;
+        // Copy from array buffer
+        let dataView = new DataView(arrayBuffer);
+        table.data = dataView;
         updateTable();
         updateHistogram();
-    };
+    });
+    reader.addEventListener('abort', e => {
+        l('Reader abort', e);
+    });
+    reader.addEventListener('loadend', e => {
+        l('Reader loadend', e);
+    });
+    reader.addEventListener('error', e => {
+        l('Reader error', e);
+    });
+    reader.addEventListener('loadstart', e => {
+        l('Reader load start', e);
+    });
+    reader.addEventListener('progress', e => {
+        l('Reader progress', e);
+    });
 
     const fileInput = document.getElementById('file-input');
     fileInput.addEventListener('change', (event) => {
@@ -33,6 +51,7 @@ class ByteTable {
         this.rows = 0;
         this.columns = 0;
         this.format = format;
+        this.search = {needle: '', results: [] };
 
         for (let i = 0; i < rows; i++) {
             this.addRow();
@@ -77,12 +96,80 @@ class ByteTable {
         }
         this.table.children[row].children[col + 1].innerHTML = text;
         this.table.children[row].children[col + 1].classList.remove('byte-cell-out-of-bounds')
+        this.table.children[row].children[col + 1].classList.remove('byte-cell-search-hit')
     }
 
     setCellOutOfBounds(row, col) {
         this.table.children[row].children[col + 1].innerHTML = "";
         this.table.children[row].children[col + 1].classList.add('byte-cell-out-of-bounds')
     }
+    setCellSearchHit(row, col) {
+        this.table.children[row].children[col + 1].classList.add('byte-cell-search-hit')
+    }
+
+    writeCellsFrom(start) {
+        const searchResult = this.search.results;
+        const needleLength = this.search.needle.length;
+        const dataView = this.data;
+        for (let row = 0; row < this.rows; row++) {
+            for (let column = 0; column < (this.columns - 1); column++) {
+                const index = start + row * (this.columns - 1) + column;
+                if (index < dataView.byteLength) {
+                    const text = dataView.getUint8(index);
+                    this.writeCell(row, column, text);
+                } else {
+                    this.setCellOutOfBounds(row, column);
+                }
+                
+                for (let i = 0; i < searchResult.length; i++) {
+                    if (index < searchResult[i]) break;
+                    if (searchResult[i] <= index && index < searchResult[i] + needleLength) {
+                        this.setCellSearchHit(row, column);
+                        
+                    } 
+                }
+            }
+        }
+    }
+
+
+}
+function search(needle, dataView) {
+    if (needle.length == 0) return;
+    const M = needle.length;
+    const N = dataView.byteLength;
+    const result = [];
+    for (let i = 0; i <= N - M; i++) {
+        let j = 0;
+        for (; j < M; j++) {
+            let c = needle[j];
+            let d = dataView.getUint8(i + j);
+            if (c != d)
+                break;
+        }
+        if (j == M) result.push(i);
+    }
+    return result;
+}
+
+function isHex(s) {
+    const pattern = /^[0-9A-Fa-f]+$/;
+    return pattern.test(s);
+}
+
+function hexToDec(hex) {
+    let result = [];
+    if (hex.length % 2 == 1) {
+        hex = "0" + hex;
+    }
+
+    for (let i = 0; i < hex.length; i += 2) {
+        let big = parseInt(hex.charAt(i), 16);
+        let small = parseInt(hex.charAt(i+1), 16);
+        // l(hex.charAt(i), hex.charAt(i + 1), big, small)
+        result.push(big * 16 + small);
+    }
+    return result;
 }
 
 let table = null;
@@ -102,40 +189,60 @@ function initializeByteTable(rows, columns) {
         rule.style["width"] = e.target.value + "px";
         rule.style["max-width"] = e.target.value + "px";
     });
-    document.getElementById('byte-table-start').addEventListener('change', e => updateTable());
+    let tableStart = document.getElementById('byte-table-start');
+    tableStart.addEventListener('change', e => updateTable());
     document.getElementById('byte-table-format').addEventListener('change', e => updateTable());
+    document.getElementById('byte-table-search').addEventListener('change', e => {
+        let needle = e.target.value;
+        let format = HEX;
+        switch (format) {
+            case BINARY: {
+
+            } break;
+            case HEX: {
+                if (!isHex(needle)) {
+                    throw new Error("Needle was not hex");
+                }
+                needle = hexToDec(needle);
+            } break;
+            case CHAR: {
+                let res = [];
+                for (let i = 0; i < needle.length; i++) {
+                    res.push(needle.charCodeAt(i));
+                }
+                needle = res;
+            } break;
+            default:
+                break;
+        }
+        let results = search(needle, table.data);
+        table.search = { needle, results };
+        l(needle, results.length)
+        let textArea = document.getElementById('byte-table-search-results');
+        textArea.value = "";
+        for (let i = 0; i < results.length; i++) {
+            textArea.value += results[i];
+            textArea.value += "\n";
+        }
+        updateTable()
+    });
 }
 
 function updateTable() {
     // Set left side
     table.format = HEX;
-    let startIndexInput = document.getElementById('byte-table-start');
-    let start = Number(startIndexInput.value);
+    const startIndexInput = document.getElementById('byte-table-start');
+    const start = Number(startIndexInput.value);
     let text = start;
     for (let row = 0; row < table.rows; row++) {
         table.writeCell(row, -1, text);
         text += (table.columns-1);
     }
-    let formatInput = document.getElementById('byte-table-format');
+    const formatInput = document.getElementById('byte-table-format');
     const format = formatInput.options[formatInput.selectedIndex].value;
     table.format = format;
 
-    // Copy from array buffer
-    let dataView = new DataView(arrayBuffer);
-    for (let row = 0; row < table.rows; row++) {
-        for (let column = 0; column < (table.columns - 1); column++) {
-            let index = start + row * (table.columns - 1) + column;
-            let text = "";
-            l(index, dataView.byteLength)
-            if (index < dataView.byteLength) {
-                text = dataView.getUint8(index);
-                table.writeCell(row, column, text);
-            } else {
-                l('t')
-                table.setCellOutOfBounds(row, column);
-            }
-        }
-    }
+    table.writeCellsFrom(start)
 }
 
 let globalTable = null;
