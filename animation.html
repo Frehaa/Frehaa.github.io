@@ -18,13 +18,13 @@ canvas {
 <canvas id="canvas" width="720" height="3000"></canvas>
 <textarea id="canvas-code">
 let k = 5;
-let offsetX = k * 10;  let offsetY = 20;
+let offsetX = k * 15;  let offsetY = 15;
 let marginX = 20;      let marginY = 20;
-let scale = 2;
+let scale = 3;
 let radius = 5;
-let runStats = true;
-let circleSettings= {visible: true, alpha: 0.1, red: 0, green: 0, blue: 0}
-let lineSettings = {visible: true, alpha: 0.1, red: 0, green: 0, blue: 0};
+let runStats = false;
+let circleSettings= {visible: true, alpha: 0.2, red: 0, green: 0, blue: 0}
+let lineSettings = {visible: true, alpha: 0.2, red: 0, green: 0, blue: 0};
 
 if (k > 13) return;
 
@@ -49,10 +49,8 @@ for (let i = 0; i < 2**k; i++) {
 ctx.transform(scale, 0, 0, scale, 0, 0);
 ctx.translate(marginX , marginY)
 
-colorPath(0, k, 0.8, 0, 0);
-//colorPathRev(0, 1, 1, 0, 0.0);
-
-//colorPath(1, k, 0, 0.8, 0);
+//colorPath(0, k, 1, 0, 0);
+//colorPathRev(0, k, 1, 0, 0.0);
 
 for (let t = k-1; t > 0; --t) {
     for (let i = 2; i < 2**t; i += 2) {
@@ -62,6 +60,29 @@ for (let t = k-1; t > 0; --t) {
 
 function ij(i, j) { 
     return i ^ (2**j)
+}
+
+colorPathBetween(0, 8, 1, 0, 0, 1);
+colorPathBetween(2, 5, 0, 0, 1, 1);
+
+function colorPathBetween(i1, i2, r, g, b, a) {
+    let bs1 = i1.toString(2).padStart(k+1,'0');
+    let bs2 = i2.toString(2).padStart(k+1,'0');
+
+    let i = i1;
+    for (let j = 0; j < k; ++j) {
+        let b1 = bs1.charAt(k-j);
+        let b2 = bs2.charAt(k-j);
+        
+        colorMixNode(i, j, r, g, b, a)
+        if (b1 != b2) {// Cross
+            colorMixArrow(i, j, 1, r, g, b, a)
+            i = i ^ (2**j);
+        } else {
+            colorMixArrow(i, j, 0, r, g, b, a)
+        }        
+    }
+    colorMixNode(i, k, r, g, b, a)
 }
 
 function colorPath(i, j, red, green, blue) {
@@ -128,6 +149,7 @@ for (let i = 0; i < 2**k; i++) {
     }
 }
 console.log(stats);
+
 
 </textarea>
 <br>
