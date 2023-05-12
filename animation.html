@@ -49,8 +49,17 @@ for (let i = 0; i < 2**k; i++) {
 ctx.transform(scale, 0, 0, scale, 0, 0);
 ctx.translate(marginX , marginY)
 
-//colorPath(0, k, 1, 0, 0);
-//colorPathRev(0, k, 1, 0, 0.0);
+let t = 13
+//colorPath(t, k, 1, 0, 0);
+colorPathRev(0, 0, 1, 0, 0.0);
+colorPathRev(1, 0, 1, 0, 0.0);
+
+colorPathRev(2, 0, 1, 0, 0.0);
+colorPathRev(3, 0, 1, 0, 0.0);
+
+colorNode(2,1, 0,0,0,0.01)
+colorNode(3,1, 0,0,0,0.01)
+
 
 for (let t = k-1; t > 0; --t) {
     for (let i = 2; i < 2**t; i += 2) {
@@ -62,8 +71,9 @@ function ij(i, j) {
     return i ^ (2**j)
 }
 
-colorPathBetween(0, 8, 1, 0, 0, 1);
-colorPathBetween(2, 5, 0, 0, 1, 1);
+colorPathBetween(0, 31, 0, 0, 1, 1);
+colorPathBetween(1, 1, 0, 0.8, 0, 1);
+//colorPathBetween(22, t, 0, 0, 1, 1);
 
 function colorPathBetween(i1, i2, r, g, b, a) {
     let bs1 = i1.toString(2).padStart(k+1,'0');
@@ -113,6 +123,14 @@ function colorMixNode(i, j, red, green, blue, alpha) {
     circles[[i,j]].alpha += alpha;
 }
 
+function colorNode(i, j, red, green, blue, alpha) {
+    circles[[i, j]].red = red;
+    circles[[i, j]].green = green;
+    circles[[i, j]].blue = blue;
+    circles[[i,j]].alpha = alpha;
+}
+
+
 function colorMixArrow(i, j, t, red, green, blue, alpha) {
     let idx = [i,j,t];
     arrows[idx].alpha = alpha;
@@ -149,8 +167,6 @@ for (let i = 0; i < 2**k; i++) {
     }
 }
 console.log(stats);
-
-
 </textarea>
 <br>
 <input id="time-range" type="range" min="0" max="100" value="0">
