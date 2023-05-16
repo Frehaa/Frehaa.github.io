@@ -46,6 +46,21 @@ for (let i = 0; i < 2**k; i++) {
     }
 }
 
+function* randoms(seed) {
+    // Linear congruential generator
+    let state = seed;
+    let a = 1664525;
+    let c = 1013904223;
+    let m = 2**32;
+    while (true) {
+        state = (a * state + c) % m
+        yield state / m;
+    }
+}                
+
+
+let random = randoms(31315141);
+
 ctx.transform(scale, 0, 0, scale, 0, 0);
 ctx.translate(marginX , marginY)
 
@@ -92,7 +107,8 @@ for (let j = 0; j < k; ++j) {
         for (let m = 0; m < 2**j; ++m) {
             let u = [i+m,j];
             let v = [i+(2**j)+m,j];
-            if (Math.random() < 0.5) {
+            let r = random.next().value;
+            if (r < 0.5) {
                 crossNodes.push(u)
                 crossNodes.push(v)
             } else {
