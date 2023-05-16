@@ -17,14 +17,14 @@ canvas {
 <body onload="initialize()">
 <canvas id="canvas" width="720" height="3000"></canvas>
 <textarea id="canvas-code">
-let k = 5;
+let k = 4;
 let offsetX = k * 15;  let offsetY = 15;
 let marginX = 20;      let marginY = 20;
-let scale = 3;
+let scale = 5;
 let radius = 5;
 let runStats = false;
-let circleSettings= {visible: true, alpha: 0.2, red: 0, green: 0, blue: 0}
-let lineSettings = {visible: true, alpha: 0.2, red: 0, green: 0, blue: 0};
+let circleSettings= {visible: true, alpha: 1, red: 0, green: 0, blue: 0}
+let lineSettings = {visible: true, alpha: 0.5, red: 0, green: 0, blue: 0};
 
 if (k > 13) return;
 
@@ -51,14 +51,14 @@ ctx.translate(marginX , marginY)
 
 let t = 13
 //colorPath(t, k, 1, 0, 0);
-colorPathRev(0, 0, 1, 0, 0.0);
-colorPathRev(1, 0, 1, 0, 0.0);
+//colorPathRev(0, 0, 1, 0, 0.0);
+//colorPathRev(1, 0, 1, 0, 0.0);
 
-colorPathRev(2, 0, 1, 0, 0.0);
-colorPathRev(3, 0, 1, 0, 0.0);
+//colorPathRev(2, 0, 1, 0, 0.0);
+//colorPathRev(3, 0, 1, 0, 0.0);
 
-colorNode(2,1, 0,0,0,0.01)
-colorNode(3,1, 0,0,0,0.01)
+//colorNode(2,1, 0,0,0,0.01)
+//colorNode(3,1, 0,0,0,0.01)
 
 
 for (let t = k-1; t > 0; --t) {
@@ -71,9 +71,55 @@ function ij(i, j) {
     return i ^ (2**j)
 }
 
-colorPathBetween(0, 31, 0, 0, 1, 1);
-colorPathBetween(1, 1, 0, 0.8, 0, 1);
+//colorPathBetween(0, 0, 0, 0, 1, 1);
+//colorPathBetween(4, 8, 0, 0.8, 0, 1);
 //colorPathBetween(22, t, 0, 0, 1, 1);
+
+let p = 6
+let n = 2**k;
+let q = n
+for (let i = 0; i < q; ++i) {
+    let u = 31-i+p;
+    //colorPathBetween(i, u, 0.7, 0.3, 0, 1);
+    //colorPathBetween(i, (i+p)%n, 0, 0.5, 0.5, 1);
+}
+
+
+let straightNodes = [];
+let crossNodes = [];
+for (let j = 0; j < k; ++j) {
+    for (let i = 0; i < n; i+=2**(j+1)) {
+        for (let m = 0; m < 2**j; ++m) {
+            let u = [i+m,j];
+            let v = [i+(2**j)+m,j];
+            if (Math.random() < 0.5) {
+                crossNodes.push(u)
+                crossNodes.push(v)
+            } else {
+                straightNodes.push(u)
+                straightNodes.push(v)
+            }
+        }
+    }
+}
+
+
+
+
+for (let n of straightNodes) {
+    circles[n].red = 1
+    arrows[[n[0], n[1],0]].red = 1
+    arrows[[n[0], n[1],1]].blue = 1
+}
+
+for (let n of crossNodes) {
+    circles[n].blue = 1
+    arrows[[n[0], n[1],0]].blue = 1
+    arrows[[n[0], n[1],1]].red = 1
+    
+}
+
+
 
 function colorPathBetween(i1, i2, r, g, b, a) {
     let bs1 = i1.toString(2).padStart(k+1,'0');
