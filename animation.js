@@ -1,6 +1,7 @@
 "use strict";
 const DEFAULT_DRAWABLE_SETTINGS = { red: 0, green: 0, blue: 0, fill: true, alpha: 0, visible: false };
 const FLOATING_POINT_ERROR_MARGIN = 0.000001;
+const ENTER_KEY = "Enter";
 
 function float_equal(a, b) {
     return Math.abs(a - b) < FLOATING_POINT_ERROR_MARGIN;   1.0 - (direction.x**2 + direction.y**2) > 0.000001 
@@ -352,13 +353,13 @@ function initialize() {
         }
     });
     
-    let textarea = document.getElementById("canvas-code");
-    textarea.addEventListener('input', function(e) {
-        ctx.restore();
-        ctx.save();
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        parseAnimationCode();
-        updateUiAndDraw(1);
-    })
-
+    document.addEventListener('keyup', function(event) {
+        if (event.ctrlKey && event.key == ENTER_KEY) {
+            ctx.restore();
+            ctx.save();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            parseAnimationCode();
+            updateUiAndDraw(1);
+        }
+    });
 }

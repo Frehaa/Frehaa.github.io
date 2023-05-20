@@ -15,16 +15,16 @@ canvas {
 </style>
 </head>
 <body onload="initialize()">
-<canvas id="canvas" width="720" height="3000"></canvas>
+<canvas id="canvas" width="2000" height="3000"></canvas>
 <textarea id="canvas-code">
-let k = 5;
-let offsetX = k * 10;  let offsetY = 20;
+let k = 4;
+let offsetX = k * 15;  let offsetY = 15;
 let marginX = 20;      let marginY = 20;
-let scale = 2;
+let scale = 5;
 let radius = 5;
-let runStats = true;
-let circleSettings= {visible: true, alpha: 0.1, red: 0, green: 0, blue: 0}
-let lineSettings = {visible: true, alpha: 0.1, red: 0, green: 0, blue: 0};
+let runStats = false;
+let circleSettings= {visible: true, alpha: 1, red: 0, green: 0, blue: 0}
+let lineSettings = {visible: true, alpha: 0.5, red: 0, green: 0, blue: 0};
 
 if (k > 13) return;
 
@@ -46,13 +46,35 @@ for (let i = 0; i < 2**k; i++) {
     }
 }
 
+function* randoms(seed) {
+    // Linear congruential generator
+    let state = seed;
+    let a = 1664525;
+    let c = 1013904223;
+    let m = 2**32;
+    while (true) {
+        state = (a * state + c) % m
+        yield state / m;
+    }
+}                
+
+
+let random = randoms(31315141);
+
 ctx.transform(scale, 0, 0, scale, 0, 0);
 ctx.translate(marginX , marginY)
 
-colorPath(0, k, 0.8, 0, 0);
-//colorPathRev(0, 1, 1, 0, 0.0);
+let t = 13
+//colorPath(t, k, 1, 0, 0);
+//colorPathRev(0, 0, 1, 0, 0.0);
+//colorPathRev(1, 0, 1, 0, 0.0);
 
-//colorPath(1, k, 0, 0.8, 0);
+//colorPathRev(2, 0, 1, 0, 0.0);
+//colorPathRev(3, 0, 1, 0, 0.0);
+
+//colorNode(2,1, 0,0,0,0.01)
+//colorNode(3,1, 0,0,0,0.01)
+
 
 for (let t = k-1; t > 0; --t) {
     for (let i = 2; i < 2**t; i += 2) {
@@ -62,6 +84,77 @@ for (let t = k-1; t > 0; --t) {
 
 function ij(i, j) { 
     return i ^ (2**j)
+}
+
+//colorPathBetween(0, 0, 0, 0, 1, 1);
+//colorPathBetween(4, 8, 0, 0.8, 0, 1);
+//colorPathBetween(22, t, 0, 0, 1, 1);
+
+let p = 6
+let n = 2**k;
+let q = n
+for (let i = 0; i < q; ++i) {
+    let u = 31-i+p;
+    //colorPathBetween(i, u, 0.7, 0.3, 0, 1);
+    //colorPathBetween(i, (i+p)%n, 0, 0.5, 0.5, 1);
+}
+
+
+let straightNodes = [];
+let crossNodes = [];
+for (let j = 0; j < k; ++j) {
+    for (let i = 0; i < n; i+=2**(j+1)) {
+        for (let m = 0; m < 2**j; ++m) {
+            let u = [i+m,j];
+            let v = [i+(2**j)+m,j];
+            let r = random.next().value;
+            if (r < 0.5) {
+                crossNodes.push(u)
+                crossNodes.push(v)
+            } else {
+                straightNodes.push(u)
+                straightNodes.push(v)
+            }
+        }
+    }
+}
+
+
+
+
+for (let n of straightNodes) {
+    circles[n].red = 1
+    arrows[[n[0], n[1],0]].red = 1
+    arrows[[n[0], n[1],1]].blue = 1
+}
+
+for (let n of crossNodes) {
+    circles[n].blue = 1
+    arrows[[n[0], n[1],0]].blue = 1
+    arrows[[n[0], n[1],1]].red = 1
+    
+}
+
+
+
+function colorPathBetween(i1, i2, r, g, b, a) {
+    let bs1 = i1.toString(2).padStart(k+1,'0');
+    let bs2 = i2.toString(2).padStart(k+1,'0');
+
+    let i = i1;
+    for (let j = 0; j < k; ++j) {
+        let b1 = bs1.charAt(k-j);
+        let b2 = bs2.charAt(k-j);
+        
+        colorMixNode(i, j, r, g, b, a)
+        if (b1 != b2) {// Cross
+            colorMixArrow(i, j, 1, r, g, b, a)
+            i = i ^ (2**j);
+        } else {
+            colorMixArrow(i, j, 0, r, g, b, a)
+        }        
+    }
+    colorMixNode(i, k, r, g, b, a)
 }
 
 function colorPath(i, j, red, green, blue) {
@@ -91,6 +184,14 @@ function colorMixNode(i, j, red, green, blue, alpha) {
     circles[[i, j]].blue += blue;
     circles[[i,j]].alpha += alpha;
 }
+
+function colorNode(i, j, red, green, blue, alpha) {
+    circles[[i, j]].red = red;
+    circles[[i, j]].green = green;
+    circles[[i, j]].blue = blue;
+    circles[[i,j]].alpha = alpha;
+}
+
 
 function colorMixArrow(i, j, t, red, green, blue, alpha) {
     let idx = [i,j,t];
@@ -128,7 +229,6 @@ for (let i = 0; i < 2**k; i++) {
     }
 }
 console.log(stats);
-
 </textarea>
 <br>
 <input id="time-range" type="range" min="0" max="100" value="0">
