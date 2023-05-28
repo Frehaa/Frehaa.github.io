@@ -258,17 +258,19 @@ function initialize() {
         notes.push([r, i]);
     }
 
-    let image = new Image();
-    image.addEventListener('load', e => {
+    
+    const bassCleffImg = new Image();
+    const wholeNoteImg = new Image();
+    wholeNoteImg.addEventListener('load', e => {
         console.clear()
         function myDraw(t) {
-            draw(image, notes, t);
+            draw(wholeNoteImg, notes, t);
             requestAnimationFrame(myDraw);
         }
-        requestAnimationFrame(myDraw)
+        // requestAnimationFrame(myDraw)
         
     });
-    image.src = "images/wholeNote.svg"
+    wholeNoteImg.src = "images/wholeNote.svg"
     // Width 40
     // Height 25
     // Ratio = 40/25
