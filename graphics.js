@@ -95,8 +95,8 @@ function drawRect(imageData, x0, y0, x1, y1, color) {
 }
 
 // Bresenham's line algorithm
-function drawBresenhamLine(imageData, x0, y0, x1, y1, color, writeColor) {
-    function drawBresenhamLineLow(imageData, x0, y0, x1, y1, color) {
+function drawBresenhamLine(imageData, x0, y0, x1, y1, color, writeColor, thickness = 1) {
+    function drawHorizontal(imageData, x0, y0, x1, y1, color) {
         let dx = x1 - x0,
             dy = y1 - y0,
             yi = 1;
@@ -117,7 +117,7 @@ function drawBresenhamLine(imageData, x0, y0, x1, y1, color, writeColor) {
             }
         }
     }
-    function drawBresenhamLineHigh(imageData, x0, y0, x1, y1, color) {
+    function drawVertical(imageData, x0, y0, x1, y1, color) {
         let dx = x1 - x0,
             dy = y1 - y0,
             xi = 1;
@@ -139,16 +139,30 @@ function drawBresenhamLine(imageData, x0, y0, x1, y1, color, writeColor) {
         }
     }
     if (Math.abs(y1 - y0) < Math.abs(x1 - x0)) {
-        if (x0 > x1) {
-            drawBresenhamLineLow(imageData, x1, y1, x0, y0, color);
-        } else {
-            drawBresenhamLineLow(imageData, x0, y0, x1, y1, color);
+        if (x0 > x1) { // Swap
+            let tmp = [x0, y0];
+            x0 = x1; y0 = y1;
+            x1 = tmp[0]; y1 = tmp[1];
+        }
+        const centeringOffset = Math.floor(thickness / 2);
+        y0 -= centeringOffset;
+        y1 -= centeringOffset;
+
+        for (let i = 0; i < thickness; i++) {
+            drawHorizontal(imageData, x0, y0 + i, x1, y1 + i, color);
         }
     } else {
-        if (y0 > y1) {
-            drawBresenhamLineHigh(imageData, x1, y1, x0, y0, color);
-        } else {
-            drawBresenhamLineHigh(imageData, x0, y0, x1, y1, color);
+        if (y0 > y1) { // Swap
+            let tmp = [x0, y0];
+            x0 = x1; y0 = y1;
+            x1 = tmp[0]; y1 = tmp[1];
+        }
+        const centeringOffset = Math.floor(thickness / 2);
+        x0 -= centeringOffset;
+        x1 -= centeringOffset;
+
+        for (let i = 0; i < thickness; i++) {
+            drawVertical(imageData, x0 + i, y0, x1 + i, y1, color);
         }
     }
 }
