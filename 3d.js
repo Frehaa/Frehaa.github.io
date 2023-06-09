@@ -1,6 +1,16 @@
 "use strict";
 const l = console.log;
 
+function scalerVectorMult(c, v) {
+    let res = [];
+    for (let i = 0; i < v.length; i++) {
+        const element = v[i];
+        res.push(c * element);
+    }
+
+    return res;
+}
+
 function matrixVectorMult(m, v) {
     let res = [0, 0, 0, 0];
     for (let i = 0; i < 4; i++) {
@@ -56,48 +66,51 @@ function degreeToRadians(degree) {
 }
 
 function initialize() {
-    // requestAnimationFrame(time => drawDynamic(time, undefined));
-
-    // 0 - 1
-    // 0 - 2
-    // 0 - 4
-    // 1 - 3
-    // 1 - 5
-    // 2 - 3
-    // 2 - 6
-    // 3 - 7
-    // 4 - 5
-    // 4 - 6
-    // 5 - 7
-    // 6 - 7
-    const box = [
+    const boxVertices = [
         [0, 0, 0, 1], [100, 0, 0, 1], 
         [0, 100, 0, 1], [100, 100, 0, 1], 
         [0, 0, 100, 1], [100, 0, 100, 1], 
         [0, 100, 100, 1], [100, 100, 100, 1], 
     ];
-    const boxConnections = [
-        [0, 1],
-        [0, 2],
-        [0, 4],
-        [1, 3],
-        [1, 5],
-        [2, 3],
-        [2, 6],
-        [3, 7],
-        [4, 5],
-        [4, 6],
-        [5, 7],
-        [6, 7],
+    const boxVertexColors = [
+        'red',
+        'green',
+        'blue',
+        'pink',
+        'purple',
+        'cyan',
+        'orange',
+        'black'
+    ];
+    const boxFaces = [
+        [0, 1, 3, 2],
+        [2, 3, 7, 6],
+        [1, 3, 7, 5],
+        [0, 1, 5, 4],
+        [0, 2, 6, 4],
+        [4, 5, 7, 6]
     ];
 
+    const coordinateSystem = [
+        [0, 0, 0, 1], 
+        [100, 0, 0, 1],
+        [0, 100, 0, 1],
+        [0, 0, 100, 1],
+    ];
 
     const canvas = document.getElementById('canvas')
     const ctx = canvas.getContext('2d');
     const w = canvas.width;
     const h = canvas.height;
+    
+    l(scalerVectorMult(1.5, coordinateSystem[1]))
 
-    l(boxConnections)
+    const isometricProjectionMatrix = [
+        [Math.sqrt(3), 0, -Math.sqrt(3), 0], 
+        [1, 2, 1, 0], 
+        [Math.sqrt(2), -Math.sqrt(2), Math.sqrt(2), 0], 
+        [0, 0, 0, 1], 
+    ];
     
     let t = time => {
         let degreeX = 10 // time / 50;
@@ -108,45 +121,71 @@ function initialize() {
         const rotateXTransform = rotateXMatrix(degreeToRadians(degreeX));
         const rotateYTransform = rotateYMatrix(degreeToRadians(degreeY));
         const rotateZTransform = rotateZMatrix(degreeToRadians(degreeZ));
-        const moveTransformation = translateMatrix(w/2 - 50, h/2 + 10, 41215);
+        const moveTransformation = translateMatrix(w/2, h/2, 0);
 
-        let transformedBox = box.map((v, i, a) => matrixVectorMult(rotateXTransform, v))
+        let transformedCoordinateSystem = coordinateSystem
+                .map((v, i, a) => matrixVectorMult(isometricProjectionMatrix, v))
+                .map((v, i, a) => scalerVectorMult(1 / Math.sqrt(6), v))
+                .map((v, i, a) => matrixVectorMult(moveTransformation, v));
+
+        for (let i = 0; i < transformedCoordinateSystem.length; i++) {
+            const point = transformedCoordinateSystem[i];
+            let x = point[0];
+            let y = point[1];
+            ctx.beginPath();
+            ctx.arc(x, y, 3, 0, 2 * Math.PI);
+            ctx.fill();            
+        }
+        let p0 = transformedCoordinateSystem[0];
+        for (let i = 1; i < transformedCoordinateSystem.length; i++) {
+            const p1 = transformedCoordinateSystem[i];
+            ctx.beginPath();
+            ctx.moveTo(p0[0], p0[1]);
+            ctx.lineTo(p1[0], p1[1]);
+            ctx.stroke();                        
+        }
+        return
+
+        let transformedBox = boxVertices.map((v, i, a) => matrixVectorMult(rotateXTransform, v))
             .map((v, i, a) => matrixVectorMult(rotateYTransform, v))
             .map((v, i, a) => matrixVectorMult(rotateZTransform, v))
             .map((v, i, a) => matrixVectorMult(rotateZTransform, v))
             .map((v, i, a) => matrixVectorMult(moveTransformation, v));
 
-        let colors = [
-            'red',
-            'green',
-            'blue',
-            'pink',
-            'purple',
-            'cyan',
-            'orange',
-            'black'
-        ]
-        for (const idx of boxConnections) {
-            let p0 = transformedBox[idx[0]];
-            let p1 = transformedBox[idx[1]];
 
-            ctx.beginPath();
-            ctx.moveTo(p0[0], p0[1]);
-            ctx.lineTo(p1[0], p1[1]);
-            ctx.stroke();
+        const seenLines = new Set();
+        for (const face of boxFaces) {
+            for (let i = 0; i < face.length; i++) {
+                const u = face[i];
+                const v = face[(i+1) % face.length];
+                let lineId = u*u + v*v;
+                if (seenLines.has(lineId)) continue;
+                seenLines.add(lineId)
+
+                let p0 = transformedBox[u];
+                let p1 = transformedBox[v];
+
+                ctx.beginPath();
+                ctx.moveTo(p0[0], p0[1]);
+                ctx.lineTo(p1[0], p1[1]);
+                ctx.stroke();
+                
+            }
         }
-        let i = 0;
-        for (const point of transformedBox) {
+        for (let i = 0; i < transformedBox.length; i++) {
+            const point = transformedBox[i];
             let x = point[0];
             let y = point[1];
-            ctx.fillStyle = colors[i];
+            ctx.fillStyle = boxVertexColors[i];
             ctx.beginPath();
             ctx.arc(x, y, 3, 0, 2 * Math.PI);
-            ctx.fill();
-            i++;
+            ctx.fill();            
         }
 
-        requestAnimationFrame(t)
+        setTimeout(e => {
+            requestAnimationFrame(t)
+        }, 1000)
+        
     };
     requestAnimationFrame(t);
 
