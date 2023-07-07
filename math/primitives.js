@@ -1,4 +1,4 @@
-function clamp(v, min, max) {
+function clamp(v/*:number\*/, min/*:number\*/, max/*:number\*/) {
   if (v < min) {
     return min;
   }
@@ -9,12 +9,12 @@ function clamp(v, min, max) {
 }
 
 
-function lerp(v0, v1, t) {
+function lerp(v0/*:number\*/, v1/*:number\*/, t/*:number\*/) {
   return v0 + t * (v1 - v0);
 }
 
 // Fisher-yates shuffle (Based on stack overflow answer)
-function shuffle(array) {
+function shuffle(array/*: any[]*/) {
   let currentIndex = array.length
 
   // While there remain elements to shuffle.
@@ -33,25 +33,29 @@ function shuffle(array) {
 }
 
 class Vec3 {
-  constructor(a, b, c) {
+  // public [0]/*:number\*/;
+  // public [1]/*:number\*/;
+  // public [2]/*:number\*/;
+
+  constructor(a/*:number\*/, b/*:number\*/, c/*:number\*/) {
     this[0] = a;
     this[1] = b;
     this[2] = c;
   }
 
-  add(b) {
+  add(b/*:Vec3\*/) {
     return new Vec3(this[0] + b[0], this[1] + b[1], this[2] + b[2]);
   }
 
-  subtract(b) {
+  subtract(b/*:Vec3\*/) {
     return new Vec3(this[0] - b[0], this[1] - b[1], this[2] - b[2]);
   }
 
-  dot(b) {
+  dot(b/*:Vec3\*/) {
     return this[0] * b[0] + this[1] * b[1] + this[2] * b[2];
   }
 
-  scale(s) {
+  scale(s/*:number\*/) {
     return new Vec3(s * this[0], s * this[1], s * this[2]);
   }
 
@@ -60,7 +64,7 @@ class Vec3 {
   }
 }
 
-function solveQuadraticEquation(a, b, c) {
+function solveQuadraticEquation(a/*:number\*/, b/*:number\*/, c/*:number\*/) {
   const discriminant = b*b - 4*a*c
   if (discriminant < 0) {
     return [];
