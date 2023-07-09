@@ -1,3 +1,4 @@
+'use strict';
 let l = console.log
 const MIDI_EVENT = Object.freeze({
     NOTE_OFF: 0x80,
@@ -13,6 +14,30 @@ const CLEFF = Object.freeze({
     BASS: 1,
 });
 const ENTER_KEY = "Enter";
+
+// Assuming input is valid noteName
+function flatToSharp(noteName) {
+    if (noteName.length == 2 && noteName[1] == "b") {
+        return noteName[0] + "#";
+    }
+    return res;
+}
+// Assuming input is valid noteName
+function sharpToFlat(noteName) {
+    if (noteName.length == 2 && noteName[1] == "#") {
+        return noteName[0] + "b";
+    }
+    return res;
+}
+
+// Assumes num is an integer value between 21 and 127
+function numToKeyboardNoteName(num) {
+    num = num - 12;
+    const letters = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B", ];
+    const l = num % letters.length;
+    const n = Math.floor(num / letters.length);
+    return [letters[l], n];
+}
 
 // struct MTHD_CHUNK
 // {
@@ -96,25 +121,24 @@ function initializeFileInput() {
 
 function initializeMIDIUSBAccess() {
     // Check if Web MIDI API is supported
+    l(navigator.requestMIDIAccess)
     if (navigator.requestMIDIAccess) {
         // Request access to MIDI devices
         navigator.requestMIDIAccess()
         .then(function(midiAccess) {
             // Get the list of MIDI inputs
             var inputs = midiAccess.inputs.values();
+            l("Inputs:", midiAccess.inputs, " - Outputs:", midiAccess.outputs, " - Sysex:", midiAccess.sysexEnabled);
 
             // Iterate over each input and create a new list item for it
-            for (var input of inputs) {
-                // Create a new list item for the input
-                var li = document.createElement("li");
-                li.innerHTML = input.name;
-                document.getElementById("midi-input").appendChild(li);
-
-                // Add an event listener to the input to display the received data
-                input.onmidimessage = function(event) {
-                    console.log("Received MIDI data:", event.data);
+            for (const input of inputs) {
+                input.onmidimessage = function(event) { // Add an event listener to the input to display the received data
+                    // if (event.data[2] ==0) return
+                    const data = event.data;
+                    l(numToKeyboardNoteName(data[1]), data)
                 };
             }
+
         })
         .catch(function(error) {
             console.log("Failed to access MIDI devices:", error);
@@ -247,41 +271,43 @@ function draw(wholeNoteImage, notes, time) {
 
 function initialize() {
     // playSound();
-    defaultCode();
+    // defaultCode();
 
-    initializeFileInput();
+    // initializeFileInput();
+
+    initializeMIDIUSBAccess();
 
 
-    let notes = [];
-    for (let i = 0; i < 100; i++) {
-        let r = Math.round((Math.random() * 10) - 5);
-        notes.push([r, i]);
-    }
+    // let notes = [];
+    // for (let i = 0; i < 100; i++) {
+    //     let r = Math.round((Math.random() * 10) - 5);
+    //     notes.push([r, i]);
+    // }
 
     
-    const bassCleffImg = new Image();
-    const wholeNoteImg = new Image();
-    wholeNoteImg.addEventListener('load', e => {
-        console.clear()
-        function myDraw(t) {
-            draw(wholeNoteImg, notes, t);
-            requestAnimationFrame(myDraw);
-        }
-        // requestAnimationFrame(myDraw)
+    // const bassCleffImg = new Image();
+    // const wholeNoteImg = new Image();
+    // wholeNoteImg.addEventListener('load', e => {
+    //     console.clear()
+    //     function myDraw(t) {
+    //         draw(wholeNoteImg, notes, t);
+    //         requestAnimationFrame(myDraw);
+    //     }
+    //     // requestAnimationFrame(myDraw)
         
-    });
-    wholeNoteImg.src = "images/wholeNote.svg"
-    // Width 40
-    // Height 25
-    // Ratio = 40/25
+    // });
+    // wholeNoteImg.src = "images/wholeNote.svg"
+    // // Width 40
+    // // Height 25
+    // // Ratio = 40/25
 
-    const textArea = document.getElementById('code-text-area');
-    document.onkeyup = function(event) {
-        if (event.ctrlKey && event.key == ENTER_KEY) {
-            let f = new Function('a', 'l', textArea.value);
-            let res = f(arrayBuffer, console.log);
-        }
-    }
+    // const textArea = document.getElementById('code-text-area');
+    // document.onkeyup = function(event) {
+    //     if (event.ctrlKey && event.key == ENTER_KEY) {
+    //         let f = new Function('a', 'l', textArea.value);
+    //         let res = f(arrayBuffer, console.log);
+    //     }
+    // }
 
 }
 
