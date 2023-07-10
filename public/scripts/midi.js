@@ -102,6 +102,7 @@ function parseMidiHeader(uint8Array) {
 
 let arrayBuffer = new ArrayBuffer(1000);
 function initializeFileInput() {
+    // What we want to do now is to read a MIDI file, detect only the NoteOn and NoteOff events, keep their data, and replay the file
     const reader = new FileReader();
     reader.onload = (event) => {
         arrayBuffer = event.target.result;
@@ -117,6 +118,8 @@ function initializeFileInput() {
         const file = fileInput.files[0];
         reader.readAsArrayBuffer(file)
     }
+
+    return new Promise()
 }
 
 function initializeMIDIUSBAccess() {
@@ -269,13 +272,105 @@ function draw(wholeNoteImage, notes, time) {
     }
 }
 
+// Tries to parse a variable length value in dataView from the offset
+function parseVariableTime(dataView, offset) {
+    let time = 0
+    let byteLength = 0;
+    while (true) {
+        let deltaByte = dataView.getUint8(offset + byteLength)
+        byteLength++;
+        time = (time << 7) | (deltaByte & 0x7F);
+        if ((deltaByte & 0x80) === 0) break;
+    } 
+
+    return [time, byteLength]
+}
+
+/* Implements tests based on the examples from the MIDI specification
+    | Number (hex)  | Representation (hex) |
+    | 00000000      | 00  |
+    | 00000040      | 40  |
+    | 0000007F      | 7F  |
+    | 00000080      | 81 00  |
+    | 00002000      | C0 00  |
+    | 00003FFF      | FF 7F  |
+    | 00100000      | 81 80 00  |
+    | 001FFFFF      | C0 80 00  |
+    | 00200000      | FF FF 7F  |
+    | 08000000      | 81 80 80 00  |
+    | 0FFFFFFF      | FF FF FF 7F |
+*/
+function testDeltaTime() {
+    let tests = [];
+    tests.push([[0x00], 0x00]);
+    tests.push([[0x40], 0x40]);
+    tests.push([[0x7F], 0x7F]);
+
+    tests.push([[0x81, 0x00], 0x80]);
+    tests.push([[0xC0, 0x00], 0x2000]);
+    tests.push([[0xFF, 0x7F], 0x3FFF]);
+
+    tests.push([[0x81, 0x80, 0x00], 0x00004000]);
+    tests.push([[0xC0, 0x80, 0x00], 0x00100000]);
+    tests.push([[0xFF, 0xFF, 0x7F], 0x001FFFFF]);
+
+    tests.push([[0x81, 0x80, 0x80, 0x00], 0x00200000]);
+    tests.push([[0xC0, 0x80, 0x80, 0x00], 0x08000000]);
+    tests.push([[0xFF, 0xFF, 0xFF, 0x7F], 0x0FFFFFFF]);
+    
+    let dataView = new DataView(new ArrayBuffer(4));
+    for (const test of tests) {
+        // Setup
+        let rep = test[0];
+        let number = test[1];
+        for (let i = 0; i < rep.length; i++) {
+            dataView.setUint8(i, rep[i]);
+        }
+
+        // Run
+        let res = parseVariableTime(dataView, 0);
+
+        // Verify
+        if (res[0] != number) {
+            let hexRep = rep.map(v => v.toString(16));
+            console.log(`Expected ${number.toString(16)} - Actual ${res[0].toString(16)} - Input ${hexRep}`);
+        } 
+    }
+
+}
+
 function initialize() {
     // playSound();
     // defaultCode();
 
-    // initializeFileInput();
 
-    initializeMIDIUSBAccess();
+    testDeltaTime();
+
+    // How do we want the file thing to work? 
+    // 1. Wait for user input (e.g. set up file handler)
+    // 2. Given input read it, parse it and send it to somewhere else
+
+
+    // const myFirstPromise = new Promise((resolve, reject) => {
+    //     // We call resolve(...) when what we were doing asynchronously was successful, and reject(...) when it failed.
+    //     // In this example, we use setTimeout(...) to simulate async code.
+    //     // In reality, you will probably be using something like XHR or an HTML API.
+    //     setTimeout(() => {
+    //         console.log(`Yay!`);
+    //         resolve("Success!"); // Yay! Everything went well!
+    //     }, 250);
+    // });
+
+    // myFirstPromise.then((successMessage) => {
+    //     // successMessage is whatever we passed in the resolve(...) function above.
+    //     // It doesn't have to be a string, but if it is only a succeed message, it probably will be.
+    //     console.log(`Yay! ${successMessage}`);
+    // });
+
+
+
+    // initializeMIDIUSBAccess();
+    // initializeFileInput();
 
 
     // let notes = [];
