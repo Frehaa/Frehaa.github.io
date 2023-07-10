@@ -1,5 +1,9 @@
 'use strict';
 let l = console.log
+const CHUNK_TYPE = Object.freeze({
+    HEADER: 1297377380, // MThd
+    TRACK: 1297379947   // MTrk
+});
 const MIDI_EVENT = Object.freeze({
     NOTE_OFF: 0x80,
     NOTE_ON: 0x90,
@@ -85,28 +89,96 @@ function getMidiEventLength(statusByte) {
     return 1;
 }
 
-function parseMidiHeader(uint8Array) {
-    const headerChunk = uint8Array.slice(0, 14);
-    const headerChunkType = String.fromCharCode(...headerChunk.slice(0, 4));
-    if (headerChunkType != "MThd") return null; // If not a MIDI file exit
+function parseChunk(dataview, offset) {
+    const type = dataview.getUint32(offset);
+    const length = dataview.getUint32(offset + 4);
 
-    const headerChunkLength = uint8ArrayToInt32(headerChunk, 4);        
-    if (headerChunkLength != 6) return null; // Not standard length. Do not know how to handle yet.
+    offset += 8;
+    switch (type) {
+        case CHUNK_TYPE.HEADER: { // Parse Header chunk
+            const format = dataview.getUint16(offset);
+            const ntrks = dataview.getUint16(offset + 2);
+            const division = dataview.getUint16(offset + 4);
 
-    const fileFormat = uint8ArrayToInt16(headerChunk, 8);
-    const numTracks = uint8ArrayToInt16(headerChunk, 10);
-    const timeDivision = uint8ArrayToInt16(headerChunk, 12);
+            const chunk = {
+                type,
+                length,
+                format,
+                ntrks,
+                division
+            };
+            offset += length;
+            return [chunk, offset];
+        } 
+        case CHUNK_TYPE.TRACK: { // Parse Track chunk
+            let endOfChunk = false;
+            let baseOffset = offset;
+            const events = []
+            const chunk = {
+                type, 
+                length,
+                events
+            };
+            while (!endOfChunk) {
+                let parseResult = parseEvent(dataview, offset);
+                let event = parseResult[0];
+                offset = parseResult[1];
+                events.push(event);
 
-    return new MidiHeader(fileFormat, numTracks, timeDivision);
+                if (event.data && event.data === 0x2F) break
+            }
+            return [chunk, baseOffset + length];
+        } 
+        default: {
+            const chunk = {
+                type,
+                length
+            };
+            return [chunk, offset + length];
+        }
+    }
 }
 
-let arrayBuffer = new ArrayBuffer(1000);
-function initializeFileInput() {
+function parseEvent(dataView, offset) {
+    let parseResult = parseDeltaTime(dataView, offset)
+    const deltaTime = parseResult[0];
+    offset = parseResult[1];
+
+    const type = dataView.getUint8(offset);
+    let data = null;
+
+    if (type === 0xF0 || type === 0xF7) {
+        // SYSEX EVENT
+        parseResult = parseDeltaTime(dataView, offset + 2);
+        const length = parseResult[0];
+        offset = parseResult[1];
+        offset = offset + length;
+    } else if (type === 0xFF) {
+        // META-EVENT
+        const metaType = dataView.getUint8(offset + 1);
+        parseResult = parseDeltaTime(dataView, offset + 2);
+        const length = parseResult[0];
+        offset = parseResult[1];
+        data = metaType;
+        offset = offset + length;
+    } else if ((type & 0x8) === 0) {
+        // MIDI-EVENT
+        offset += 3;
+    }
+
+    const event = {
+        deltaTime, 
+        type,
+        data
+    };
+    return [event, offset];
+}
+
+function initializeFileInput(callback) {
     // What we want to do now is to read a MIDI file, detect only the NoteOn and NoteOff events, keep their data, and replay the file
     const reader = new FileReader();
     reader.onload = (event) => {
-        arrayBuffer = event.target.result;
-        updateTable();
+        callback(event.target.result);
     };
 
     const fileInput = document.getElementById('file-input');
@@ -118,8 +190,6 @@ function initializeFileInput() {
         const file = fileInput.files[0];
         reader.readAsArrayBuffer(file)
     }
-
-    return new Promise()
 }
 
 function initializeMIDIUSBAccess() {
@@ -232,7 +302,7 @@ function draw(wholeNoteImage, notes, time) {
 }
 
 // Tries to parse a variable length value in dataView from the offset
-function parseVariableTime(dataView, offset) {
+function parseDeltaTime(dataView, offset) {
     let time = 0
     let byteLength = 0;
     while (true) {
@@ -242,7 +312,7 @@ function parseVariableTime(dataView, offset) {
         if ((deltaByte & 0x80) === 0) break;
     } 
 
-    return [time, byteLength]
+    return [time, offset + byteLength]
 }
 
 /* Implements tests based on the examples from the MIDI specification
@@ -269,6 +339,7 @@ function testDeltaTime() {
     tests.push([[0xC0, 0x00], 0x2000]);
     tests.push([[0xFF, 0x7F], 0x3FFF]);
 
+    tests.push([[0x80, 0x80, 0x00], 0x00]);
     tests.push([[0x81, 0x80, 0x00], 0x00004000]);
     tests.push([[0xC0, 0x80, 0x00], 0x00100000]);
     tests.push([[0xFF, 0xFF, 0x7F], 0x001FFFFF]);
@@ -287,7 +358,7 @@ function testDeltaTime() {
         }
 
         // Run
-        let res = parseVariableTime(dataView, 0);
+        let res = parseDeltaTime(dataView, 0);
 
         // Verify
         if (res[0] != number) {
@@ -299,6 +370,34 @@ function testDeltaTime() {
 }
 
 function initialize() {
+    testDeltaTime();
+
+    initializeFileInput(buffer => {
+        let dataView = new DataView(buffer);
+        let offset = 0;
+        let data = [];
+        let parseResult = parseChunk(dataView, offset, data)
+        let chunk = parseResult[0];
+        offset = parseResult[1]
+        l(chunk, offset)
+        
+        let header = chunk;
+        let count = 0;
+        while (count < header.ntrks) {
+            parseResult = parseChunk(dataView, offset);
+            chunk = parseResult[0];
+            offset = parseResult[1];
+            l(chunk, offset)
+            if (chunk.type === CHUNK_TYPE.TRACK) {
+                count++;
+            }
+        }
+    })
+
+    // let dataView = new DataView(new ArrayBuffer(4));
+    // dataView.setUint8(0, 0x61);
+    // l(parseVariableTime(dataView, 0))
+
     // How do we want the file thing to work? 
     // 1. Wait for user input (e.g. set up file handler)
     // 2. Given input read it, parse it and send it to somewhere else
