@@ -1,17 +1,25 @@
 'use strict';
 let l = console.log
+function assert(p, msg) {
+    if (!p) throw new Error(msg);
+}
 const CHUNK_TYPE = Object.freeze({
     HEADER: 1297377380, // MThd
     TRACK: 1297379947   // MTrk
 });
-const MIDI_EVENT = Object.freeze({
-    NOTE_OFF: 0x80,
-    NOTE_ON: 0x90,
-    POLYPHONIC_AFTERTOUCH: 0xa0,
-    CONTROL_CHANGE: 0xb0,
-    PITCH_BEND: 0xe0,
-    PROGRAM_CHANGE: 0xc0,
-    CHANNEL_AFTERTOUCH: 0xd0,
+
+const STATUS =  Object.freeze({
+
+})
+
+const MIDI_EVENT = Object.freeze({  // Channel Voice Messages
+    NOTE_OFF: 0x80,                 // 2 data bytes
+    NOTE_ON: 0x90,                  // 2 data bytes
+    POLYPHONIC_AFTERTOUCH: 0xA0,    // 2 data bytes
+    CONTROL_CHANGE: 0xB0,           // 2 data bytes
+    PROGRAM_CHANGE: 0xC0,           // 1 data bytes
+    CHANNEL_AFTERTOUCH: 0xD0,       // 1 data bytes
+    PITCH_BEND: 0xE0,               // 2 data bytes
 });
 const CLEFF = Object.freeze({
     TREBLE: 0,
@@ -54,52 +62,32 @@ function numToKeyboardNoteName(num) {
 //    unsigned short NumTracks;
 //    unsigned short Division;
 // };
-class MidiHeader {
-    constructor(fileFormat, numTracks, timeDivision) {
-        this.fileFormat = fileFormat;
-        this.numTracks = numTracks;
-        this.timeDivision = timeDivision;
-    }
-    toString() {
-        return (this.fileFormat, this.numTracks, this.timeDivision).toString();
-    }
-}
+// class MidiHeader {
+//     constructor(fileFormat, numTracks, timeDivision) {
+//         this.fileFormat = fileFormat;
+//         this.numTracks = numTracks;
+//         this.timeDivision = timeDivision;
+//     }
+//     toString() {
+//         return (this.fileFormat, this.numTracks, this.timeDivision).toString();
+//     }
+// }
 
-
-// Helper function to determine the length of a MIDI event based on its status byte
-function getMidiEventLength(statusByte) {
-    if ((statusByte & 0xf0) === 0xf0) {
-        // System exclusive or meta event
-        return 1;
-    } else if ((statusByte & 0x80) !== 0) {
-        // Regular MIDI event
-        switch (statusByte & 0xf0) {
-            case 0x80: // Note off
-            case 0x90: // Note on
-            case 0xa0: // Polyphonic aftertouch
-            case 0xb0: // Control change
-            case 0xe0: // Pitch bend
-            return 3;
-            case 0xc0: // Program change
-            case 0xd0: // Channel aftertouch
-            return 2;
-        }
-    }
-    // Invalid or unsupported MIDI event
-    return 1;
-}
-
+// TODO: Maybe throw away chunk length information
 function parseChunk(dataview, offset) {
+    assert(dataview.byteLength > offset + 8, `The dataview did not contain enough bytes to read chunk.`);
     const type = dataview.getUint32(offset);
     const length = dataview.getUint32(offset + 4);
 
     offset += 8;
     switch (type) {
         case CHUNK_TYPE.HEADER: { // Parse Header chunk
+            assert(length >= 6, `Data length too small for header chunk. Expected at least 6, found ${length}`);
             const format = dataview.getUint16(offset);
             const ntrks = dataview.getUint16(offset + 2);
             const division = dataview.getUint16(offset + 4);
 
+            offset += length;
             const chunk = {
                 type,
                 length,
@@ -107,27 +95,23 @@ function parseChunk(dataview, offset) {
                 ntrks,
                 division
             };
-            offset += length;
             return [chunk, offset];
         } 
         case CHUNK_TYPE.TRACK: { // Parse Track chunk
-            let endOfChunk = false;
-            let baseOffset = offset;
-            const events = []
             const chunk = {
                 type, 
                 length,
-                events
+                events: [] 
             };
-            while (!endOfChunk) {
-                let parseResult = parseEvent(dataview, offset);
-                let event = parseResult[0];
-                offset = parseResult[1];
-                events.push(event);
-
-                if (event.data && event.data === 0x2F) break
-            }
-            return [chunk, baseOffset + length];
+            let finalOffset = offset + length;
+            assert(length > 0, "Length of Track chunk was 0");
+            let event;
+            do {
+                [event, offset] = parseEvent(dataview, offset);
+                chunk.events.push(event);
+            } while (!(event.metaType && event.metaType === 0x2F));
+            assert(offset === finalOffset, `Track Chunk data was different from expected. Expected ${finalOffset} - Found ${offset}`);
+            return [chunk, finalOffset];
         } 
         default: {
             const chunk = {
@@ -139,43 +123,81 @@ function parseChunk(dataview, offset) {
     }
 }
 
+
 function parseEvent(dataView, offset) {
-    let parseResult = parseDeltaTime(dataView, offset)
-    const deltaTime = parseResult[0];
-    offset = parseResult[1];
+    let deltaTime;
+    [deltaTime, offset] = parseDeltaTime(dataView, offset)
+    let status = dataView.getUint8(offset);
 
-    const type = dataView.getUint8(offset);
     let data = null;
-
-    if (type === 0xF0 || type === 0xF7) {
+    if (status === 0xF0 || status === 0xF7) {
         // SYSEX EVENT
-        parseResult = parseDeltaTime(dataView, offset + 2);
-        const length = parseResult[0];
-        offset = parseResult[1];
+        [length, offset] = parseDeltaTime(dataView, offset + 2);
+        // Read length data
         offset = offset + length;
-    } else if (type === 0xFF) {
+    } else if (status === 0xFF) {
         // META-EVENT
         const metaType = dataView.getUint8(offset + 1);
-        parseResult = parseDeltaTime(dataView, offset + 2);
-        const length = parseResult[0];
-        offset = parseResult[1];
-        data = metaType;
+        [length, offset] = parseDeltaTime(dataView, offset + 2);
+        data = {metaType};
+        // Read length data
         offset = offset + length;
-    } else if ((type & 0x8) === 0) {
-        // MIDI-EVENT
-        offset += 3;
+    } else if ((status & 0x8) === 0) { // MIDI-EVENT
+        const channel = status & 0x0F;
+        const type = status & 0xF0;
+        data = {
+            type,
+            channel
+        }
+        switch (type) {
+            case MIDI_EVENT.NOTE_OFF: 
+            case MIDI_EVENT.NOTE_ON: {
+                data["note"] = dataView.getUint8(offset + 1);
+                data["velocity"] = dataView.getUint8(offset + 2);
+                offset += 3;
+            } break;
+            case MIDI_EVENT.POLYPHONIC_AFTERTOUCH: {
+                data["note"] = dataView.getUint8(offset + 1);
+                data["pressure"] = dataView.getUint8(offset + 2);
+                offset += 3;
+            } break;
+            case MIDI_EVENT.CONTROL_CHANGE: {
+                data["control"] = dataView.getUint8(offset + 1);
+                data["value"] = dataView.getUint8(offset + 2);
+                offset += 3;
+            } break;
+            case MIDI_EVENT.PROGRAM_CHANGE: {
+                data["program"] = dataView.getUint8(offset + 1);
+                offset += 2;
+            } break;
+            case MIDI_EVENT.CHANNEL_AFTERTOUCH: {
+                data["pressure"] = dataView.getUint8(offset + 1);
+                offset += 2;
+            } break;
+            case MIDI_EVENT.PITCH_BEND: {
+                data["bendlsb"] = dataView.getUint8(offset + 1);
+                data["bendmsb"] = dataView.getUint8(offset + 2);
+                offset += 3;
+            } break;
+            default: {
+                throw new Error(`Unknown MIDI event ${type}`)
+            } break;
+
+        }
+    } else { // Running Status
+        l("running status")
+
     }
 
     const event = {
         deltaTime, 
-        type,
-        data
+        status,
+        ...data
     };
     return [event, offset];
 }
 
 function initializeFileInput(callback) {
-    // What we want to do now is to read a MIDI file, detect only the NoteOn and NoteOff events, keep their data, and replay the file
     const reader = new FileReader();
     reader.onload = (event) => {
         callback(event.target.result);
@@ -192,35 +214,15 @@ function initializeFileInput(callback) {
     }
 }
 
-function initializeMIDIUSBAccess() {
-    // Check if Web MIDI API is supported
-    l(navigator.requestMIDIAccess)
-    if (navigator.requestMIDIAccess) {
-        // Request access to MIDI devices
-        navigator.requestMIDIAccess()
-        .then(function(midiAccess) {
-            // Get the list of MIDI inputs
-            var inputs = midiAccess.inputs.values();
-            l("Inputs:", midiAccess.inputs, " - Outputs:", midiAccess.outputs, " - Sysex:", midiAccess.sysexEnabled);
-
-            // Iterate over each input and create a new list item for it
-            for (const input of inputs) {
-                input.onmidimessage = function(event) { // Add an event listener to the input to display the received data
-                    // if (event.data[2] ==0) return
-                    const data = event.data;
-                    l(numToKeyboardNoteName(data[1]), data)
-                };
-            }
-
-        })
-        .catch(function(error) {
-            console.log("Failed to access MIDI devices:", error);
-        });
+function initializeMIDIUSBAccess(success, reject) {
+    if (navigator.requestMIDIAccess) { // Check if Web MIDI API is supported
+        navigator.requestMIDIAccess({sysex: false /* Send and receive system exclusive messages */, software: false /* Utilize installed software synthesizer */})
+        .then(success)
+        .catch(reject);
     } else {
-        console.log("Web MIDI API is not supported");
+        reject("Operation unsupported");
     }
 }
-
 
 function draw(wholeNoteImage, notes, time) {
     let canvas = document.getElementById('note-canvas');
@@ -369,59 +371,118 @@ function testDeltaTime() {
 
 }
 
+function handleOnMidiMessage(event) {
+    const data = event.data;
+    const status = data[0] & 0xF0;
+    const channel = data[0] & 0x0F;
+    switch (status) {
+        case MIDI_EVENT.NOTE_ON:
+        case MIDI_EVENT.NOTE_OFF: {
+            l(`Event ${status.toString(16)} Note ${numToKeyboardNoteName(data[1])} Channel ${channel} Velocity ${data[2]}`);
+        } break;
+        case MIDI_EVENT.PROGRAM_CHANGE: {
+            l(`Change program on channel ${channel} to program ${data[1]}`);
+        } break;
+        case MIDI_EVENT.CONTROL_CHANGE: {
+            if ((data[1] & 0x78) === 0x78) { // Channel mode message
+                    l(`Change Channel Mode ${data[1] & 0x07} on Channel ${channel} to ${data[2]}`)
+
+            } else { // Regular Control Change
+                l(`Change Control ${data[1]} on Channel ${channel} to ${data[2]}`)
+            }
+        } break;
+        default: {
+            l(`Unknown MIDI Message ${status.toString(16)} -`, event);
+
+        } break;
+    }
+}
+
+function registerMidiOutput(output) {
+
+}
+
+function handleMidiAccessStateChange(event) {
+    const midiAccess = event.currentTarget;
+    const port = event.port;
+
+    l('MidiAccess State Change', event)
+}
+
+function handleMidiIOStateChange(event) {
+    l('MidiIO State Change', event);
+}
+
+function parseMidiFile(buffer) {
+    let dataView = new DataView(buffer);
+    let offset = 0, chunk, chunks = [];
+    [chunk, offset] = parseChunk(dataView, offset)
+    let header = chunk;
+    assert(header.type === CHUNK_TYPE.HEADER, `First chunk had invalid type. Expected header found ${header.type}`);
+    chunks.push(header);
+
+    let count = 0;
+    while (count < header.ntrks) {
+        [chunk, offset] = parseChunk(dataView, offset);
+        chunks.push(chunk);
+        if (chunk.type === CHUNK_TYPE.TRACK) {
+            count++;
+        }
+    }
+    return chunks;
+}
+
 function initialize() {
     testDeltaTime();
 
     initializeFileInput(buffer => {
-        let dataView = new DataView(buffer);
-        let offset = 0;
-        let data = [];
-        let parseResult = parseChunk(dataView, offset, data)
-        let chunk = parseResult[0];
-        offset = parseResult[1]
-        l(chunk, offset)
-        
-        let header = chunk;
-        let count = 0;
-        while (count < header.ntrks) {
-            parseResult = parseChunk(dataView, offset);
-            chunk = parseResult[0];
-            offset = parseResult[1];
-            l(chunk, offset)
-            if (chunk.type === CHUNK_TYPE.TRACK) {
-                count++;
+        const chunks = parseMidiFile(buffer);
+
+        l(chunks)
+        let track = chunks[2];
+        let seen = new Set();
+        if (track.type === CHUNK_TYPE.TRACK) {
+            let events = track.events;
+            let c1 = 0, c2 = 0, c3 = 0, c4 =0;
+            for (const event of events) {
+                if (!event.type) {
+                    c4++;
+                    // l("Non Midi", event)
+                    continue;
+                };
+                if (event.type === MIDI_EVENT.NOTE_ON) {
+                    c1++
+                } else if (event.type === MIDI_EVENT.NOTE_OFF) {
+                    c2++;
+                } else {
+                    c3++;
+                    // l("Other MIDI", event);
+                }
             }
+            l("Note-On Count", c1, "Note-Off Count", c2, "Other MIDI", c3, "Non MIDI", c4)
         }
-    })
 
-    // let dataView = new DataView(new ArrayBuffer(4));
-    // dataView.setUint8(0, 0x61);
-    // l(parseVariableTime(dataView, 0))
-
-    // How do we want the file thing to work? 
-    // 1. Wait for user input (e.g. set up file handler)
-    // 2. Given input read it, parse it and send it to somewhere else
-
-    // const myFirstPromise = new Promise((resolve, reject) => {
-    //     // We call resolve(...) when what we were doing asynchronously was successful, and reject(...) when it failed.
-    //     // In this example, we use setTimeout(...) to simulate async code.
-    //     // In reality, you will probably be using something like XHR or an HTML API.
-    //     setTimeout(() => {
-    //         console.log(`Yay!`);
-    //         resolve("Success!"); // Yay! Everything went well!
-    //     }, 250);
-    // });
-
-    // myFirstPromise.then((successMessage) => {
-    //     // successMessage is whatever we passed in the resolve(...) function above.
-    //     // It doesn't have to be a string, but if it is only a succeed message, it probably will be.
-    //     console.log(`Yay! ${successMessage}`);
-    // });
+    });
 
 
+    initializeMIDIUSBAccess(
+        midiAccess => {
+            l("Inputs:", midiAccess.inputs, " - Outputs:", midiAccess.outputs, " - Sysex:", midiAccess.sysexEnabled, midiAccess);
+            // midiAccess.onstatechange = handleMidiAccessStateChange;
 
-    // initializeMIDIUSBAccess();
-    // initializeFileInput();
+            midiAccess.inputs.forEach(input => {
+                // input.onstatechange = handleMidiIOStateChange;
+                input.onmidimessage = handleOnMidiMessage;
+            });
+
+            midiAccess.outputs.forEach(output => {
+                registerMidiOutput(output);
+            });
+        }, 
+        error => {
+            console.log("Failed to access MIDI devices:", error);
+        }
+    );
 
 
     // let notes = [];
