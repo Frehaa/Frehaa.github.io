@@ -73,16 +73,20 @@ function numToKeyboardNoteName(num) {
 //     }
 // }
 
+function parseError(offset, msg) {
+    return `At byte ${offset}(${offset.toString(16)}): ${msg}`;
+}
+
 // TODO: Maybe throw away chunk length information
 function parseChunk(dataview, offset) {
-    assert(dataview.byteLength > offset + 8, `The dataview did not contain enough bytes to read chunk.`);
+    assert(dataview.byteLength > offset + 8, parseError(offset, `The dataview did not contain enough bytes to read chunk`));
     const type = dataview.getUint32(offset);
     const length = dataview.getUint32(offset + 4);
 
     offset += 8;
     switch (type) {
         case CHUNK_TYPE.HEADER: { // Parse Header chunk
-            assert(length >= 6, `Data length too small for header chunk. Expected at least 6, found ${length}`);
+            assert(length >= 6, parseError(offset-4, `Data length too small for header chunk. Expected at least 6, found ${length}`));  
             const format = dataview.getUint16(offset);
             const ntrks = dataview.getUint16(offset + 2);
             const division = dataview.getUint16(offset + 4);
@@ -104,13 +108,13 @@ function parseChunk(dataview, offset) {
                 events: [] 
             };
             let finalOffset = offset + length;
-            assert(length > 0, "Length of Track chunk was 0");
+            assert(length > 0, parseError(offset, `Length of Track chunk was 0`));
             let event;
             do {
                 [event, offset] = parseEvent(dataview, offset);
                 chunk.events.push(event);
             } while (!(event.metaType && event.metaType === 0x2F));
-            assert(offset === finalOffset, `Track Chunk data was different from expected. Expected ${finalOffset} - Found ${offset}`);
+            assert(offset === finalOffset, parseError(offset, `Track Chunk data was different from expected. Expected ${finalOffset} - Found ${offset}`));
             return [chunk, finalOffset];
         } 
         default: {
@@ -124,6 +128,7 @@ function parseChunk(dataview, offset) {
 }
 
 
+// TODO: Fix Unknown MIDI event error
 function parseEvent(dataView, offset) {
     let deltaTime;
     [deltaTime, offset] = parseDeltaTime(dataView, offset)
@@ -180,9 +185,9 @@ function parseEvent(dataView, offset) {
                 offset += 3;
             } break;
             default: {
-                throw new Error(`Unknown MIDI event ${type}`)
+                assert(false, parseError(offset, `Unknown MIDI event ${type}`));
+                // offset += 1
             } break;
-
         }
     } else { // Running Status
         l("running status")
@@ -432,36 +437,22 @@ function parseMidiFile(buffer) {
     return chunks;
 }
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 function initialize() {
     testDeltaTime();
+    const state = {
+        midi: null,
+        output: null
+    };
 
-    initializeFileInput(buffer => {
+
+    initializeFileInput(async buffer => {
         const chunks = parseMidiFile(buffer);
-
-        l(chunks)
-        let track = chunks[2];
-        let seen = new Set();
-        if (track.type === CHUNK_TYPE.TRACK) {
-            let events = track.events;
-            let c1 = 0, c2 = 0, c3 = 0, c4 =0;
-            for (const event of events) {
-                if (!event.type) {
-                    c4++;
-                    // l("Non Midi", event)
-                    continue;
-                };
-                if (event.type === MIDI_EVENT.NOTE_ON) {
-                    c1++
-                } else if (event.type === MIDI_EVENT.NOTE_OFF) {
-                    c2++;
-                } else {
-                    c3++;
-                    // l("Other MIDI", event);
-                }
-            }
-            l("Note-On Count", c1, "Note-Off Count", c2, "Other MIDI", c3, "Non MIDI", c4)
-        }
-
+        state.midi = chunks;
+        play()
     });
 
 
@@ -476,7 +467,8 @@ function initialize() {
             });
 
             midiAccess.outputs.forEach(output => {
-                registerMidiOutput(output);
+                l(output)
+                state.output = output;
             });
         }, 
         error => {
@@ -485,7 +477,41 @@ function initialize() {
     );
 
 
-    // let notes = [];
+
+
+    async function play() {
+        if (!state.midi || !state.output) return;
+
+        let track = state.midi[2];
+        if (track.type === CHUNK_TYPE.TRACK) {
+            let events = track.events;
+            let c1 = 0, c2 = 0, c3 = 0, c4 =0;
+            for (const event of events) {
+                if (event.deltaTime > 0) {
+                    await sleep(event.deltaTime);
+                }
+                if (!event.type) {
+                    c4++;
+                    // l("Non Midi", event)
+                    continue;
+                };
+                if (event.type === MIDI_EVENT.NOTE_ON) {
+                    c1++
+                    state.output.send([0x90, event.note, event.velocity]);
+                } else if (event.type === MIDI_EVENT.NOTE_OFF) {
+                    state.output.send([0x80, event.note, event.velocity]);
+                    c2++;
+                } else {
+                    c3++;
+                    // l("Other MIDI", event);
+                }
+            }
+            l("Note-On Count", c1, "Note-Off Count", c2, "Other MIDI", c3, "Non MIDI", c4)
+        }
+
+
+    }
+        // let notes = [];
     // for (let i = 0; i < 100; i++) {
     //     let r = Math.round((Math.random() * 10) - 5);
     //     notes.push([r, i]);
