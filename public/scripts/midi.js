@@ -8,8 +8,12 @@ const CHUNK_TYPE = Object.freeze({
     TRACK: 1297379947   // MTrk
 });
 
-const STATUS =  Object.freeze({
-
+const CONTROL_FUNCTION =  Object.freeze({
+    CHANNEL_VOLUME: 7,
+    PAN: 10, // The operation of playing the audio louder in one side or the other side of a stereo audio
+    DAMPER_PEDAL: 64,
+    SOSTENUTO: 66,
+    SOFT_PEDAL: 67,
 })
 
 const MIDI_EVENT = Object.freeze({  // Channel Voice Messages
@@ -402,12 +406,12 @@ function parseMidiFile(buffer) {
 
 
 function initialize() {
+    l(MIDI_EVENT)
     testDeltaTime();
     const state = {
         midi: null,
         output: null
     };
-
 
     initializeFileInput(async buffer => {
         const chunks = parseMidiFile(buffer);
@@ -436,38 +440,84 @@ function initialize() {
         }
     );
 
-    async function play() {
+    function play() {
         l(state.midi)
         if (!state.midi || !state.output) return;
 
+        let header = state.midi[0];
+        let counts = [];
 
-        let track = state.midi[2];
-        if (track.type === CHUNK_TYPE.TRACK) {
-            let events = track.events;
-            let c1 = 0, c2 = 0, c3 = 0, c4 =0;
+        for (let i = 0; i < header.ntrks; i++) {
+            let counter = {};
+            counter[MIDI_EVENT.NOTE_OFF] = [];
+            counter[MIDI_EVENT.NOTE_ON] = [];
+            counter[MIDI_EVENT.POLYPHONIC_AFTERTOUCH] = [];
+            counter[MIDI_EVENT.CONTROL_CHANGE] = [];
+            counter[MIDI_EVENT.PROGRAM_CHANGE] = [];
+            counter[MIDI_EVENT.CHANNEL_AFTERTOUCH] = [];
+            counter[MIDI_EVENT.PITCH_BEND] = [];
+            counter["meta"] = [];
+            counter["sysex"] = [];
+            counts.push(counter);
+
+            let track = state.midi[i + 1];
+            assert(track.type === CHUNK_TYPE.TRACK, `Chunk ${i} expected track found ${track.type}`);
+
+            for (const event of track.events) {
+                if (!event.type) {
+                    if (event.status === 0xFF) {
+                        counter["meta"].push(event)
+                    } else {
+                        assert(event.status === 0xF0 || event.status === 0xF7, `Found event non-midi, non-meta, non-sysex event ${event}`);
+                        counter["sysex"].push(event)
+                    }
+                } else {
+                    counter[event.type].push(event)
+                }
+            }
+        }
+        l(counts);
+
+        for (let i = 0; i < header.ntrks; i++) {
+            let track = state.midi[i + 1];
+            sendEvents(track.events)
+        }
+
+        async function sendEvents(events) {
             for (const event of events) {
                 if (event.deltaTime > 0) {
                     await sleep(event.deltaTime);
                 }
-                if (!event.type) {
-                    c4++;
-                    // l("Non Midi", event)
-                    continue;
-                };
-                if (event.type === MIDI_EVENT.NOTE_ON) {
-                    c1++
-                    state.output.send([0x90, event.note, event.velocity]);
-                } else if (event.type === MIDI_EVENT.NOTE_OFF) {
-                    state.output.send([0x80, event.note, event.velocity]);
-                    c2++;
-                } else {
-                    c3++;
-                    // l("Other MIDI", event);
+                if (!event.type) continue;
+                switch (event.type) {
+                    case MIDI_EVENT.NOTE_OFF:
+                    case MIDI_EVENT.NOTE_ON: {
+                        state.output.send([event.type, event.note, event.velocity]);
+                    } break;
+                    case MIDI_EVENT.PROGRAM_CHANGE: {
+                        assert(event.program >= 0 && event.program <= 127, `Event program was outside expected range ${event.program.toString(16)}`);
+                        state.output.send([event.type, event.program]);
+                    } break;
+                    case MIDI_EVENT.CONTROL_CHANGE: {
+                        assert(0 <= event.value && event.value <= 127, `Control Change values was outside expected range ${event.value.toString(16)}`);
+                        switch (event.control) {
+                            case CONTROL_FUNCTION.CHANNEL_VOLUME:  
+                            case CONTROL_FUNCTION.DAMPER_PEDAL: 
+                            case CONTROL_FUNCTION.SOSTENUTO: 
+                            case CONTROL_FUNCTION.SOFT_PEDAL: { // Supported functions
+                                state.output.send([event.type, event.control, event.value]);
+                            } break;
+                            default: {
+                                l('Unsuported control', event.control);
+                            }
+                        }
+                    } break;
+                    default: {
+                        l('Unsuported midi', event.type);
+                    }
                 }
             }
-            l("Note-On Count", c1, "Note-Off Count", c2, "Other MIDI", c3, "Non MIDI", c4)
         }
-
     }
 
         // let notes = [];
