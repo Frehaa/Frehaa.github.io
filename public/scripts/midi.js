@@ -109,10 +109,16 @@ function parseChunk(dataview, offset) {
             };
             let finalOffset = offset + length;
             assert(length > 0, parseError(offset, `Length of Track chunk was 0`));
-            let event;
+            let event, runningStatus = null;
             do {
-                [event, offset] = parseEvent(dataview, offset);
-                chunk.events.push(event);
+                try {
+                    [event, offset] = parseEvent(dataview, offset, runningStatus);
+                    chunk.events.push(event);
+                    runningStatus = event.status;
+                } catch(e) {
+                    l('Current chunk', chunk)
+                    throw e
+                }
             } while (!(event.metaType && event.metaType === 0x2F));
             assert(offset === finalOffset, parseError(offset, `Track Chunk data was different from expected. Expected ${finalOffset} - Found ${offset}`));
             return [chunk, finalOffset];
@@ -127,77 +133,86 @@ function parseChunk(dataview, offset) {
     }
 }
 
-
-// TODO: Fix Unknown MIDI event error
-function parseEvent(dataView, offset) {
-    let deltaTime;
-    [deltaTime, offset] = parseDeltaTime(dataView, offset)
+function parseEvent(dataView, offset, runningStatus) {
+    let dt;
+    [dt, offset] = parseDeltaTime(dataView, offset)
+    const deltaTime = dt;
     let status = dataView.getUint8(offset);
 
-    let data = null;
-    if (status === 0xF0 || status === 0xF7) {
-        // SYSEX EVENT
-        [length, offset] = parseDeltaTime(dataView, offset + 2);
-        // Read length data
+    if ((status & 0x80) === 0) { // Running status
+        // l(`Data byte encountered ${status.toString(16)} at offset ${offset}. Running status ${runningStatus.toString(16)}`)
+        status = runningStatus;
+        offset -= 1;
+    }
+
+    let eventData = null;
+    if (status === 0xF0 || status === 0xF7) { // SYSEX EVENT
+        [length, offset] = parseDeltaTime(dataView, offset + 1);
+        eventData = {
+            length,
+            sysex: []
+        }
+        for (let i = 0; i < length; i++) { // Read length data
+            eventData.sysex.push(dataView.getUint8(offset + i));
+        }
+        assert(eventData.sysex.length === length, parseError(offset, `System exclusive message length was different from expected. expected ${eventData.sysex.length} actual ${length}`));
+        assert(eventData.sysex[length-1] === 0xF7, parseError(offset + length - 1, `Expected 0xF7 at end of SYSEX Event, found ${eventData.sysex[length-1]}`));
         offset = offset + length;
-    } else if (status === 0xFF) {
-        // META-EVENT
+    } else if (status === 0xFF) { // META-EVENT
         const metaType = dataView.getUint8(offset + 1);
         [length, offset] = parseDeltaTime(dataView, offset + 2);
-        data = {metaType};
-        // Read length data
+        eventData = { metaType, length, metaData: [] };
+        for (let i = 0; i < length; i++) { // Read length data
+            eventData.metaData.push(dataView.getUint8(offset + i));
+        }
+        assert(eventData.metaData.length === length, parseError(offset, `META event message length was different from expected. expected ${eventData.metaData.length} actual ${length}`));
         offset = offset + length;
-    } else if ((status & 0x8) === 0) { // MIDI-EVENT
+    } else { // if ((status & 0xF0) !== 0xF0) { // MIDI-EVENT (Or something else?)
         const channel = status & 0x0F;
         const type = status & 0xF0;
-        data = {
+        eventData = {
             type,
             channel
         }
         switch (type) {
             case MIDI_EVENT.NOTE_OFF: 
             case MIDI_EVENT.NOTE_ON: {
-                data["note"] = dataView.getUint8(offset + 1);
-                data["velocity"] = dataView.getUint8(offset + 2);
+                eventData["note"] = dataView.getUint8(offset + 1);
+                eventData["velocity"] = dataView.getUint8(offset + 2);
                 offset += 3;
             } break;
             case MIDI_EVENT.POLYPHONIC_AFTERTOUCH: {
-                data["note"] = dataView.getUint8(offset + 1);
-                data["pressure"] = dataView.getUint8(offset + 2);
+                eventData["note"] = dataView.getUint8(offset + 1);
+                eventData["pressure"] = dataView.getUint8(offset + 2);
                 offset += 3;
             } break;
             case MIDI_EVENT.CONTROL_CHANGE: {
-                data["control"] = dataView.getUint8(offset + 1);
-                data["value"] = dataView.getUint8(offset + 2);
+                eventData["control"] = dataView.getUint8(offset + 1);
+                eventData["value"] = dataView.getUint8(offset + 2);
                 offset += 3;
             } break;
             case MIDI_EVENT.PROGRAM_CHANGE: {
-                data["program"] = dataView.getUint8(offset + 1);
+                eventData["program"] = dataView.getUint8(offset + 1);
                 offset += 2;
             } break;
             case MIDI_EVENT.CHANNEL_AFTERTOUCH: {
-                data["pressure"] = dataView.getUint8(offset + 1);
+                eventData["pressure"] = dataView.getUint8(offset + 1);
                 offset += 2;
             } break;
             case MIDI_EVENT.PITCH_BEND: {
-                data["bendlsb"] = dataView.getUint8(offset + 1);
-                data["bendmsb"] = dataView.getUint8(offset + 2);
+                eventData["bendlsb"] = dataView.getUint8(offset + 1);
+                eventData["bendmsb"] = dataView.getUint8(offset + 2);
                 offset += 3;
             } break;
             default: {
                 assert(false, parseError(offset, `Unknown MIDI event ${type}`));
-                // offset += 1
             } break;
         }
-    } else { // Running Status
-        l("running status")
-
-    }
-
+    } 
     const event = {
         deltaTime, 
         status,
-        ...data
+        ...eventData
     };
     return [event, offset];
 }
@@ -322,6 +337,169 @@ function parseDeltaTime(dataView, offset) {
     return [time, offset + byteLength]
 }
 
+
+function handleOnMidiMessage(event) {
+    const data = event.data;
+    const status = data[0] & 0xF0;
+    const channel = data[0] & 0x0F;
+    switch (status) {
+        case MIDI_EVENT.NOTE_ON:
+        case MIDI_EVENT.NOTE_OFF: {
+            l(`Event ${status.toString(16)} Note ${numToKeyboardNoteName(data[1])} Channel ${channel} Velocity ${data[2]}`);
+        } break;
+        case MIDI_EVENT.PROGRAM_CHANGE: {
+            l(`Change program on channel ${channel} to program ${data[1]}`);
+        } break;
+        case MIDI_EVENT.CONTROL_CHANGE: {
+            if ((data[1] & 0x78) === 0x78) { // Channel mode message
+                l(`Change Channel Mode ${data[1] & 0x07} on Channel ${channel} to ${data[2]}`)
+            } else { // Regular Control Change
+                l(`Change Control ${data[1]} on Channel ${channel} to ${data[2]}`)
+            }
+        } break;
+        default: {
+            l(`Unknown MIDI Message ${status.toString(16)} -`, event);
+
+        } break;
+    }
+}
+
+function handleMidiAccessStateChange(event) {
+    const midiAccess = event.currentTarget;
+    const port = event.port;
+
+    l('MidiAccess State Change', event)
+}
+
+function handleMidiIOStateChange(event) {
+    l('MidiIO State Change', event);
+}
+
+function parseMidiFile(buffer) {
+    let dataView = new DataView(buffer);
+    let offset = 0, chunk, chunks = [];
+    [chunk, offset] = parseChunk(dataView, offset)
+    let header = chunk;
+    assert(header.type === CHUNK_TYPE.HEADER, `First chunk had invalid type. Expected header found ${header.type}`);
+    chunks.push(header);
+
+    let count = 0;
+    while (count < header.ntrks) {
+        try {
+            [chunk, offset] = parseChunk(dataView, offset);
+            chunks.push(chunk);
+            if (chunk.type === CHUNK_TYPE.TRACK) {
+                count++;
+            }
+        } catch (e) {
+            l('Chunks', chunks);
+            throw e
+        }
+
+    }
+    return chunks;
+}
+
+
+function initialize() {
+    testDeltaTime();
+    const state = {
+        midi: null,
+        output: null
+    };
+
+
+    initializeFileInput(async buffer => {
+        const chunks = parseMidiFile(buffer);
+        state.midi = chunks;
+        play()
+    });
+
+
+    initializeMIDIUSBAccess(
+        midiAccess => {
+            l("Inputs:", midiAccess.inputs, " - Outputs:", midiAccess.outputs, " - Sysex:", midiAccess.sysexEnabled, midiAccess);
+            // midiAccess.onstatechange = handleMidiAccessStateChange;
+
+            midiAccess.inputs.forEach(input => {
+                // input.onstatechange = handleMidiIOStateChange;
+                input.onmidimessage = handleOnMidiMessage;
+            });
+
+            midiAccess.outputs.forEach(output => {
+                l(output)
+                state.output = output;
+            });
+        }, 
+        error => {
+            console.log("Failed to access MIDI devices:", error);
+        }
+    );
+
+    async function play() {
+        l(state.midi)
+        if (!state.midi || !state.output) return;
+
+
+        let track = state.midi[2];
+        if (track.type === CHUNK_TYPE.TRACK) {
+            let events = track.events;
+            let c1 = 0, c2 = 0, c3 = 0, c4 =0;
+            for (const event of events) {
+                if (event.deltaTime > 0) {
+                    await sleep(event.deltaTime);
+                }
+                if (!event.type) {
+                    c4++;
+                    // l("Non Midi", event)
+                    continue;
+                };
+                if (event.type === MIDI_EVENT.NOTE_ON) {
+                    c1++
+                    state.output.send([0x90, event.note, event.velocity]);
+                } else if (event.type === MIDI_EVENT.NOTE_OFF) {
+                    state.output.send([0x80, event.note, event.velocity]);
+                    c2++;
+                } else {
+                    c3++;
+                    // l("Other MIDI", event);
+                }
+            }
+            l("Note-On Count", c1, "Note-Off Count", c2, "Other MIDI", c3, "Non MIDI", c4)
+        }
+
+    }
+
+        // let notes = [];
+    // for (let i = 0; i < 100; i++) {
+    //     let r = Math.round((Math.random() * 10) - 5);
+    //     notes.push([r, i]);
+    // }
+
+    
+    // const bassCleffImg = new Image();
+    // const wholeNoteImg = new Image();
+    // wholeNoteImg.addEventListener('load', e => {
+    //     console.clear()
+    //     function myDraw(t) {
+    //         draw(wholeNoteImg, notes, t);
+    //         requestAnimationFrame(myDraw);
+    //     }
+    //     // requestAnimationFrame(myDraw)
+        
+    // });
+    // wholeNoteImg.src = "images/wholeNote.svg"
+    // // Width 40
+    // // Height 25
+    // // Ratio = 40/25
+
+
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 /* Implements tests based on the examples from the MIDI specification
     | Number (hex)  | Representation (hex) |
     | 00000000      | 00  |
@@ -374,163 +552,4 @@ function testDeltaTime() {
         } 
     }
 
-}
-
-function handleOnMidiMessage(event) {
-    const data = event.data;
-    const status = data[0] & 0xF0;
-    const channel = data[0] & 0x0F;
-    switch (status) {
-        case MIDI_EVENT.NOTE_ON:
-        case MIDI_EVENT.NOTE_OFF: {
-            l(`Event ${status.toString(16)} Note ${numToKeyboardNoteName(data[1])} Channel ${channel} Velocity ${data[2]}`);
-        } break;
-        case MIDI_EVENT.PROGRAM_CHANGE: {
-            l(`Change program on channel ${channel} to program ${data[1]}`);
-        } break;
-        case MIDI_EVENT.CONTROL_CHANGE: {
-            if ((data[1] & 0x78) === 0x78) { // Channel mode message
-                    l(`Change Channel Mode ${data[1] & 0x07} on Channel ${channel} to ${data[2]}`)
-
-            } else { // Regular Control Change
-                l(`Change Control ${data[1]} on Channel ${channel} to ${data[2]}`)
-            }
-        } break;
-        default: {
-            l(`Unknown MIDI Message ${status.toString(16)} -`, event);
-
-        } break;
-    }
-}
-
-function registerMidiOutput(output) {
-
-}
-
-function handleMidiAccessStateChange(event) {
-    const midiAccess = event.currentTarget;
-    const port = event.port;
-
-    l('MidiAccess State Change', event)
-}
-
-function handleMidiIOStateChange(event) {
-    l('MidiIO State Change', event);
-}
-
-function parseMidiFile(buffer) {
-    let dataView = new DataView(buffer);
-    let offset = 0, chunk, chunks = [];
-    [chunk, offset] = parseChunk(dataView, offset)
-    let header = chunk;
-    assert(header.type === CHUNK_TYPE.HEADER, `First chunk had invalid type. Expected header found ${header.type}`);
-    chunks.push(header);
-
-    let count = 0;
-    while (count < header.ntrks) {
-        [chunk, offset] = parseChunk(dataView, offset);
-        chunks.push(chunk);
-        if (chunk.type === CHUNK_TYPE.TRACK) {
-            count++;
-        }
-    }
-    return chunks;
-}
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function initialize() {
-    testDeltaTime();
-    const state = {
-        midi: null,
-        output: null
-    };
-
-
-    initializeFileInput(async buffer => {
-        const chunks = parseMidiFile(buffer);
-        state.midi = chunks;
-        play()
-    });
-
-
-    initializeMIDIUSBAccess(
-        midiAccess => {
-            l("Inputs:", midiAccess.inputs, " - Outputs:", midiAccess.outputs, " - Sysex:", midiAccess.sysexEnabled, midiAccess);
-            // midiAccess.onstatechange = handleMidiAccessStateChange;
-
-            midiAccess.inputs.forEach(input => {
-                // input.onstatechange = handleMidiIOStateChange;
-                input.onmidimessage = handleOnMidiMessage;
-            });
-
-            midiAccess.outputs.forEach(output => {
-                l(output)
-                state.output = output;
-            });
-        }, 
-        error => {
-            console.log("Failed to access MIDI devices:", error);
-        }
-    );
-
-
-
-
-    async function play() {
-        if (!state.midi || !state.output) return;
-
-        let track = state.midi[2];
-        if (track.type === CHUNK_TYPE.TRACK) {
-            let events = track.events;
-            let c1 = 0, c2 = 0, c3 = 0, c4 =0;
-            for (const event of events) {
-                if (event.deltaTime > 0) {
-                    await sleep(event.deltaTime);
-                }
-                if (!event.type) {
-                    c4++;
-                    // l("Non Midi", event)
-                    continue;
-                };
-                if (event.type === MIDI_EVENT.NOTE_ON) {
-                    c1++
-                    state.output.send([0x90, event.note, event.velocity]);
-                } else if (event.type === MIDI_EVENT.NOTE_OFF) {
-                    state.output.send([0x80, event.note, event.velocity]);
-                    c2++;
-                } else {
-                    c3++;
-                    // l("Other MIDI", event);
-                }
-            }
-            l("Note-On Count", c1, "Note-Off Count", c2, "Other MIDI", c3, "Non MIDI", c4)
-        }
-
-
-    }
-        // let notes = [];
-    // for (let i = 0; i < 100; i++) {
-    //     let r = Math.round((Math.random() * 10) - 5);
-    //     notes.push([r, i]);
-    // }
-
-    
-    // const bassCleffImg = new Image();
-    // const wholeNoteImg = new Image();
-    // wholeNoteImg.addEventListener('load', e => {
-    //     console.clear()
-    //     function myDraw(t) {
-    //         draw(wholeNoteImg, notes, t);
-    //         requestAnimationFrame(myDraw);
-    //     }
-    //     // requestAnimationFrame(myDraw)
-        
-    // });
-    // wholeNoteImg.src = "images/wholeNote.svg"
-    // // Width 40
-    // // Height 25
-    // // Ratio = 40/25
 }
