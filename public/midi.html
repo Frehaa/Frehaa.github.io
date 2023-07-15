@@ -5,20 +5,14 @@
   <title>MIDI Input Test</title>
   <script src="scripts/midi.js"></script>
   <style>
-    #code-text-area {
-      width: 500px;
-      height: 500px;
+    canvas {
+      outline: 1px solid black;
     }
   </style>
 </head>
 <body onload="initialize()">
-  <input type="file" id="file-input">
-  <h1>MIDI Input Test</h1>
-  <p>Connect your MIDI device and press some keys:</p>
-  <ul id="midi-input"></ul>
-  <canvas id="note-canvas" width="1500" height="500"></canvas>
-  <br>
-  <textarea id="code-text-area"></textarea>
+  <input type="file" id="file-input"><br>
+  <canvas id="note-canvas" width="1800" height="1000"></canvas>
 </body>
 </html>
 

@@ -3,18 +3,43 @@ let l = console.log
 function assert(p, msg) {
     if (!p) throw new Error(msg);
 }
+const TRACK_FORMAT = Object.freeze({
+    SINGLE_MULTICHANNEL_TRACK: 0,
+    SIMULTANEOUS_TRACKS: 1,
+    INDEPENDENT_TRACKS: 2
+});
+
 const CHUNK_TYPE = Object.freeze({
     HEADER: 1297377380, // MThd
     TRACK: 1297379947   // MTrk
 });
 
-const CONTROL_FUNCTION =  Object.freeze({
+const CONTROL_FUNCTION = Object.freeze({
+    BANK_SELECT: 0, // Used in some synthesizers to expand then number of sounds
     CHANNEL_VOLUME: 7,
     PAN: 10, // The operation of playing the audio louder in one side or the other side of a stereo audio
     DAMPER_PEDAL: 64,
     SOSTENUTO: 66,
     SOFT_PEDAL: 67,
-})
+});
+
+const META_EVENT = Object.freeze({
+    SEQUENCE_NUMBER: 0x00,
+    TEXT_EVENT: 0x01,
+    COPYRIGHT_NOTICE: 0x02,
+    TRACK_NAME: 0x03,
+    INSTRUMENT_NAME: 0x04,
+    LYRIC: 0x05,
+    MARKER: 0x06,
+    CUE_POINT: 0x07,
+    MIDI_CHANNEL_PRFIX: 0x20,
+    END_OF_TRACK: 0x2F,
+    SET_TEMPO: 0x51,
+    SMPTE_OFFSET: 0x54,
+    TIME_SIGNATURE: 0x58,
+    KEY_SIGNATURE: 0x59,
+    SEQUENCE_SPECIFIC: 0x7F
+});
 
 const MIDI_EVENT = Object.freeze({  // Channel Voice Messages
     NOTE_OFF: 0x80,                 // 2 data bytes
@@ -30,6 +55,11 @@ const CLEFF = Object.freeze({
     BASS: 1,
 });
 const ENTER_KEY = "Enter";
+
+// Transforming meta data for SET TEMPO META EVENT into value (meta data should be an array of 3 bytes)
+function parseTempoMetaData(metaData) {
+    return metaData[0] << 16 | metaData[1] << 8 | metaData[2];
+}
 
 // Assuming input is valid noteName
 function flatToSharp(noteName) {
@@ -77,23 +107,24 @@ function numToKeyboardNoteName(num) {
 //     }
 // }
 
-function parseError(offset, msg) {
+function formatParseErrorMessage(offset, msg) {
     return `At byte ${offset}(${offset.toString(16)}): ${msg}`;
 }
 
-// TODO: Maybe throw away chunk length information
+// TODO: Maybe throw away chunk length information (or keep for debugging? Or assert correctness and then throw away?)
 function parseChunk(dataview, offset) {
-    assert(dataview.byteLength > offset + 8, parseError(offset, `The dataview did not contain enough bytes to read chunk`));
+    assert(dataview.byteLength > offset + 8, formatParseErrorMessage(offset, `The dataview did not contain enough bytes to read chunk`));
     const type = dataview.getUint32(offset);
     const length = dataview.getUint32(offset + 4);
 
     offset += 8;
     switch (type) {
         case CHUNK_TYPE.HEADER: { // Parse Header chunk
-            assert(length >= 6, parseError(offset-4, `Data length too small for header chunk. Expected at least 6, found ${length}`));  
+            assert(length >= 6, formatParseErrorMessage(offset-4, `Data length too small for header chunk. Expected at least 6, found ${length}`));  
             const format = dataview.getUint16(offset);
             const ntrks = dataview.getUint16(offset + 2);
             const division = dataview.getUint16(offset + 4);
+            // assert((division & 0x80) === 0, `Expected division to be given as ticks per quarter-note, but was in SMPTE format`);
 
             offset += length;
             const chunk = {
@@ -112,7 +143,7 @@ function parseChunk(dataview, offset) {
                 events: [] 
             };
             let finalOffset = offset + length;
-            assert(length > 0, parseError(offset, `Length of Track chunk was 0`));
+            assert(length > 0, formatParseErrorMessage(offset, `Length of Track chunk was 0`));
             let event, runningStatus = null;
             do {
                 try {
@@ -123,8 +154,8 @@ function parseChunk(dataview, offset) {
                     l('Current chunk', chunk)
                     throw e
                 }
-            } while (!(event.metaType && event.metaType === 0x2F));
-            assert(offset === finalOffset, parseError(offset, `Track Chunk data was different from expected. Expected ${finalOffset} - Found ${offset}`));
+            } while (!(event.metaType && event.metaType === META_EVENT.END_OF_TRACK));
+            assert(offset === finalOffset, formatParseErrorMessage(offset, `Track Chunk data was different from expected. Expected ${finalOffset} - Found ${offset}`));
             return [chunk, finalOffset];
         } 
         default: {
@@ -139,7 +170,7 @@ function parseChunk(dataview, offset) {
 
 function parseEvent(dataView, offset, runningStatus) {
     let dt;
-    [dt, offset] = parseDeltaTime(dataView, offset)
+    [dt, offset] = parseVariableLengthValue(dataView, offset)
     const deltaTime = dt;
     let status = dataView.getUint8(offset);
 
@@ -151,7 +182,7 @@ function parseEvent(dataView, offset, runningStatus) {
 
     let eventData = null;
     if (status === 0xF0 || status === 0xF7) { // SYSEX EVENT
-        [length, offset] = parseDeltaTime(dataView, offset + 1);
+        [length, offset] = parseVariableLengthValue(dataView, offset + 1);
         eventData = {
             length,
             sysex: []
@@ -159,17 +190,17 @@ function parseEvent(dataView, offset, runningStatus) {
         for (let i = 0; i < length; i++) { // Read length data
             eventData.sysex.push(dataView.getUint8(offset + i));
         }
-        assert(eventData.sysex.length === length, parseError(offset, `System exclusive message length was different from expected. expected ${eventData.sysex.length} actual ${length}`));
-        assert(eventData.sysex[length-1] === 0xF7, parseError(offset + length - 1, `Expected 0xF7 at end of SYSEX Event, found ${eventData.sysex[length-1]}`));
+        assert(eventData.sysex.length === length, formatParseErrorMessage(offset, `System exclusive message length was different from expected. expected ${eventData.sysex.length} actual ${length}`));
+        assert(eventData.sysex[length-1] === 0xF7, formatParseErrorMessage(offset + length - 1, `Expected 0xF7 at end of SYSEX Event, found ${eventData.sysex[length-1]}`));
         offset = offset + length;
     } else if (status === 0xFF) { // META-EVENT
         const metaType = dataView.getUint8(offset + 1);
-        [length, offset] = parseDeltaTime(dataView, offset + 2);
+        [length, offset] = parseVariableLengthValue(dataView, offset + 2);
         eventData = { metaType, length, metaData: [] };
         for (let i = 0; i < length; i++) { // Read length data
             eventData.metaData.push(dataView.getUint8(offset + i));
         }
-        assert(eventData.metaData.length === length, parseError(offset, `META event message length was different from expected. expected ${eventData.metaData.length} actual ${length}`));
+        assert(eventData.metaData.length === length, formatParseErrorMessage(offset, `META event message length was different from expected. expected ${eventData.metaData.length} actual ${length}`));
         offset = offset + length;
     } else { // if ((status & 0xF0) !== 0xF0) { // MIDI-EVENT (Or something else?)
         const channel = status & 0x0F;
@@ -209,13 +240,13 @@ function parseEvent(dataView, offset, runningStatus) {
                 offset += 3;
             } break;
             default: {
-                assert(false, parseError(offset, `Unknown MIDI event ${type}`));
+                assert(false, formatParseErrorMessage(offset, `Unknown MIDI event ${type}`));
             } break;
         }
     } 
     const event = {
         deltaTime, 
-        status,
+        status, // TODO: Throw away status?
         ...eventData
     };
     return [event, offset];
@@ -327,20 +358,41 @@ function draw(wholeNoteImage, notes, time) {
     }
 }
 
-// Tries to parse a variable length value in dataView from the offset
-function parseDeltaTime(dataView, offset) {
-    let time = 0
-    let byteLength = 0;
-    while (true) {
-        let deltaByte = dataView.getUint8(offset + byteLength)
-        byteLength++;
-        time = (time << 7) | (deltaByte & 0x7F);
-        if ((deltaByte & 0x80) === 0) break;
-    } 
+function drawNoteNamesAndTopLine(top) {
+    const canvas = document.getElementById('note-canvas');
+    const ctx = canvas.getContext('2d');
+    const h = canvas.height, w = canvas.width;
+    
+    ctx.font = "10px Georgia";
 
-    return [time, offset + byteLength]
+    const letters = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B", ];
+    for (let i = 0; i < 128; i++) {
+        const note = letters[i % letters.length];
+        if (note.length == 2) {
+            ctx.fillText(note, 10 + i * 14 - 5, top + 20);
+        } else {
+            ctx.fillText(note, 10 + i * 14, top + 40);
+        }
+    }
+    const cutLineHeight = top;
+    ctx.beginPath();
+    ctx.moveTo(0, cutLineHeight);
+    ctx.lineTo(w, cutLineHeight);
+    ctx.stroke();
 }
 
+// Reads a variable length value from dataView starting at offset. Returns value and new offset at end of value
+function parseVariableLengthValue(dataView, offset) {
+    let value = 0;
+    let length = 0;
+    while (true) {
+        let deltaByte = dataView.getUint8(offset + length)
+        length++;
+        value = (value << 7) | (deltaByte & 0x7F);
+        if ((deltaByte & 0x80) === 0) break;
+    } 
+    return [value, offset + length]
+}
 
 function handleOnMidiMessage(event) {
     const data = event.data;
@@ -391,9 +443,12 @@ function parseMidiFile(buffer) {
     while (count < header.ntrks) {
         try {
             [chunk, offset] = parseChunk(dataView, offset);
-            chunks.push(chunk);
             if (chunk.type === CHUNK_TYPE.TRACK) {
+                chunks.push(chunk);
                 count++;
+            } else {
+                // TODO: Silently ignore unknown chunk types 
+                assert(false, `Found unknown chunk type found ${chunk.type}`);
             }
         } catch (e) {
             l('Chunks', chunks);
@@ -407,7 +462,9 @@ function parseMidiFile(buffer) {
 
 function initialize() {
     l(MIDI_EVENT)
-    testDeltaTime();
+    testParseVariableLengthValue();
+    testParseTempoMetaData();
+
     const state = {
         midi: null,
         output: null
@@ -440,13 +497,26 @@ function initialize() {
         }
     );
 
-    function play() {
-        l(state.midi)
-        if (!state.midi || !state.output) return;
+    const b = document.createElement('button');
+    b.innerHTML = "Play"
+    document.body.appendChild(b);
+    let p = false;
 
-        let header = state.midi[0];
+    b.onclick = function(e) {
+        if (state.output) {
+            if (!p) {
+                state.output.send([0x90, 0x40, 0x30]);
+            } else {
+                state.output.send([0x90, 0x40, 0x00]);
+            }
+            p = !p;
+        }
+    }
+
+    // Debug info
+    function eventCounter(chunks) {
+        let header = chunks[0];
         let counts = [];
-
         for (let i = 0; i < header.ntrks; i++) {
             let counter = {};
             counter[MIDI_EVENT.NOTE_OFF] = [];
@@ -458,9 +528,12 @@ function initialize() {
             counter[MIDI_EVENT.PITCH_BEND] = [];
             counter["meta"] = [];
             counter["sysex"] = [];
+            counter["min"] = Infinity;
+            counter["max"] = -Infinity;
+            counter["notes"] = {};
             counts.push(counter);
 
-            let track = state.midi[i + 1];
+            let track = chunks[i + 1];
             assert(track.type === CHUNK_TYPE.TRACK, `Chunk ${i} expected track found ${track.type}`);
 
             for (const event of track.events) {
@@ -473,15 +546,251 @@ function initialize() {
                     }
                 } else {
                     counter[event.type].push(event)
+                    if (event.note) {
+                        counter["min"] = Math.min(counter["min"], event.note);
+                        counter["max"] = Math.max(counter["max"], event.note);
+                    }
+
+                    if (event.type === MIDI_EVENT.NOTE_OFF || (event.type === MIDI_EVENT.NOTE_ON && event.velocity === 0)) {
+                        counter["notes"][event.note] -= 1
+                    } else if (event.type === MIDI_EVENT.NOTE_ON) {
+                        if (counter["notes"][event.note] === undefined) {
+                            counter["notes"][event.note] = 0
+                        }
+                        counter["notes"][event.note] += 1
+
+                    } 
+                }
+            }
+            for (let note in counter["notes"]) {
+                // TODO: Figure out what to do if the count is off for an otherwise fine file (e.g. This Game)
+                // assert(counter["notes"][note] === 0, `Expected Number of NOTE_ON and NOTE_OFF to be equal, but was off by ${counter["notes"][note]} for note ${note} in track ${i}`);
+            }
+        }
+        return counts;
+    }
+
+    function play() {
+        l("\nState:", state)
+        l("Event Counts:", eventCounter(state.midi));
+        // if (!state.midi || !state.output) return;
+
+        // TODO: Decide on a proper representation for track (e.g. header and tracks. Header contains format, division. There are <ntrks> track chunks in tracks. Each track chunk contains at least 1 event possibly more. Delta times are translated into ms, or there is some easy way to do it. )
+
+        // MIDI is initial tokenization
+        // We then also want to parse
+        let header = state.midi[0];
+        const division = header.division;
+        const format = header.format;
+        assert(format === 0 || format === 1, `Expected file format to be 0 or 1, it was ${format}`);
+        let dataTrack = 0, playTrack = 0;
+        if (format === TRACK_FORMAT.SINGLE_MULTICHANNEL_TRACK) { // 
+            dataTrack = state.midi[1]; 
+            playTrack = state.midi[1];
+        } else if (format === TRACK_FORMAT.SIMULTANEOUS_TRACKS) {
+            dataTrack = state.midi[1];
+            playTrack = state.midi[2];
+        } else if (format === TRACK_FORMAT.INDEPENDENT_TRACKS) {
+            assert(false, `Independent tracks not sure how to handle`)
+        } else {
+            assert(false, `Unknown track format ${format} in header`);
+        }
+
+        // Read Key signatures, time signatures, tempos
+        const keySignatures = []; // Not needed for playback
+        const timeSignatures = []; // Not needed for playback
+        const setTempos = [];
+        // for (let i = 0; i < header.ntrks; i++) {
+        assert(dataTrack.type === CHUNK_TYPE.TRACK, `Expected track chunk found ${dataTrack.type}`);
+        for (const event of dataTrack.events) {
+            if (event.status === 0xFF) { 
+                switch (event.metaType) {
+                    case META_EVENT.KEY_SIGNATURE: {
+                        keySignatures.push(event);
+                    } break;
+                    case META_EVENT.SET_TEMPO: {
+                        // assert(i === 0, `Expected to only find tempo in first track but found in track ${i + 1}`);
+                        setTempos.push(event);
+                    } break;
+                    case META_EVENT.TIME_SIGNATURE: {
+                        timeSignatures.push(event);
+                    } break;
                 }
             }
         }
-        l(counts);
 
-        for (let i = 0; i < header.ntrks; i++) {
-            let track = state.midi[i + 1];
-            sendEvents(track.events)
+        assert(setTempos.length > 0, `Expected to find at least 1 'set tempo' in first track`);
+
+        // Debug info
+        for (const tempo of setTempos) {
+            l(tempo, parseTempoMetaData(tempo.metaData))
         }
+
+        // Convert track chunk events from delta time to milliseconds
+        let currentTempoIdx = 0; 
+        let currentTempo = setTempos[currentTempoIdx];
+        let tempo = parseTempoMetaData(currentTempo.metaData)
+        l(`Using only first given temp at value ${tempo}. Elfen Lied - Lilium seems good to test proper change of tempo.`)
+        l(`Playing only single track`, playTrack, "Connect seems good to test multiple simultaneous tracks.")
+
+        // for (const event of track.events) {
+        //     // l(event.deltaTime)
+        //     if ((currentTempoIdx + 1) < setTempos.length) {
+        //         let nextTempo = setTempos[currentTempoIdx + 1];
+        //         if (false) {
+        //             currentTempoIdx += 1
+        //             currentTempo = setTempos[currentTempoIdx];
+        //         }
+
+        //     }
+        // }
+
+        // TODO: Set a default tickToMsFactor if tempo is unspecified? Or maybe just an error? Or warning? Should I care for my purpose?
+        let tickToMsFactor = (tempo / division) / 1000;
+        l(`Ticks to milliseconds factor ${tickToMsFactor}`)
+
+        const topLineHeight = 560;
+        drawNoteNamesAndTopLine(topLineHeight);
+
+        // Create array of notes to draw
+        const noteEvents = [];
+        const controlEvents = [];
+        const programEvents = [];
+        const startedNotes = {}; // Notes which are stated but not ended.
+        let runningTime = 0
+        // TODO: Start by ignoring different channels. This may result in bugs if different channels play the same note
+        for (const event of playTrack.events) {
+            runningTime += event.deltaTime * tickToMsFactor;
+            if (event.type === MIDI_EVENT.NOTE_OFF || (event.type === MIDI_EVENT.NOTE_ON && event.velocity === 0)) {
+                // assert(startedNotes[event.note] !== null, `Expected ${event.note} not to be null.`);
+                let note = startedNotes[event.note];
+                if (note === null || note === undefined) continue;
+                note.end = runningTime;
+                noteEvents.push(note);
+                startedNotes[event.note] = null;
+            }
+            else if (event.type === MIDI_EVENT.NOTE_ON) {
+                let note = startedNotes[event.note];
+                // assert(note === null || note === undefined, `Expected ${event.note} to be null on channel ${event.channel}, was ${startedNotes[event.note]}`);
+                if (note === null || note === undefined) {
+                    startedNotes[event.note] = {
+                        note: event.note,
+                        start: runningTime,
+                        velocity: event.velocity,
+                        channel: event.channel
+                    }
+                } else { // TODO: Figure out what to do about the same note being played twice before being turned off (It is hard to hear a difference. So maybe it does not matter?)
+                    l(`INFO: Double note ${event.note} at ${runningTime}`)
+                    note.end = runningTime;
+                    noteEvents.push(note);
+                    startedNotes[event.note] = {
+                        note: event.note,
+                        start: runningTime,
+                        velocity: event.velocity,
+                        channel: event.channel
+                    };
+                }
+            } else if (event.type === MIDI_EVENT.CONTROL_CHANGE) { 
+                controlEvents.push({
+                    start: runningTime,
+                    channel: event.channel,
+                    control: event.control,
+                    value: event.value
+                });
+            } else if (event.type === MIDI_EVENT.PROGRAM_CHANGE) {
+                programEvents.push({
+                    start: runningTime,
+                    channel: event.channel,
+                    program: event.program,
+                });
+            }
+        }
+        l(controlEvents, programEvents)
+        // TODO: Should we handle multi track files by merging them into a single track?
+
+        // TODO: The only current files which does multiple channels also do multiple play tracks
+        // const channels = new Set();
+        // for (let i = 1; i < state.midi.length; i++) {
+        //     l(`Track ${i}`);
+        //     let track = state.midi[i];
+        //     for (const event of track.events) {
+        //         if (event.type === MIDI_EVENT.NOTE_ON) {
+        //             channels.add(event.channel);
+        //         }
+        //     }
+        // }
+        // l(channels)
+        // return
+
+        const noteWidth = 20
+
+
+        const canvas = document.getElementById('note-canvas');
+        const ctx = canvas.getContext('2d');
+        const timeFromTopToBottomMs = 2000;
+        const msToPixel = topLineHeight / timeFromTopToBottomMs;
+        let start = null;
+        function animateNotes(t) {
+            if (start === null) { // Initialize Start
+                start = t;
+            }
+            ctx.clearRect(0, 0, canvas.width, topLineHeight);
+
+
+            const elapsed = t - start;
+
+            ctx.font = "26px Georgia";
+            ctx.fillText((elapsed -2000), 50, 100);
+            
+            for (const block of noteEvents) {
+                const top = (-block.end + elapsed) * msToPixel; 
+                const x = 10 + block.note * 14 - noteWidth/2;
+                const height = (block.end - block.start) * msToPixel;
+
+                // if (elapsed < block.start) break // TODO: Implement short cut such that we do not try to draw notes outside of screen
+                if (top > topLineHeight) continue; 
+                if (topLineHeight - top < height) {
+                    ctx.fillRect(x, top, noteWidth, topLineHeight - top);
+                } else {
+                    ctx.fillRect(x, top, noteWidth, height);
+                }            
+            }
+            
+            // if (elapsed >= 2000)  return
+
+            requestAnimationFrame(animateNotes)
+        }
+
+        // ctx.fillRect(500, -40, 20, 40);
+
+        requestAnimationFrame(animateNotes)
+
+        function scheduleEvents(noteEvents, controlEvents, programEvents) {
+            assert(state.output, `Expected output to exist but it did not`);
+            // TODO: Batch the events if possible
+            for (const event of noteEvents) {
+                setTimeout(a => {
+                    state.output.send([MIDI_EVENT.NOTE_ON, event.note, event.velocity])
+                }, event.start);
+                setTimeout(a => {
+                    state.output.send([MIDI_EVENT.NOTE_OFF, event.note, 0])
+                }, event.end);
+            }
+            for (const event of controlEvents) {
+                setTimeout(a => {
+                    state.output.send([MIDI_EVENT.CONTROL_CHANGE, event.control, event.value])
+                }, event.start);
+            }
+            for (const event of programEvents) {
+                setTimeout(a => {
+                    state.output.send([MIDI_EVENT.PROGRAM_CHANGE, event.program])
+                }, event.start);
+            }
+        }
+        setTimeout(() => {
+            scheduleEvents(noteEvents, controlEvents, programEvents)
+        }, 2000)
+        
 
         async function sendEvents(events) {
             for (const event of events) {
@@ -520,13 +829,12 @@ function initialize() {
         }
     }
 
-        // let notes = [];
+    // let notes = [];
     // for (let i = 0; i < 100; i++) {
     //     let r = Math.round((Math.random() * 10) - 5);
     //     notes.push([r, i]);
     // }
 
-    
     // const bassCleffImg = new Image();
     // const wholeNoteImg = new Image();
     // wholeNoteImg.addEventListener('load', e => {
@@ -535,6 +843,9 @@ function initialize() {
     //         draw(wholeNoteImg, notes, t);
     //         requestAnimationFrame(myDraw);
     //     }
+
+    //     draw(wholeNoteImg, [], 0)
+        
     //     // requestAnimationFrame(myDraw)
         
     // });
@@ -564,7 +875,7 @@ function sleep(ms) {
     | 08000000      | 81 80 80 00  |
     | 0FFFFFFF      | FF FF FF 7F |
 */
-function testDeltaTime() {
+function testParseVariableLengthValue() {
     let tests = [];
     tests.push([[0x00], 0x00]);
     tests.push([[0x40], 0x40]);
@@ -593,7 +904,7 @@ function testDeltaTime() {
         }
 
         // Run
-        let res = parseDeltaTime(dataView, 0);
+        let res = parseVariableLengthValue(dataView, 0);
 
         // Verify
         if (res[0] != number) {
@@ -602,4 +913,18 @@ function testDeltaTime() {
         } 
     }
 
+}
+
+function testParseTempoMetaData() {
+    let tests = [
+        [[0x07, 0xA1, 0x20], 500000]
+    ];
+    for (const test of tests) {
+        let [input, expected] = test;
+        let result = parseTempoMetaData(input);
+
+        if (result !== expected) {
+            console.log(`Expected ${input} gave result ${expected}, but was ${result}`);
+        }
+    }
 }
