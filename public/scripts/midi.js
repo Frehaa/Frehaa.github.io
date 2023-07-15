@@ -41,6 +41,12 @@ const META_EVENT = Object.freeze({
     SEQUENCE_SPECIFIC: 0x7F
 });
 
+const STATUS = Object.freeze({
+    META_EVENT: 0xFF,
+    SYS_EXCLUSIVE_START: 0xF0,
+    SYS_EXCLUSIVE_END: 0xF7,
+});
+
 const MIDI_EVENT = Object.freeze({  // Channel Voice Messages
     NOTE_OFF: 0x80,                 // 2 data bytes
     NOTE_ON: 0x90,                  // 2 data bytes
@@ -246,7 +252,7 @@ function parseEvent(dataView, offset, runningStatus) {
     } 
     const event = {
         deltaTime, 
-        status, // TODO: Throw away status?
+        status, // TODO: Throw away status? We still need it for meta-data(no?)
         ...eventData
     };
     return [event, offset];
@@ -462,10 +468,7 @@ function parseMidiFile(buffer) {
 
 function initialize() {
     l(MIDI_EVENT)
-    testParseVariableLengthValue();
-    testParseTempoMetaData();
-    testCalcAccumulatedDeltaTimes();
-    testMergeTracks();
+    runTests();
 
     const state = {
         midiChunks: null,
@@ -477,7 +480,6 @@ function initialize() {
         state.midiChunks = chunks;
         play()
     });
-
 
     initializeMIDIUSBAccess(
         midiAccess => {
@@ -515,352 +517,325 @@ function initialize() {
         }
     }
 
-    // Debug info
-    function eventCounter(chunks) {
-        let header = chunks[0];
-        let counts = [];
-        for (let i = 0; i < header.ntrks; i++) {
-            let counter = {};
-            counter[MIDI_EVENT.NOTE_OFF] = [];
-            counter[MIDI_EVENT.NOTE_ON] = [];
-            counter[MIDI_EVENT.POLYPHONIC_AFTERTOUCH] = [];
-            counter[MIDI_EVENT.CONTROL_CHANGE] = [];
-            counter[MIDI_EVENT.PROGRAM_CHANGE] = [];
-            counter[MIDI_EVENT.CHANNEL_AFTERTOUCH] = [];
-            counter[MIDI_EVENT.PITCH_BEND] = [];
-            counter["meta"] = [];
-            counter["sysex"] = [];
-            counter["min"] = Infinity;
-            counter["max"] = -Infinity;
-            counter["notes"] = {};
-            counts.push(counter);
 
-            let track = chunks[i + 1];
-            assert(track.type === CHUNK_TYPE.TRACK, `Chunk ${i} expected track found ${track.type}`);
-
-            for (const event of track.events) {
-                if (!event.type) {
-                    if (event.status === 0xFF) {
-                        counter["meta"].push(event)
-                    } else {
-                        assert(event.status === 0xF0 || event.status === 0xF7, `Found event non-midi, non-meta, non-sysex event ${event}`);
-                        counter["sysex"].push(event)
-                    }
-                } else {
-                    counter[event.type].push(event)
-                    if (event.note) {
-                        counter["min"] = Math.min(counter["min"], event.note);
-                        counter["max"] = Math.max(counter["max"], event.note);
-                    }
-
-                    if (event.type === MIDI_EVENT.NOTE_OFF || (event.type === MIDI_EVENT.NOTE_ON && event.velocity === 0)) {
-                        counter["notes"][event.note] -= 1
-                    } else if (event.type === MIDI_EVENT.NOTE_ON) {
-                        if (counter["notes"][event.note] === undefined) {
-                            counter["notes"][event.note] = 0
-                        }
-                        counter["notes"][event.note] += 1
-
-                    } 
-                }
-            }
-            for (let note in counter["notes"]) {
-                // TODO: Figure out what to do if the count is off for an otherwise fine file (e.g. This Game)
-                // assert(counter["notes"][note] === 0, `Expected Number of NOTE_ON and NOTE_OFF to be equal, but was off by ${counter["notes"][note]} for note ${note} in track ${i}`);
-            }
-        }
-        return counts;
-    }
 
     function play() {
         l("\nState:", state)
-        l("Event Counts:", eventCounter(state.midiChunks));
-        // if (!state.midi || !state.output) return;
+        l("Event Counts:", debugEventCounter(state.midiChunks));
 
         // TODO: Decide on a proper representation for track (e.g. header and tracks. Header contains format, division. There are <ntrks> track chunks in tracks. Each track chunk contains at least 1 event possibly more. Delta times are translated into ms, or there is some easy way to do it. )
 
-        // MIDI is initial tokenization
-        // We then also want to parse
         let header = state.midiChunks[0];
         const division = header.division;
         const format = header.format;
         assert(format === 0 || format === 1, `Expected file format to be 0 or 1, it was ${format}`);
-
-        const tracks = []; // Size should be 1 for format 0 and 1. Format 2 can have multiple
-        if (format === TRACK_FORMAT.SINGLE_MULTICHANNEL_TRACK) { // 
-            assert(state.midiChunks.length === 2, `Expected Single track format to only have 1 header chunk and 1 track chunk`);
-            tracks.push(state.midiChunks[1]);
-        } else if (format === TRACK_FORMAT.SIMULTANEOUS_TRACKS) {
-            let track = state.midiChunks[1]
-            for (let i = 2; i < header.ntrks; i++) {
-                track = mergeTrackChunks(track, state.midiChunks[i])
-            }
-            tracks.push(track);
-        } else if (format === TRACK_FORMAT.INDEPENDENT_TRACKS) {
-        } else {
-            assert(false, `Unknown track format ${format} in header`);
-        }
-
-        // Read Key signatures, time signatures, tempos
-        const keySignatures = []; // Not needed for playback
-        const timeSignatures = []; // Not needed for playback
-        const setTempos = [];
-        // for (let i = 0; i < header.ntrks; i++) {
-        assert(dataTrack.type === CHUNK_TYPE.TRACK, `Expected track chunk found ${dataTrack.type}`);
-        for (const event of dataTrack.events) {
-            if (event.status === 0xFF) { 
-                switch (event.metaType) {
-                    case META_EVENT.KEY_SIGNATURE: {
-                        keySignatures.push(event);
-                    } break;
-                    case META_EVENT.SET_TEMPO: {
-                        // assert(i === 0, `Expected to only find tempo in first track but found in track ${i + 1}`);
-                        setTempos.push(event);
-                    } break;
-                    case META_EVENT.TIME_SIGNATURE: {
-                        timeSignatures.push(event);
-                    } break;
-                }
-            } 
-        }
-        // TODO: If format 1, merge the tracks into one mega track for easier play and give the note a track value
-
-        assert(setTempos.length > 0, `Expected to find at least 1 'set tempo' in first track`);
-
-        // Debug info
-        for (const tempo of setTempos) {
-            l(tempo, parseTempoMetaData(tempo.metaData))
-        }
-
-        // Convert track chunk events from delta time to milliseconds
-        let currentTempoIdx = 0; 
-        let currentTempo = setTempos[currentTempoIdx];
-        let tempo = parseTempoMetaData(currentTempo.metaData)
-        l(`Using only first given temp at value ${tempo}. Elfen Lied - Lilium seems good to test proper change of tempo.`)
-        l(`Playing only single track`, playTrack, "Connect seems good to test multiple simultaneous tracks.")
-
-        // for (const event of track.events) {
-        //     // l(event.deltaTime)
-        //     if ((currentTempoIdx + 1) < setTempos.length) {
-        //         let nextTempo = setTempos[currentTempoIdx + 1];
-        //         if (false) {
-        //             currentTempoIdx += 1
-        //             currentTempo = setTempos[currentTempoIdx];
-        //         }
-
-        //     }
-        // }
-
-        // TODO: Set a default tickToMsFactor if tempo is unspecified? Or maybe just an error? Or warning? Should I care for my purpose?
-        let tickToMsFactor = (tempo / division) / 1000;
-        l(`Ticks to milliseconds factor ${tickToMsFactor}`)
+        l(`Format ${format} division ${division}`);
+        const playTracks = getPlayTrackEvents(format, state.midiChunks);
+        l(`Play tracks:`, playTracks);
 
         const topLineHeight = 560;
         drawNoteNamesAndTopLine(topLineHeight);
 
-        // Create array of notes to draw
-        const noteEvents = [];
-        const controlEvents = [];
-        const programEvents = [];
-        const startedNotes = {}; // Notes which are stated but not ended.
-        let runningTime = 0
-        // TODO: Start by ignoring different channels. This may result in bugs if different channels play the same note
-        for (const event of playTrack.events) {
-            runningTime += event.deltaTime * tickToMsFactor;
-            if (event.type === MIDI_EVENT.NOTE_OFF || (event.type === MIDI_EVENT.NOTE_ON && event.velocity === 0)) {
-                // assert(startedNotes[event.note] !== null, `Expected ${event.note} not to be null.`);
-                let note = startedNotes[event.note];
-                if (note === null || note === undefined) continue;
-                note.end = runningTime;
-                noteEvents.push(note);
-                startedNotes[event.note] = null;
-            }
-            else if (event.type === MIDI_EVENT.NOTE_ON) {
-                let note = startedNotes[event.note];
-                // assert(note === null || note === undefined, `Expected ${event.note} to be null on channel ${event.channel}, was ${startedNotes[event.note]}`);
-                if (note === null || note === undefined) {
-                    startedNotes[event.note] = {
-                        note: event.note,
-                        start: runningTime,
-                        velocity: event.velocity,
-                        channel: event.channel
+        // SPLIT THE EVENTS, GIVE THEM START AND END IN MILLISECONDS, AND DRAW AND PLAY THEM.
+        let tempo = parseTempoMetaData([0x07, 0xA1, 0x20]) // Default value of tempo 500.000 
+        let tickToMsFactor = (tempo / division) / 1000;
+        for (let i = 0; i < playTracks.length; i++) {
+            assert(i === 0, `This should not happen while we do not support format 2`);
+            // const track = state.midiChunks[1]; 
+            l(`Track ${i}`, playTracks[i])
+
+            // Create array of notes to draw
+            const noteEvents = [];
+            const controlEvents = [];
+            const programEvents = [];
+            const startedNotes = {}; // Notes which are stated but not ended.
+            let runningTime = 0
+
+            // TODO: Start by ignoring different channels. This may result in bugs if different channels play the same note
+            for (const event of playTracks[i]) {
+                runningTime += event.deltaTime * tickToMsFactor;
+                // l(runningTime, event)
+                if (event.status === STATUS.META_EVENT) {
+                    switch (event.metaType) {
+                        case META_EVENT.KEY_SIGNATURE: {
+                            // TODO: 
+                        } break;
+                        case META_EVENT.SET_TEMPO: {
+                            tempo = parseTempoMetaData(event.metaData);
+                            tickToMsFactor = (tempo / division) / 1000;
+                        } break;
+                        case META_EVENT.TIME_SIGNATURE: { 
+                            // TODO: 
+                        } break;
                     }
-                } else { // TODO: Figure out what to do about the same note being played twice before being turned off (It is hard to hear a difference. So maybe it does not matter?)
-                    l(`INFO: Double note ${event.note} at ${runningTime}`)
+                }
+                else if (event.type === MIDI_EVENT.NOTE_OFF || (event.type === MIDI_EVENT.NOTE_ON && event.velocity === 0)) {
+                    // assert(startedNotes[event.note] !== null, `Expected ${event.note} not to be null.`);
+                    let note = startedNotes[event.note];
+                    if (note === null || note === undefined) continue;
                     note.end = runningTime;
                     noteEvents.push(note);
-                    startedNotes[event.note] = {
-                        note: event.note,
-                        start: runningTime,
-                        velocity: event.velocity,
-                        channel: event.channel
-                    };
+                    startedNotes[event.note] = null;
                 }
-            } else if (event.type === MIDI_EVENT.CONTROL_CHANGE) { 
-                controlEvents.push({
-                    start: runningTime,
-                    channel: event.channel,
-                    control: event.control,
-                    value: event.value
-                });
-            } else if (event.type === MIDI_EVENT.PROGRAM_CHANGE) {
-                programEvents.push({
-                    start: runningTime,
-                    channel: event.channel,
-                    program: event.program,
-                });
+                else if (event.type === MIDI_EVENT.NOTE_ON) {
+                    let note = startedNotes[event.note];
+                    // assert(note === null || note === undefined, `Expected ${event.note} to be null on channel ${event.channel}, was ${startedNotes[event.note]}`);
+                    if (note === null || note === undefined) {
+                        startedNotes[event.note] = {
+                            note: event.note,
+                            start: runningTime,
+                            velocity: event.velocity,
+                            channel: event.channel
+                        }
+                    } else { // TODO: Figure out what to do about the same note being played twice before being turned off (It is hard to hear a difference. So maybe it does not matter?)
+                        l(`INFO: Double note ${event.note} at ${runningTime}`)
+                        note.end = runningTime;
+                        noteEvents.push(note);
+                        startedNotes[event.note] = {
+                            note: event.note,
+                            start: runningTime,
+                            velocity: event.velocity,
+                            channel: event.channel
+                        };
+                    }
+                } else if (event.type === MIDI_EVENT.CONTROL_CHANGE) {
+                    controlEvents.push({
+                        start: runningTime,
+                        channel: event.channel,
+                        control: event.control,
+                        value: event.value
+                    });
+                } else if (event.type === MIDI_EVENT.PROGRAM_CHANGE) {
+                    programEvents.push({
+                        start: runningTime,
+                        channel: event.channel,
+                        program: event.program,
+                    });
+                }             
             }
-        }
-        l(controlEvents, programEvents)
-        // TODO: Should we handle multi track files by merging them into a single track?
+            l(noteEvents, controlEvents, programEvents)
+        
+            const canvas = document.getElementById('note-canvas');
+            const ctx = canvas.getContext('2d');
+            const timeFromTopToBottomMs = 2000;
+            const msToPixel = topLineHeight / timeFromTopToBottomMs;
+            const noteWidth = 20
+            let start = null;
+            function animateNotes(t) {
+                if (start === null) { // Initialize Start
+                    start = t;
+                }
+                ctx.clearRect(0, 0, canvas.width, topLineHeight);
 
-        // TODO: The only current files which does multiple channels also do multiple play tracks
-        // const channels = new Set();
-        // for (let i = 1; i < state.midi.length; i++) {
-        //     l(`Track ${i}`);
-        //     let track = state.midi[i];
-        //     for (const event of track.events) {
-        //         if (event.type === MIDI_EVENT.NOTE_ON) {
-        //             channels.add(event.channel);
-        //         }
-        //     }
-        // }
-        // l(channels)
-        // return
+                const elapsed = t - start;
 
-        const noteWidth = 20
+                ctx.font = "26px Georgia";
+                ctx.fillText((elapsed -2000), 50, 100);
+                
+                for (const event of noteEvents) {
+                    const top = (-event.end + elapsed) * msToPixel; 
+                    const x = 10 + event.note * 14 - noteWidth/2;
+                    const height = (event.end - event.start) * msToPixel;
 
-
-        const canvas = document.getElementById('note-canvas');
-        const ctx = canvas.getContext('2d');
-        const timeFromTopToBottomMs = 2000;
-        const msToPixel = topLineHeight / timeFromTopToBottomMs;
-        let start = null;
-        function animateNotes(t) {
-            if (start === null) { // Initialize Start
-                start = t;
+                    // if (elapsed < block.start) break // TODO: Implement short cut such that we do not try to draw notes outside of screen
+                    if (top > topLineHeight) continue; 
+                    if (topLineHeight - top < height) {
+                        ctx.fillRect(x, top, noteWidth, topLineHeight - top);
+                    } else {
+                        ctx.fillRect(x, top, noteWidth, height);
+                    }            
+                }
+                requestAnimationFrame(animateNotes)
             }
-            ctx.clearRect(0, 0, canvas.width, topLineHeight);
-
-
-            const elapsed = t - start;
-
-            ctx.font = "26px Georgia";
-            ctx.fillText((elapsed -2000), 50, 100);
-            
-            for (const block of noteEvents) {
-                const top = (-block.end + elapsed) * msToPixel; 
-                const x = 10 + block.note * 14 - noteWidth/2;
-                const height = (block.end - block.start) * msToPixel;
-
-                // if (elapsed < block.start) break // TODO: Implement short cut such that we do not try to draw notes outside of screen
-                if (top > topLineHeight) continue; 
-                if (topLineHeight - top < height) {
-                    ctx.fillRect(x, top, noteWidth, topLineHeight - top);
-                } else {
-                    ctx.fillRect(x, top, noteWidth, height);
-                }            
-            }
-            
-            // if (elapsed >= 2000)  return
 
             requestAnimationFrame(animateNotes)
+
+            if (state.output) {
+                setTimeout(() => {
+                    playEventsByScheduling(state.output, noteEvents, controlEvents, programEvents)
+                }, timeFromTopToBottomMs)
+            } else {
+                console.log("No output found so wont be playing.")
+            }
+ 
         }
+    }
+}
 
-        // ctx.fillRect(500, -40, 20, 40);
-
-        requestAnimationFrame(animateNotes)
-
-        function scheduleEvents(noteEvents, controlEvents, programEvents) {
-            assert(state.output, `Expected output to exist but it did not`);
-            // TODO: Batch the events if possible
-            for (const event of noteEvents) {
-                setTimeout(a => {
-                    state.output.send([MIDI_EVENT.NOTE_ON, event.note, event.velocity])
-                }, event.start);
-                setTimeout(a => {
-                    state.output.send([MIDI_EVENT.NOTE_OFF, event.note, 0])
-                }, event.end);
-            }
-            for (const event of controlEvents) {
-                setTimeout(a => {
-                    state.output.send([MIDI_EVENT.CONTROL_CHANGE, event.control, event.value])
-                }, event.start);
-            }
-            for (const event of programEvents) {
-                setTimeout(a => {
-                    state.output.send([MIDI_EVENT.PROGRAM_CHANGE, event.program])
-                }, event.start);
-            }
+function getPlayTrackEvents(format, chunks) {
+    const tracks = []; // Size should be 1 for format 0 and 1. Format 2 can have multiple
+    if (format === TRACK_FORMAT.SINGLE_MULTICHANNEL_TRACK) { // 
+        assert(state.midiChunks.length === 2, `Expected Single track format to only have 1 header chunk and 1 track chunk`);
+        tracks.push(chunks[1]);
+    } else if (format === TRACK_FORMAT.SIMULTANEOUS_TRACKS) {
+        let trackEvents = chunks[1].events
+        for (let i = 2; i < chunks.length; i++) {
+            l(`Track in iteration ${i}`, trackEvents);
+            trackEvents = mergeTrackChunksEvents(trackEvents, chunks[i].events)
         }
-        setTimeout(() => {
-            scheduleEvents(noteEvents, controlEvents, programEvents)
-        }, 2000)
-        
+        tracks.push(trackEvents);
+    } else if (format === TRACK_FORMAT.INDEPENDENT_TRACKS) {
+        assert(false, `Unhandled multiple independent tracks`);
+    } else {
+        assert(false, `Unknown track format ${format} in header`);
+    }
+    return tracks;
+}
 
-        async function sendEvents(events) {
-            for (const event of events) {
-                if (event.deltaTime > 0) {
-                    await sleep(event.deltaTime);
-                }
-                if (!event.type) continue;
-                switch (event.type) {
-                    case MIDI_EVENT.NOTE_OFF:
-                    case MIDI_EVENT.NOTE_ON: {
-                        state.output.send([event.type, event.note, event.velocity]);
-                    } break;
-                    case MIDI_EVENT.PROGRAM_CHANGE: {
-                        assert(event.program >= 0 && event.program <= 127, `Event program was outside expected range ${event.program.toString(16)}`);
-                        state.output.send([event.type, event.program]);
-                    } break;
-                    case MIDI_EVENT.CONTROL_CHANGE: {
-                        assert(0 <= event.value && event.value <= 127, `Control Change values was outside expected range ${event.value.toString(16)}`);
-                        switch (event.control) {
-                            case CONTROL_FUNCTION.CHANNEL_VOLUME:  
-                            case CONTROL_FUNCTION.DAMPER_PEDAL: 
-                            case CONTROL_FUNCTION.SOSTENUTO: 
-                            case CONTROL_FUNCTION.SOFT_PEDAL: { // Supported functions
-                                state.output.send([event.type, event.control, event.value]);
-                            } break;
-                            default: {
-                                l('Unsuported control', event.control);
-                            }
-                        }
+// TODO: Draw note system
+// let notes = [];
+// for (let i = 0; i < 100; i++) {
+//     let r = Math.round((Math.random() * 10) - 5);
+//     notes.push([r, i]);
+// }
+
+// const bassCleffImg = new Image();
+// const wholeNoteImg = new Image();
+// wholeNoteImg.addEventListener('load', e => {
+//     console.clear()
+//     function myDraw(t) {
+//         draw(wholeNoteImg, notes, t);
+//         requestAnimationFrame(myDraw);
+//     }
+
+//     draw(wholeNoteImg, [], 0)
+    
+//     // requestAnimationFrame(myDraw)
+    
+// });
+// wholeNoteImg.src = "images/wholeNote.svg"
+// // Width 40
+// // Height 25
+// // Ratio = 40/25
+
+function playEventsByScheduling(output, noteEvents, controlEvents, programEvents) {
+    assert(output, `Expected output to exist but it did not`);
+    // TODO: Batch the events if possible
+    for (const event of noteEvents) {
+        setTimeout(a => {
+            output.send([MIDI_EVENT.NOTE_ON, event.note, event.velocity])
+        }, event.start);
+        setTimeout(a => {
+            output.send([MIDI_EVENT.NOTE_OFF, event.note, 0])
+        }, event.end);
+    }
+    for (const event of controlEvents) {
+        setTimeout(a => {
+            output.send([MIDI_EVENT.CONTROL_CHANGE, event.control, event.value])
+        }, event.start);
+    }
+    for (const event of programEvents) {
+        setTimeout(a => {
+            output.send([MIDI_EVENT.PROGRAM_CHANGE, event.program])
+        }, event.start);
+    }
+}
+
+async function playEventsBySleep(midiEvents) {
+    for (const event of midiEvents) {
+        if (event.deltaTime > 0) {
+            await sleep(event.deltaTime);
+        }
+        assert(event.type !== undefined && event.type !== null, `midiEvents should always have a type`);
+        switch (event.type) {
+            case MIDI_EVENT.NOTE_OFF:
+            case MIDI_EVENT.NOTE_ON: {
+                state.output.send([event.type, event.note, event.velocity]);
+            } break;
+            case MIDI_EVENT.PROGRAM_CHANGE: {
+                assert(event.program >= 0 && event.program <= 127, `Event program was outside expected range ${event.program.toString(16)}`);
+                state.output.send([event.type, event.program]);
+            } break;
+            case MIDI_EVENT.CONTROL_CHANGE: {
+                assert(0 <= event.value && event.value <= 127, `Control Change values was outside expected range ${event.value.toString(16)}`);
+                switch (event.control) {
+                    case CONTROL_FUNCTION.CHANNEL_VOLUME:  
+                    case CONTROL_FUNCTION.DAMPER_PEDAL: 
+                    case CONTROL_FUNCTION.SOSTENUTO: 
+                    case CONTROL_FUNCTION.SOFT_PEDAL: { // Supported functions
+                        state.output.send([event.type, event.control, event.value]);
                     } break;
                     default: {
-                        l('Unsuported midi', event.type);
+                        l('Unsuported control', event.control);
                     }
                 }
+            } break;
+            default: {
+                l('Unsuported midi', event.type);
             }
         }
     }
+}
+// ################### DEBUG FUNCTIONS (prefixed with debug) ##################
 
-    // let notes = [];
-    // for (let i = 0; i < 100; i++) {
-    //     let r = Math.round((Math.random() * 10) - 5);
-    //     notes.push([r, i]);
-    // }
+function debugChannels(tracks) {
+    // TODO: The only current files which does multiple channels also do multiple play tracks
+    const channels = new Set();
+    for (let i = 0; i < tracks.length; i++) {
+        let track = tracks[i];
+        for (const event of track.events) {
+            if (event.type === MIDI_EVENT.NOTE_ON) {
+                channels.add(event.channel);
+            }
+        }
+    }
+    return channels
+}
 
-    // const bassCleffImg = new Image();
-    // const wholeNoteImg = new Image();
-    // wholeNoteImg.addEventListener('load', e => {
-    //     console.clear()
-    //     function myDraw(t) {
-    //         draw(wholeNoteImg, notes, t);
-    //         requestAnimationFrame(myDraw);
-    //     }
+function debugEventCounter(chunks) {
+    let header = chunks[0];
+    let counts = [];
+    for (let i = 0; i < header.ntrks; i++) {
+        let counter = {};
+        counter[MIDI_EVENT.NOTE_OFF] = [];
+        counter[MIDI_EVENT.NOTE_ON] = [];
+        counter[MIDI_EVENT.POLYPHONIC_AFTERTOUCH] = [];
+        counter[MIDI_EVENT.CONTROL_CHANGE] = [];
+        counter[MIDI_EVENT.PROGRAM_CHANGE] = [];
+        counter[MIDI_EVENT.CHANNEL_AFTERTOUCH] = [];
+        counter[MIDI_EVENT.PITCH_BEND] = [];
+        counter["meta"] = [];
+        counter["sysex"] = [];
+        counter["min"] = Infinity;
+        counter["max"] = -Infinity;
+        counter["notes"] = {};
+        counts.push(counter);
 
-    //     draw(wholeNoteImg, [], 0)
-        
-    //     // requestAnimationFrame(myDraw)
-        
-    // });
-    // wholeNoteImg.src = "images/wholeNote.svg"
-    // // Width 40
-    // // Height 25
-    // // Ratio = 40/25
+        let track = chunks[i + 1];
+        assert(track.type === CHUNK_TYPE.TRACK, `Chunk ${i} expected track found ${track.type}`);
 
+        for (const event of track.events) {
+            if (!event.type) {
+                if (event.status === 0xFF) {
+                    counter["meta"].push(event)
+                } else {
+                    assert(event.status === 0xF0 || event.status === 0xF7, `Found event non-midi, non-meta, non-sysex event ${event}`);
+                    counter["sysex"].push(event)
+                }
+            } else {
+                counter[event.type].push(event)
+                if (event.note) {
+                    counter["min"] = Math.min(counter["min"], event.note);
+                    counter["max"] = Math.max(counter["max"], event.note);
+                }
 
+                if (event.type === MIDI_EVENT.NOTE_OFF || (event.type === MIDI_EVENT.NOTE_ON && event.velocity === 0)) {
+                    counter["notes"][event.note] -= 1
+                } else if (event.type === MIDI_EVENT.NOTE_ON) {
+                    if (counter["notes"][event.note] === undefined) {
+                        counter["notes"][event.note] = 0
+                    }
+                    counter["notes"][event.note] += 1
+
+                } 
+            }
+        }
+        for (let note in counter["notes"]) {
+            // TODO: Figure out what to do if the count is off for an otherwise fine file (e.g. This Game)
+            // assert(counter["notes"][note] === 0, `Expected Number of NOTE_ON and NOTE_OFF to be equal, but was off by ${counter["notes"][note]} for note ${note} in track ${i}`);
+        }
+    }
+    return counts;
 }
 
 function calcAccumulatedDeltaTimes(a) {
@@ -873,7 +848,7 @@ function calcAccumulatedDeltaTimes(a) {
     return result;
 }
 
-function mergeTrackChunks(a, b) {
+function mergeTrackChunksEvents(a, b) {
     const result = [];
     const aAccum = calcAccumulatedDeltaTimes(a);
     const bAccum = calcAccumulatedDeltaTimes(b);
@@ -921,6 +896,15 @@ function mergeTrackChunks(a, b) {
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ######################### TESTING CODE ############################
+
+function runTests() {
+    testParseVariableLengthValue();
+    testParseTempoMetaData();
+    testCalcAccumulatedDeltaTimes();
+    testMergeTracks();
 }
 
 /* Implements tests based on the examples from the MIDI specification
@@ -1131,7 +1115,7 @@ function testMergeTracks() {
     ];
     for (const test of tests) {
         let [input, expected] = test;
-        let result = mergeTrackChunks(...input);
+        let result = mergeTrackChunksEvents(...input);
 
         if (expected.length !== result.length) {
             console.log(`Expected ${input} gave result ${expected}, but was ${result}`);
@@ -1150,7 +1134,7 @@ function testMergeTracks() {
     // Test that inputs are not modified, but instead properly copied.
     let inputA = {deltaTime: 5};
     let inputB = {deltaTime: 5};
-    mergeTrackChunks([inputA], [inputB]);
+    mergeTrackChunksEvents([inputA], [inputB]);
     
     if (inputA.deltaTime !== 5 || inputB.deltaTime !== 5) {
         console.log("Expected input to mergeTracChunks to be unmodified")
