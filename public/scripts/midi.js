@@ -464,15 +464,17 @@ function initialize() {
     l(MIDI_EVENT)
     testParseVariableLengthValue();
     testParseTempoMetaData();
+    testCalcAccumulatedDeltaTimes();
+    testMergeTracks();
 
     const state = {
-        midi: null,
+        midiChunks: null,
         output: null
     };
 
     initializeFileInput(async buffer => {
         const chunks = parseMidiFile(buffer);
-        state.midi = chunks;
+        state.midiChunks = chunks;
         play()
     });
 
@@ -572,26 +574,29 @@ function initialize() {
 
     function play() {
         l("\nState:", state)
-        l("Event Counts:", eventCounter(state.midi));
+        l("Event Counts:", eventCounter(state.midiChunks));
         // if (!state.midi || !state.output) return;
 
         // TODO: Decide on a proper representation for track (e.g. header and tracks. Header contains format, division. There are <ntrks> track chunks in tracks. Each track chunk contains at least 1 event possibly more. Delta times are translated into ms, or there is some easy way to do it. )
 
         // MIDI is initial tokenization
         // We then also want to parse
-        let header = state.midi[0];
+        let header = state.midiChunks[0];
         const division = header.division;
         const format = header.format;
         assert(format === 0 || format === 1, `Expected file format to be 0 or 1, it was ${format}`);
-        let dataTrack = 0, playTrack = 0;
+
+        const tracks = []; // Size should be 1 for format 0 and 1. Format 2 can have multiple
         if (format === TRACK_FORMAT.SINGLE_MULTICHANNEL_TRACK) { // 
-            dataTrack = state.midi[1]; 
-            playTrack = state.midi[1];
+            assert(state.midiChunks.length === 2, `Expected Single track format to only have 1 header chunk and 1 track chunk`);
+            tracks.push(state.midiChunks[1]);
         } else if (format === TRACK_FORMAT.SIMULTANEOUS_TRACKS) {
-            dataTrack = state.midi[1];
-            playTrack = state.midi[2];
+            let track = state.midiChunks[1]
+            for (let i = 2; i < header.ntrks; i++) {
+                track = mergeTrackChunks(track, state.midiChunks[i])
+            }
+            tracks.push(track);
         } else if (format === TRACK_FORMAT.INDEPENDENT_TRACKS) {
-            assert(false, `Independent tracks not sure how to handle`)
         } else {
             assert(false, `Unknown track format ${format} in header`);
         }
@@ -616,8 +621,9 @@ function initialize() {
                         timeSignatures.push(event);
                     } break;
                 }
-            }
+            } 
         }
+        // TODO: If format 1, merge the tracks into one mega track for easier play and give the note a track value
 
         assert(setTempos.length > 0, `Expected to find at least 1 'set tempo' in first track`);
 
@@ -857,6 +863,62 @@ function initialize() {
 
 }
 
+function calcAccumulatedDeltaTimes(a) {
+    const result = [];
+    let runningTime = 0;
+    for (const e of a) {
+        runningTime += e.deltaTime;
+        result.push(runningTime);
+    }
+    return result;
+}
+
+function mergeTrackChunks(a, b) {
+    const result = [];
+    const aAccum = calcAccumulatedDeltaTimes(a);
+    const bAccum = calcAccumulatedDeltaTimes(b);
+
+    let i = 0, j = 0, prevTime = 0;
+    while (i < a.length && j < b.length) {
+        if (aAccum[i] <= bAccum[j]) {
+            result.push({
+                ...a[i], // Copy
+                deltaTime: aAccum[i] - prevTime
+            });
+            prevTime = aAccum[i];
+            i++;
+        } else {
+            result.push({
+                ...b[j], // Copy
+                deltaTime: bAccum[j] - prevTime
+            });
+            prevTime = bAccum[j];
+            j++;
+        }
+    }
+    if (i >= a.length) { // Rest of b
+        while (j < b.length) {
+            result.push({
+                ...b[j], // Copy
+                deltaTime: bAccum[j] - prevTime
+            });
+            prevTime = bAccum[j];
+            j++;
+        }
+    } else {            // Rest of a
+        while (i < a.length) {
+            result.push({
+                ...a[i], // Copy
+                deltaTime: aAccum[i] - prevTime
+            });
+            prevTime = aAccum[i];
+            i++;
+        }
+        
+    }
+    return result; 
+}
+
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -927,4 +989,171 @@ function testParseTempoMetaData() {
             console.log(`Expected ${input} gave result ${expected}, but was ${result}`);
         }
     }
+}
+
+function testCalcAccumulatedDeltaTimes() {
+    const tests = [
+        [   // Test 1
+            [   // Inputs
+                {deltaTime: 0}, {deltaTime: 0}
+            ],
+            [   // Output
+               0, 0,
+            ] 
+        ], 
+        [   
+            [   // Inputs
+                {deltaTime: 0}, {deltaTime: 5}, {deltaTime: 0}
+            ],
+            [   // Output
+               0, 5, 5
+            ] 
+        ], 
+        [   
+            [   // Inputs
+                {deltaTime: 0}, {deltaTime: 5}, {deltaTime: 5}
+            ],
+            [   // Output
+               0, 5, 10
+            ] 
+        ],        
+        [
+            [   // Inputs
+                {deltaTime: 10}, {deltaTime: 20}, {deltaTime: 30}, 
+            ],
+            [   // Output
+               10, 30, 60
+            ] 
+        ],
+        [
+            [   // Inputs
+                {deltaTime: 0}, {deltaTime: 25}, {deltaTime: 1}, 
+            ],
+            [   // Output
+               0, 25, 26
+            ] 
+        ],
+
+
+    ];
+      for (const test of tests) {
+        let [input, expected] = test;
+        let result = calcAccumulatedDeltaTimes(input);
+
+        if (expected.length !== result.length) {
+            console.log(`Expected ${input} gave result ${expected}, but was ${result}`);
+        } else {
+            for (let i = 0; i < result.length; i++) {
+                if (result[i] !== expected[i]) {
+                    console.log(`Expected ${input} gave result ${expected}, but was ${result}`);
+                    break;
+                }
+            }
+        }
+    } 
+
+}
+
+function testMergeTracks() {
+    const tests = [
+        [   // Test 1
+            [   // Inputs
+                [{deltaTime: 0}, {deltaTime: 0}], // a
+                [{deltaTime: 0}]  // b
+            ],
+            [   // Output
+                {deltaTime: 0}, {deltaTime: 0}, {deltaTime: 0}
+            ] 
+        ], 
+        [   
+            [   // Inputs
+                [{deltaTime: 0}, {deltaTime: 1}], // a
+                [{deltaTime: 0}]  // b
+            ],
+            [   // Output
+                {deltaTime: 0}, {deltaTime: 0}, {deltaTime: 1}
+            ] 
+        ], 
+        [   
+            [   // Inputs
+                [{deltaTime: 5}, {deltaTime: 0}], // a
+                [{deltaTime: 0}]  // b
+            ],
+            [   // Output
+                {deltaTime: 0}, {deltaTime: 5}, {deltaTime: 0}
+            ] 
+        ], 
+        [
+            [   // Inputs
+                [{deltaTime: 25}, {deltaTime: 1}], // a
+                [{deltaTime: 0}]  // b
+            ],
+            [   // Output
+                {deltaTime: 0}, {deltaTime: 25}, {deltaTime: 1}
+            ] 
+        ],
+        [
+            [   // Inputs
+                [{deltaTime: 0}, {deltaTime: 1}], // a
+                [{deltaTime: 25}]  // b
+            ],
+            [   // Output
+                {deltaTime: 0}, {deltaTime: 1}, {deltaTime: 24}
+            ] 
+        ],
+        [
+            [   // Inputs
+                [{deltaTime: 40}, {deltaTime: 30}], // a
+                [{deltaTime: 25}]  // b
+            ],
+            [   // Output
+                {deltaTime: 25}, {deltaTime: 15}, {deltaTime: 30}
+            ] 
+        ],
+        [
+            [   // Inputs
+                [{deltaTime: 10}, {deltaTime: 20}], // a
+                [{deltaTime: 10}]  // b
+            ],
+            [   // Output
+                {deltaTime: 10}, {deltaTime: 0}, {deltaTime: 20}
+            ] 
+        ],
+        [
+            [   // Inputs
+                [{deltaTime: 0}, {deltaTime: 0}, {deltaTime: 20},{deltaTime: 10},{deltaTime: 0},{deltaTime: 40},], // a
+                [{deltaTime: 10}, {deltaTime: 0},{deltaTime: 30},{deltaTime: 0},{deltaTime: 0},{deltaTime: 50},{deltaTime: 10},]  // b
+            ],
+            [   // Output
+                {deltaTime: 0}, {deltaTime: 0}, {deltaTime: 10}, {deltaTime: 0}, {deltaTime: 10}, {deltaTime: 10}, {deltaTime: 0}, {deltaTime: 10}, {deltaTime: 0}, {deltaTime: 0}, {deltaTime: 30}, {deltaTime: 20}, {deltaTime: 10},
+            ] 
+        ],
+    ];
+    for (const test of tests) {
+        let [input, expected] = test;
+        let result = mergeTrackChunks(...input);
+
+        if (expected.length !== result.length) {
+            console.log(`Expected ${input} gave result ${expected}, but was ${result}`);
+        } else {
+            for (let i = 0; i < result.length; i++) {
+                let e = expected[i].deltaTime;
+                let a = result[i].deltaTime;
+                if (a !== e) {
+                    console.log(`Expected`, input, `gave result ${e}, but was ${a} at index ${i}`);
+                    break;
+                }
+            }
+        }
+    }
+
+    // Test that inputs are not modified, but instead properly copied.
+    let inputA = {deltaTime: 5};
+    let inputB = {deltaTime: 5};
+    mergeTrackChunks([inputA], [inputB]);
+    
+    if (inputA.deltaTime !== 5 || inputB.deltaTime !== 5) {
+        console.log("Expected input to mergeTracChunks to be unmodified")
+    }
+
 }
