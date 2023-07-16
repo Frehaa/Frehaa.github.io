@@ -11,7 +11,14 @@
   </style>
 </head>
 <body onload="initialize()">
-  <input type="file" id="file-input"><br>
+  <input type="file" id="file-input">
+  <select id="midi-input-select" name="MIDI Input">
+    <option value="">(No MIDI Input)</option>
+  </select>
+  <select id="midi-output-select" name="MIDI Output">
+    <option value="">(No MIDI Output)</option>
+  </select>
+  <br>
   <canvas id="note-canvas" width="1800" height="1000"></canvas>
 </body>
 </html>

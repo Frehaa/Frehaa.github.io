@@ -258,6 +258,32 @@ function parseEvent(dataView, offset, runningStatus) {
     return [event, offset];
 }
 
+function initializeMidiIoSelects(midiState) {
+    const midiOutputSelect = document.getElementById('midi-output-select');
+    midiOutputSelect.addEventListener('change', e => {
+        let value = midiOutputSelect.value
+        l('change output', value)
+        if (midiState.outputs.has(value)) {
+            let output = midiState.outputs.get(value);
+            midiState.currentOutput = output;
+        } else {
+            midiState.currentOutput = null;
+        }
+    });
+
+    const midiInputSelect = document.getElementById('midi-input-select');
+    midiInputSelect.addEventListener('change', e => {
+        let value = midiInputSelect.value
+        l('change input', value)
+        if (midiState.outputs.has(value)) {
+            let output = midiState.outputs.get(value);
+            midiState.currentOutput = output;
+        } else {
+            midiState.currentOutput = null;
+        }
+    });
+}
+
 function initializeFileInput(callback) {
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -426,15 +452,15 @@ function handleOnMidiMessage(event) {
     }
 }
 
-function handleMidiAccessStateChange(event) {
+function handleMidiAccessglobalMidiChange(event) {
     const midiAccess = event.currentTarget;
     const port = event.port;
 
-    l('MidiAccess State Change', event)
+    l('MidiAccess globalMidi Change', event)
 }
 
-function handleMidiIOStateChange(event) {
-    l('MidiIO State Change', event);
+function handleMidiIOglobalMidiChange(event) {
+    l('MidiIO globalMidi Change', event);
 }
 
 function parseMidiFile(buffer) {
@@ -470,67 +496,76 @@ function initialize() {
     l(MIDI_EVENT)
     runTests();
 
-    const state = {
-        midiChunks: null,
-        output: null
-    };
+    const globalMidi = {
+        chunks: null,
+        inputs: { has: () => { return false; } },
+        outputs: { has: () => { return false; } },
+        currentInput: null,
+        currentOutput: null
+    }
 
+    initializeMidiIoSelects(globalMidi);
     initializeFileInput(async buffer => {
         const chunks = parseMidiFile(buffer);
-        state.midiChunks = chunks;
+        globalMidi.chunks = chunks;
         play()
     });
 
+
+
+    function addSelectOption(select, list) {
+        list.forEach((v, i, a) => {
+            const option = document.createElement('option');
+            option.value = i;
+            option.innerHTML = i
+            select.appendChild(option);
+        });
+    }
+
     initializeMIDIUSBAccess(
         midiAccess => {
+            // TODO: Handle disconnects and reconnects
+            // midiAccess.onglobalMidichange = handleMidiAccessStateChange;
             l("Inputs:", midiAccess.inputs, " - Outputs:", midiAccess.outputs, " - Sysex:", midiAccess.sysexEnabled, midiAccess);
-            // midiAccess.onstatechange = handleMidiAccessStateChange;
+            globalMidi.inputs = midiAccess.inputs;
+            globalMidi.outputs = midiAccess.outputs;
 
-            midiAccess.inputs.forEach(input => {
-                // input.onstatechange = handleMidiIOStateChange;
-                input.onmidimessage = handleOnMidiMessage;
-            });
-
-            midiAccess.outputs.forEach(output => {
-                l(output)
-                state.output = output;
-            });
+            const midiInputSelect = document.getElementById('midi-input-select');
+            addSelectOption(midiInputSelect, midiAccess.inputs);
+            let entry = midiAccess.inputs.entries().next();
+            if (!entry.done) {
+                let [value, input] = entry.value;
+                midiInputSelect.value = value;
+                globalMidi.currentInput = input;
+            }
+            
+            const midiOutputSelect = document.getElementById('midi-output-select');
+            addSelectOption(midiOutputSelect, midiAccess.outputs);
+            entry = midiAccess.outputs.entries().next();
+            if (!entry.done) {
+                let [value, input] = entry.value;
+                midiOutputSelect.value = value;
+                globalMidi.currentOutput = input;
+            }
+            l(globalMidi)
         }, 
         error => {
             console.log("Failed to access MIDI devices:", error);
         }
     );
 
-    const b = document.createElement('button');
-    b.innerHTML = "Play"
-    document.body.appendChild(b);
-    let p = false;
-
-    b.onclick = function(e) {
-        if (state.output) {
-            if (!p) {
-                state.output.send([0x90, 0x40, 0x30]);
-            } else {
-                state.output.send([0x90, 0x40, 0x00]);
-            }
-            p = !p;
-        }
-    }
-
-
-
     function play() {
-        l("\nState:", state)
-        l("Event Counts:", debugEventCounter(state.midiChunks));
+        l("\nGlobal MIDI:", globalMidi)
+        l("Event Counts:", debugEventCounter(globalMidi.chunks));
 
         // TODO: Decide on a proper representation for track (e.g. header and tracks. Header contains format, division. There are <ntrks> track chunks in tracks. Each track chunk contains at least 1 event possibly more. Delta times are translated into ms, or there is some easy way to do it. )
 
-        let header = state.midiChunks[0];
+        let header = globalMidi.chunks[0];
         const division = header.division;
         const format = header.format;
         assert(format === 0 || format === 1, `Expected file format to be 0 or 1, it was ${format}`);
         l(`Format ${format} division ${division}`);
-        const playTracks = getPlayTrackEvents(format, state.midiChunks);
+        const playTracks = getPlayTrackEvents(format, globalMidi.chunks);
         l(`Play tracks:`, playTracks);
 
         const topLineHeight = 560;
@@ -541,14 +576,14 @@ function initialize() {
         let tickToMsFactor = (tempo / division) / 1000;
         for (let i = 0; i < playTracks.length; i++) {
             assert(i === 0, `This should not happen while we do not support format 2`);
-            // const track = state.midiChunks[1]; 
+            // const track = globalMidi.chunks[1]; 
             l(`Track ${i}`, playTracks[i])
 
             // Create array of notes to draw
             const noteEvents = [];
             const controlEvents = [];
             const programEvents = [];
-            const startedNotes = {}; // Notes which are stated but not ended.
+            const startedNotes = {}; // Notes which are globalMidid but not ended.
             let runningTime = 0
 
             // TODO: Start by ignoring different channels. This may result in bugs if different channels play the same note
@@ -620,8 +655,20 @@ function initialize() {
             const timeFromTopToBottomMs = 2000;
             const msToPixel = topLineHeight / timeFromTopToBottomMs;
             const noteWidth = 20
+            const noteFill = [
+                "#54478cff",
+                "#2c699aff",
+                "#048ba8ff",
+                "#0db39eff",
+                "#16db93ff",
+                "#83e377ff",
+                "#b9e769ff",
+                "#efea5aff",
+                "#f1c453ff",
+                "#f29e4cff",
+            ]
             let start = null;
-            function animateNotes(t) {
+            function animateFallingNotes(t) {
                 if (start === null) { // Initialize Start
                     start = t;
                 }
@@ -629,10 +676,17 @@ function initialize() {
 
                 const elapsed = t - start;
 
+                // TODO: Write in H, M, S, M
+                // TODO: Slider with min and max
                 ctx.font = "26px Georgia";
+                ctx.fillStyle = "black"
                 ctx.fillText((elapsed -2000), 50, 100);
                 
-                for (const event of noteEvents) {
+                for (let i = 0; i < noteEvents.length; i++) {
+                    const event = noteEvents[i];
+
+                    ctx.fillStyle = noteFill[i % noteFill.length];
+                    
                     const top = (-event.end + elapsed) * msToPixel; 
                     const x = 10 + event.note * 14 - noteWidth/2;
                     const height = (event.end - event.start) * msToPixel;
@@ -645,14 +699,14 @@ function initialize() {
                         ctx.fillRect(x, top, noteWidth, height);
                     }            
                 }
-                requestAnimationFrame(animateNotes)
+                requestAnimationFrame(animateFallingNotes)
             }
 
-            requestAnimationFrame(animateNotes)
+            requestAnimationFrame(animateFallingNotes)
 
-            if (state.output) {
+            if (globalMidi.currentOutput) {
                 setTimeout(() => {
-                    playEventsByScheduling(state.output, noteEvents, controlEvents, programEvents)
+                    playEventsByScheduling(globalMidi.currentOutput, noteEvents, controlEvents, programEvents)
                 }, timeFromTopToBottomMs)
             } else {
                 console.log("No output found so wont be playing.")
@@ -665,7 +719,7 @@ function initialize() {
 function getPlayTrackEvents(format, chunks) {
     const tracks = []; // Size should be 1 for format 0 and 1. Format 2 can have multiple
     if (format === TRACK_FORMAT.SINGLE_MULTICHANNEL_TRACK) { // 
-        assert(state.midiChunks.length === 2, `Expected Single track format to only have 1 header chunk and 1 track chunk`);
+        assert(chunks.length === 2, `Expected Single track format to only have 1 header chunk and 1 track chunk`);
         tracks.push(chunks[1]);
     } else if (format === TRACK_FORMAT.SIMULTANEOUS_TRACKS) {
         let trackEvents = chunks[1].events
@@ -709,9 +763,9 @@ function getPlayTrackEvents(format, chunks) {
 // // Ratio = 40/25
 
 function playEventsByScheduling(output, noteEvents, controlEvents, programEvents) {
-    assert(output, `Expected output to exist but it did not`);
-    // TODO: Batch the events if possible
+    // TODO: Batch the events if possible to avoid needing multiple timouts 
     for (const event of noteEvents) {
+        assert(typeof event.note === 'number', `Event note should be a number, but was ${event.note}`);
         setTimeout(a => {
             output.send([MIDI_EVENT.NOTE_ON, event.note, event.velocity])
         }, event.start);
@@ -731,7 +785,7 @@ function playEventsByScheduling(output, noteEvents, controlEvents, programEvents
     }
 }
 
-async function playEventsBySleep(midiEvents) {
+async function playEventsBySleep(output, midiEvents) {
     for (const event of midiEvents) {
         if (event.deltaTime > 0) {
             await sleep(event.deltaTime);
@@ -740,11 +794,11 @@ async function playEventsBySleep(midiEvents) {
         switch (event.type) {
             case MIDI_EVENT.NOTE_OFF:
             case MIDI_EVENT.NOTE_ON: {
-                state.output.send([event.type, event.note, event.velocity]);
+                output.send([event.type, event.note, event.velocity]);
             } break;
             case MIDI_EVENT.PROGRAM_CHANGE: {
                 assert(event.program >= 0 && event.program <= 127, `Event program was outside expected range ${event.program.toString(16)}`);
-                state.output.send([event.type, event.program]);
+                output.send([event.type, event.program]);
             } break;
             case MIDI_EVENT.CONTROL_CHANGE: {
                 assert(0 <= event.value && event.value <= 127, `Control Change values was outside expected range ${event.value.toString(16)}`);
@@ -753,7 +807,7 @@ async function playEventsBySleep(midiEvents) {
                     case CONTROL_FUNCTION.DAMPER_PEDAL: 
                     case CONTROL_FUNCTION.SOSTENUTO: 
                     case CONTROL_FUNCTION.SOFT_PEDAL: { // Supported functions
-                        state.output.send([event.type, event.control, event.value]);
+                        output.send([event.type, event.control, event.value]);
                     } break;
                     default: {
                         l('Unsuported control', event.control);
