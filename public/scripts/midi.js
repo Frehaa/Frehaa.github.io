@@ -258,6 +258,13 @@ function parseEvent(dataView, offset, runningStatus) {
     return [event, offset];
 }
 
+const emptyIO = {
+    send: () => {}
+};
+const emptyMap = {
+    has: () => { return false; }
+}
+
 function initializeMidiIoSelects(midiState) {
     const midiOutputSelect = document.getElementById('midi-output-select');
     midiOutputSelect.addEventListener('change', e => {
@@ -267,7 +274,7 @@ function initializeMidiIoSelects(midiState) {
             let output = midiState.outputs.get(value);
             midiState.currentOutput = output;
         } else {
-            midiState.currentOutput = null;
+            midiState.currentOutput = emptyIO;
         }
     });
 
@@ -279,7 +286,7 @@ function initializeMidiIoSelects(midiState) {
             let output = midiState.outputs.get(value);
             midiState.currentOutput = output;
         } else {
-            midiState.currentOutput = null;
+            midiState.currentOutput = emptyIO;
         }
     });
 }
@@ -491,18 +498,17 @@ function parseMidiFile(buffer) {
     return chunks;
 }
 
-
 function initialize() {
     l(MIDI_EVENT)
     runTests();
 
     const globalMidi = {
         chunks: null,
-        inputs: { has: () => { return false; } },
-        outputs: { has: () => { return false; } },
-        currentInput: null,
-        currentOutput: null
-    }
+        inputs: emptyMap,
+        outputs: emptyMap,
+        currentInput: emptyIO,
+        currentOutput: emptyIO
+    };
 
     initializeMidiIoSelects(globalMidi);
     initializeFileInput(async buffer => {
@@ -704,14 +710,9 @@ function initialize() {
 
             requestAnimationFrame(animateFallingNotes)
 
-            if (globalMidi.currentOutput) {
-                setTimeout(() => {
-                    playEventsByScheduling(globalMidi.currentOutput, noteEvents, controlEvents, programEvents)
-                }, timeFromTopToBottomMs)
-            } else {
-                console.log("No output found so wont be playing.")
-            }
- 
+            setTimeout(() => {
+                playEventsByScheduling(globalMidi, noteEvents, controlEvents, programEvents)
+            }, timeFromTopToBottomMs)
         }
     }
 }
@@ -762,25 +763,25 @@ function getPlayTrackEvents(format, chunks) {
 // // Height 25
 // // Ratio = 40/25
 
-function playEventsByScheduling(output, noteEvents, controlEvents, programEvents) {
+function playEventsByScheduling(state, noteEvents, controlEvents, programEvents) {
     // TODO: Batch the events if possible to avoid needing multiple timouts 
     for (const event of noteEvents) {
         assert(typeof event.note === 'number', `Event note should be a number, but was ${event.note}`);
         setTimeout(a => {
-            output.send([MIDI_EVENT.NOTE_ON, event.note, event.velocity])
+            state.currentOutput.send([MIDI_EVENT.NOTE_ON, event.note, event.velocity])
         }, event.start);
         setTimeout(a => {
-            output.send([MIDI_EVENT.NOTE_OFF, event.note, 0])
+            state.currentOutput.send([MIDI_EVENT.NOTE_OFF, event.note, 0])
         }, event.end);
     }
     for (const event of controlEvents) {
         setTimeout(a => {
-            output.send([MIDI_EVENT.CONTROL_CHANGE, event.control, event.value])
+            state.currentOutput.send([MIDI_EVENT.CONTROL_CHANGE, event.control, event.value])
         }, event.start);
     }
     for (const event of programEvents) {
         setTimeout(a => {
-            output.send([MIDI_EVENT.PROGRAM_CHANGE, event.program])
+            state.currentOutput.send([MIDI_EVENT.PROGRAM_CHANGE, event.program])
         }, event.start);
     }
 }
