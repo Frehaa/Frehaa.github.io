@@ -507,7 +507,7 @@ function handleMidiIOglobalMidiChange(event) {
 
 
 
-function initialize() {
+function main() {
     l(MIDI_EVENT)
     runTests();
 
