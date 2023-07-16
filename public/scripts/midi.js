@@ -466,7 +466,7 @@ function drawNoteNamesAndTopLine(top) {
     ctx.stroke();
 }
 
-
+// ################# EVENT HANDLING FUNCTIONS #######################
 
 function handleOnMidiMessage(event) {
     const data = event.data;
@@ -505,13 +505,13 @@ function handleMidiIOglobalMidiChange(event) {
     l('MidiIO globalMidi Change', event);
 }
 
-
+// ############# MAIN #############
 
 function main() {
     l(MIDI_EVENT)
     runTests();
 
-    const globalMidi = {
+    const midi = {
         chunks: null,
         inputs: emptyMap,
         outputs: emptyMap,
@@ -519,11 +519,11 @@ function main() {
         currentOutput: emptyIO
     };
 
-    initializeMidiIoSelects(globalMidi);
-    initializeFileInput(async buffer => {
+    initializeMidiIoSelects(midi);
+    initializeFileInput(buffer => {
         const chunks = parseMidiFile(buffer);
-        globalMidi.chunks = chunks;
-        play(globalMidi)
+        midi.chunks = chunks;
+        play(midi)
     });
 
     initializeMIDIUSBAccess(
@@ -531,8 +531,8 @@ function main() {
             // TODO: Handle disconnects and reconnects
             // midiAccess.onglobalMidichange = handleMidiAccessStateChange;
             l("Inputs:", midiAccess.inputs, " - Outputs:", midiAccess.outputs, " - Sysex:", midiAccess.sysexEnabled, midiAccess);
-            globalMidi.inputs = midiAccess.inputs;
-            globalMidi.outputs = midiAccess.outputs;
+            midi.inputs = midiAccess.inputs;
+            midi.outputs = midiAccess.outputs;
 
             const midiInputSelect = document.getElementById('midi-input-select');
             addSelectOption(midiInputSelect, midiAccess.inputs);
@@ -540,7 +540,7 @@ function main() {
             if (!entry.done) {
                 let [value, input] = entry.value;
                 midiInputSelect.value = value;
-                globalMidi.currentInput = input;
+                midi.currentInput = input;
             }
             
             const midiOutputSelect = document.getElementById('midi-output-select');
@@ -549,9 +549,9 @@ function main() {
             if (!entry.done) {
                 let [value, input] = entry.value;
                 midiOutputSelect.value = value;
-                globalMidi.currentOutput = input;
+                midi.currentOutput = input;
             }
-            l(globalMidi)
+            l(midi)
         }, 
         error => {
             console.log("Failed to access MIDI devices:", error);
