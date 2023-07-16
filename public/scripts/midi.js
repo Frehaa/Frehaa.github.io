@@ -569,147 +569,111 @@ function play(midi) {
     l(`Format ${format} division ${division}`);
     l(`Play tracks:`, playTracks);
 
+    const canvas = document.getElementById('note-canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     const topLineHeight = 560;
     drawNoteNamesAndTopLine(topLineHeight);
 
-    // SPLIT THE EVENTS, GIVE THEM START AND END IN MILLISECONDS, AND DRAW AND PLAY THEM.
-    let tempo = parseTempoMetaData([0x07, 0xA1, 0x20]) // Default value of tempo 500.000 
-    let tickToMsFactor = (tempo / division) / 1000;
     for (let t = 0; t < playTracks.length; t++) {
         assert(t === 0, `Found ${playTracks.length} tracks, which should not happen while we do not support format 2`);
         l(`Track ${t}`, playTracks[t])
 
-        // Create array of notes to draw
-        const noteEvents = [];
-        const controlEvents = [];
-        const programEvents = [];
-        const startedNotes = {}; // Notes which are started but not ended.
-        let runningTimeMilliseconds = 0
-
-        for (let i = 0; i < playTracks[t].length; i++) {
-            const event = playTracks[t][i];
-            runningTimeMilliseconds += event.deltaTime * tickToMsFactor;
-            // l(runningTime, event)
-            if (event.status === STATUS.META_EVENT) {
-                switch (event.metaType) {
-                    case META_EVENT.KEY_SIGNATURE: {
-                    } break;
-                    case META_EVENT.SET_TEMPO: {
-                        tempo = parseTempoMetaData(event.metaData);
-                        tickToMsFactor = (tempo / division) / 1000;
-                    } break;
-                    case META_EVENT.TIME_SIGNATURE: { 
-                    } break;
-                }
-            }
-            else if (event.type === MIDI_EVENT.NOTE_OFF || (event.type === MIDI_EVENT.NOTE_ON && event.velocity === 0)) {
-                // assert(event.note !== null, `Expected ${event.note} not to be null.`);
-                let note = startedNotes[event.note];
-                if (note === null || note === undefined) continue;
-                note.end = runningTimeMilliseconds;
-                noteEvents.push(note);
-                startedNotes[event.note] = null;
-            }
-            else if (event.type === MIDI_EVENT.NOTE_ON) {
-                let note = startedNotes[event.note];
-                // assert(note === null || note === undefined, `Expected ${event.note} to be null on channel ${event.channel}, was ${startedNotes[event.note]}`);
-                if (note === null || note === undefined) {
-                    startedNotes[event.note] = {
-                        note: event.note,
-                        start: runningTimeMilliseconds,
-                        velocity: event.velocity,
-                        channel: event.channel
-                    }
-                } else { // TODO: Figure out what to do about the same note being played twice before being turned off (It is hard to hear a difference. So maybe it does not matter?)
-                    l(`INFO: Double note ${event.note} at event ${i} at time ${runningTimeMilliseconds}`)
-                    note.end = runningTimeMilliseconds;
-                    noteEvents.push(note);
-                    startedNotes[event.note] = {
-                        note: event.note,
-                        start: runningTimeMilliseconds,
-                        velocity: event.velocity,
-                        channel: event.channel
-                    };
-                }
-            } else if (event.type === MIDI_EVENT.CONTROL_CHANGE) {
-                controlEvents.push({
-                    start: runningTimeMilliseconds,
-                    channel: event.channel,
-                    control: event.control,
-                    value: event.value
-                });
-            } else if (event.type === MIDI_EVENT.PROGRAM_CHANGE) {
-                programEvents.push({
-                    start: runningTimeMilliseconds,
-                    channel: event.channel,
-                    program: event.program,
-                });
-            }             
-        }
-        l(noteEvents, controlEvents, programEvents)
-    
-        const canvas = document.getElementById('note-canvas');
-        const ctx = canvas.getContext('2d');
-        const timeFromTopToBottomMs = 2000;
-        const msToPixel = topLineHeight / timeFromTopToBottomMs;
-        const noteWidth = 20
-        // TODO: More choices of note coloring
-        const noteFill = [
-            "#54478cff",
-            "#2c699aff",
-            "#048ba8ff",
-            "#0db39eff",
-            "#16db93ff",
-            "#83e377ff",
-            "#b9e769ff",
-            "#efea5aff",
-            "#f1c453ff",
-            "#f29e4cff",
-        ]
+        const [noteEvents, controlEvents, programEvents] = splitEventsAndConvertToMilliseconds(playTracks[t], division);
 
         noteEvents.sort((a, b) => {
             if (a.start < b.start) return -1;
             if (b.start < a.start) return 1;
             return 0;
-        });
-        
-        let start = null;
-        function animateFallingNotes(t) {
-            if (start === null) { // Initialize Start
-                start = t;
-            }
+        });    
+
+        // TODO: INTRODUCE SOME INTERACTIVITY (STEP 1. BATCH NOTE EVENTS - STEP 2. DISPLAY IN TIME STEPS - STEP 3. LISTEN TO RIGHT CORDS)
+
+        const noteEventsBatched = batchNoteEvents(noteEvents);
+        l(`Note events batched`, noteEventsBatched)
+
+        // TODO: Draw a bit more than just the group so we can compare to other notes
+        function drawGroup(group) {
+            const msToPixel = topLineHeight / 2000;
             ctx.clearRect(0, 0, canvas.width, topLineHeight);
-
-            const elapsed = t - start;
-
-            // TODO: Write in H, M, S, M
-            // TODO: Slider with min and max
-            ctx.font = "26px Georgia";
-            ctx.fillStyle = "black"
-            ctx.fillText((elapsed -2000), 50, 100);
-            
-            for (let i = 0; i < noteEvents.length; i++) {
-                const event = noteEvents[i];
-                const left = 10 + event.note * 14 - noteWidth/2;
-                const top = (-event.end + elapsed) * msToPixel; 
+            for (let i = 0; i < group.length; i++) {
+                const event = group[i];
+                const left = 10 + event.note * 14 - 20/2;
                 const height = (event.end - event.start) * msToPixel;
+                const top = topLineHeight - height
 
-                if (elapsed < event.start) break; // Stop processing more events since they wont be shown anyway.
-                if (top > topLineHeight) continue;  // TODO: Stop processing notes already moved outside window. Use a running start index.
-                ctx.fillStyle = noteFill[i % noteFill.length];
-                if (topLineHeight - top < height) {
-                    ctx.fillRect(left, top, noteWidth, topLineHeight - top);
-                } else {
-                    ctx.fillRect(left, top, noteWidth, height);
-                }            
+                ctx.fillRect(left, top, 20, height);
             }
-            requestAnimationFrame(animateFallingNotes)
         }
-        requestAnimationFrame(animateFallingNotes)
 
-        setTimeout(() => {
-            playEventsByScheduling(midi, noteEvents, controlEvents, programEvents)
-        }, timeFromTopToBottomMs)
+        drawGroup(noteEventsBatched[0]);
+
+        const currentlyPressed = new Set();
+        let lastPedal = false;
+        let currentNoteGroup = 0;
+        midi.currentInput.onmidimessage = (e) => {
+            switch (e.data[0] & 0xF0) {
+                case MIDI_EVENT.NOTE_ON: {
+                    if (e.data[2] === 0) { // If velocity is 0 then it is a lift
+                        currentlyPressed.delete(e.data[1]);
+                    } else {
+                        currentlyPressed.add(e.data[1]);
+                    }
+                } break;
+                case MIDI_EVENT.NOTE_OFF: {
+                    currentlyPressed.delete(e.data[1]);
+                    // Remove note form currently pressed
+                } break;
+                case MIDI_EVENT.CONTROL_CHANGE: {
+                    if (e.data[1] === CONTROL_FUNCTION.DAMPER_PEDAL) {
+                        if (e.data[2] === 0) {
+                            lastPedal = false;
+                        } else if (lastPedal === false) {
+                            // lastPedal = true; // This gives fast return to start
+                            currentNoteGroup = Math.max(0, currentNoteGroup - 1);
+                            drawGroup(noteEventsBatched[currentNoteGroup])
+                        }
+                    } 
+                } break;
+                default: {// Do not know yet? Maybe do nothing
+                } break
+            }
+            
+            const currentGroup = noteEventsBatched[currentNoteGroup]
+            if (currentlyPressed.size === currentGroup.length) {
+                let success = true;
+                for (let i = 0; i < currentGroup.length; i++) {
+                    const event = currentGroup[i];
+                    if (!currentlyPressed.has(event.note)) {
+                        success = false;
+                        break
+                    }
+                }
+
+                if (success) {
+                    currentNoteGroup++;
+                    if (currentNoteGroup === noteEventsBatched.length) {
+                        alert('win')
+                    } 
+                    if (currentNoteGroup > noteEventsBatched.length) {
+                        // DO NOTHING
+                    }
+                    else {
+                        drawGroup(noteEventsBatched[currentNoteGroup])
+                    }
+
+                } else {
+                    // IDK 
+                }
+
+            }
+        }
+        
+        // const timeFromTopToBottomMilliseconds = 2000;
+        // animateFallingNotes(noteEvents, topLineHeight, timeFromTopToBottomMilliseconds);
+        // setTimeout(() => {
+        //     playEventsByScheduling(midi, noteEvents, controlEvents, programEvents)
+        // }, timeFromTopToBottomMilliseconds)
     }
 }
 
@@ -739,31 +703,177 @@ function getPlayTrackEvents(format, chunks) {
     return tracks;
 }
 
-// TODO: Draw note system
-// let notes = [];
-// for (let i = 0; i < 100; i++) {
-//     let r = Math.round((Math.random() * 10) - 5);
-//     notes.push([r, i]);
-// }
+function getPlayTrackEndTime(noteEvents) {
+    let end = 0;
+    for (let i = 0; i < noteEvents.length; i++) {
+        const event = noteEvents[i];
+        if (event.end > end) {
+            end = event.end;
+        }
+    }
+    return end;
+}
 
-// const bassCleffImg = new Image();
-// const wholeNoteImg = new Image();
-// wholeNoteImg.addEventListener('load', e => {
-//     console.clear()
-//     function myDraw(t) {
-//         draw(wholeNoteImg, notes, t);
-//         requestAnimationFrame(myDraw);
-//     }
+// Splits a play track of events into separate lists for notes, controls, and program events.
+// Events are transformed to have a start time in milliseconds
+// Note events have a start and end time instead of two events
+function splitEventsAndConvertToMilliseconds(playTrack, division) {
+    // TODO: Maybe split into two functions. One for calculating milliseconds to events and another for splitting
+    const noteEvents = [];
+    const controlEvents = [];
+    const programEvents = [];
 
-//     draw(wholeNoteImg, [], 0)
+    let tempo = parseTempoMetaData([0x07, 0xA1, 0x20]) // Default value of tempo 500.000 
+    let tickToMsFactor = (tempo / division) / 1000;
+
+    const startedNotes = {}; // Notes which are started but not ended.
+    let runningTimeMilliseconds = 0
+    for (let i = 0; i < playTrack.length; i++) {
+        const event = playTrack[i];
+        runningTimeMilliseconds += event.deltaTime * tickToMsFactor;
+        if (event.status === STATUS.META_EVENT) {
+            switch (event.metaType) {
+                case META_EVENT.KEY_SIGNATURE: {
+                } break;
+                case META_EVENT.SET_TEMPO: {
+                    tempo = parseTempoMetaData(event.metaData);
+                    tickToMsFactor = (tempo / division) / 1000;
+                } break;
+                case META_EVENT.TIME_SIGNATURE: { 
+                } break;
+            }
+        }
+        else if (event.type === MIDI_EVENT.NOTE_OFF || (event.type === MIDI_EVENT.NOTE_ON && event.velocity === 0)) {
+            // assert(event.note !== null, `Expected ${event.note} not to be null.`);
+            let note = startedNotes[event.note];
+            if (note === null || note === undefined) continue;
+            note.end = runningTimeMilliseconds;
+            noteEvents.push(note);
+            startedNotes[event.note] = null;
+        }
+        else if (event.type === MIDI_EVENT.NOTE_ON) {
+            let note = startedNotes[event.note];
+            // assert(note === null || note === undefined, `Expected ${event.note} to be null on channel ${event.channel}, was ${startedNotes[event.note]}`);
+            if (note === null || note === undefined) {
+                startedNotes[event.note] = {
+                    note: event.note,
+                    start: runningTimeMilliseconds,
+                    velocity: event.velocity,
+                    channel: event.channel
+                }
+            } else { // TODO: Figure out what to do about the same note being played twice before being turned off (It is hard to hear a difference. So maybe it does not matter?)
+                console.warn(`Double note ${event.note} at event ${i} at time ${runningTimeMilliseconds}`)
+                note.end = runningTimeMilliseconds;
+                noteEvents.push(note);
+                startedNotes[event.note] = {
+                    note: event.note,
+                    start: runningTimeMilliseconds,
+                    velocity: event.velocity,
+                    channel: event.channel
+                };
+            }
+        } else if (event.type === MIDI_EVENT.CONTROL_CHANGE) {
+            controlEvents.push({
+                start: runningTimeMilliseconds,
+                channel: event.channel,
+                control: event.control,
+                value: event.value
+            });
+        } else if (event.type === MIDI_EVENT.PROGRAM_CHANGE) {
+            programEvents.push({
+                start: runningTimeMilliseconds,
+                channel: event.channel,
+                program: event.program,
+            });
+        }             
+    }
+
+    return [noteEvents, controlEvents, programEvents];
+}
+
+// Takes a list of events with a start time and batches (i.e. groups) them such that events with the same start time are in the same group
+// Assumes the list of events is sorted on the start time.
+// TODO: Generalize to grouping on other values
+// TODO: Create tests 
+function batchNoteEvents(noteEvents) {
+    const noteEventsBatched = [];
+    let previous = noteEvents[0]; // Works even for empty lists
+    let group = [];
+    for (let i = 0; i < noteEvents.length; i++) {
+        const event = noteEvents[i];
+        if (event.start === previous.start) {
+            group.push(event);
+        } else {
+            noteEventsBatched.push(group);
+            group = [event];
+            previous = event;
+        }
+    }
+    return noteEventsBatched;
+}
+
+/// ################# ANIMATE MIDI FUNCTIONS #############
+
+// Assumes noteEvents are sorted 
+// Combine with drawNoteNamesAndTopLine to have notes falling down to their respective key
+function animateFallingNotes(noteEvents, topLineHeight, timeFromTopToBottomMilliseconds) {
+    const canvas = document.getElementById('note-canvas');
+    const ctx = canvas.getContext('2d');
+    const msToPixel = topLineHeight / timeFromTopToBottomMilliseconds;
+    const noteWidth = 20
+    // TODO: More choices of note coloring
+    const noteFill = [
+        "#54478cff",
+        "#2c699aff",
+        "#048ba8ff",
+        "#0db39eff",
+        "#16db93ff",
+        "#83e377ff",
+        "#b9e769ff",
+        "#efea5aff",
+        "#f1c453ff",
+        "#f29e4cff",
+    ];
+
+    const end = getPlayTrackEndTime(noteEvents);
     
-//     // requestAnimationFrame(myDraw)
-    
-// });
-// wholeNoteImg.src = "images/wholeNote.svg"
-// // Width 40
-// // Height 25
-// // Ratio = 40/25
+    let startIndex = 0; // TODO: Stop processing notes already moved outside window. Use a running start index.
+    let startTime = null;
+    function animate(t) {
+        if (startTime === null) { // Initialize Start
+            startTime = t;
+        }
+        ctx.clearRect(0, 0, canvas.width, topLineHeight);
+
+        const elapsed = t - startTime;
+
+        // TODO: Write in H, M, S, M
+        // TODO: Slider with min and max
+        ctx.font = "26px Georgia";
+        ctx.fillStyle = "black"
+        ctx.fillText((elapsed -2000), 50, 100);
+        
+        for (let i = startIndex; i < noteEvents.length; i++) {
+            const event = noteEvents[i];
+            const left = 10 + event.note * 14 - noteWidth/2;
+            const top = (-event.end + elapsed) * msToPixel; 
+            const height = (event.end - event.start) * msToPixel;
+
+            if (elapsed < event.start) break; // Stop processing more events since they wont be shown anyway.
+            if (top > topLineHeight) continue;  
+            ctx.fillStyle = noteFill[i % noteFill.length];
+            if (topLineHeight - top < height) {
+                ctx.fillRect(left, top, noteWidth, topLineHeight - top);
+            } else {
+                ctx.fillRect(left, top, noteWidth, height);
+            }            
+        }
+
+        if (elapsed > end + timeFromTopToBottomMilliseconds) return;
+        requestAnimationFrame(animate)
+    }
+    requestAnimationFrame(animate)
+}
 
 // ################# MIDI PLAY FUNCTIONS ########################
 
