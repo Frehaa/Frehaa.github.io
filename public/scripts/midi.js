@@ -888,7 +888,7 @@ function animateFallingNotes(noteEvents, noteFill, topLineHeight, msToPixel) {
         }
         ctx.clearRect(0, 0, canvas.width, topLineHeight);
 
-        const elapsed = t - startTime + end - 1000;
+        const elapsed = t - startTime;
 
         // TODO: Write in H, M, S, M
         // TODO: Slider with min and max
