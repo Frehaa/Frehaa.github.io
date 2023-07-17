@@ -590,8 +590,6 @@ function play(midi) {
             return 0;
         });    
 
-        // TODO: INTRODUCE SOME INTERACTIVITY (STEP 1. BATCH NOTE EVENTS - STEP 2. DISPLAY IN TIME STEPS - STEP 3. LISTEN TO RIGHT CORDS)
-
         const noteEventsBatched = batchNoteEvents(noteEvents);
         l(`Note events batched`, noteEventsBatched)
 
@@ -609,6 +607,14 @@ function play(midi) {
             "#f29e4cff",
         ];
 
+        // TODO: Deal with the issue of lingering notes somehow. What should be done about a note which should be played longer than other notes? Do I keep holding it down? Should it be optional? Should it be grayed out such that it is visible that it should not be played? Should only the next notes to be played be colored? 
+
+        // TODO: Do not draw the whole keyboard but only a subsection which can be zoomed in.
+
+        // TODO: Filter the notes for left and right hand or other criteria.
+
+        // TODO: Time based. Press the right notes on time or go back a measure. 
+
         const currentlyPressed = new Set();
         let lastPedal = false;
         let currentNoteGroup = 0; // Start note
@@ -617,18 +623,35 @@ function play(midi) {
         ctx.clearRect(0, 0, canvas.width, topLineHeight);
         drawNotes(ctx, noteEvents, currentElapsed, msToPixel, noteFill, topLineHeight);
 
+        function update(newNoteGroup) {
+            currentNoteGroup = newNoteGroup;
+            currentElapsed = noteEventsBatched[currentNoteGroup][0].start + timeFromTopToBottomMilliseconds;
+            ctx.clearRect(0, 0, canvas.width, topLineHeight);
+            drawNotes(ctx, noteEvents, currentElapsed, msToPixel, noteFill, topLineHeight);
+        }
+
+        function noteOff() {
+            if (currentlyPressed.size > 0) { // Reset on error
+                currentlyPressed.clear();
+                update(0);
+            }
+        }
+
         midi.currentInput.onmidimessage = (e) => { 
             switch (e.data[0] & 0xF0) {
                 case MIDI_EVENT.NOTE_ON: {
                     if (e.data[2] === 0) { // If velocity is 0 then it is a lift
-                        currentlyPressed.delete(e.data[1]);
+                        noteOff();
                     } else {
                         currentlyPressed.add(e.data[1]);
                     }
                 } break;
                 case MIDI_EVENT.NOTE_OFF: {
-                    currentlyPressed.delete(e.data[1]);
+                    noteOff()
+                    // currentlyPressed.delete(e.data[1]);
                     // Remove note form currently pressed
+
+
                 } break;
                 case MIDI_EVENT.CONTROL_CHANGE: {
                     if (e.data[1] === CONTROL_FUNCTION.DAMPER_PEDAL) {
@@ -636,10 +659,8 @@ function play(midi) {
                             lastPedal = false;
                         } else if (lastPedal === false) {
                             // lastPedal = true; // This gives fast return to start
-                            currentNoteGroup = Math.max(0, currentNoteGroup - 1);
-                            currentElapsed = noteEventsBatched[currentNoteGroup][0].start + timeFromTopToBottomMilliseconds;
-                            ctx.clearRect(0, 0, canvas.width, topLineHeight);
-                            drawNotes(ctx, noteEvents, currentElapsed, msToPixel, noteFill, topLineHeight);
+                            // currentNoteGroup = Math.max(0, currentNoteGroup - 1);
+                            update(0);
                         }
                     } 
                 } break;
@@ -659,18 +680,15 @@ function play(midi) {
                 }
 
                 if (success) {
-                    currentNoteGroup++;
-                    currentElapsed = noteEventsBatched[currentNoteGroup][0].start + timeFromTopToBottomMilliseconds;
+                    currentlyPressed.clear();
+                    update(currentNoteGroup + 1);
                     if (currentNoteGroup === noteEventsBatched.length) {
                         alert('win')
                     } 
                     if (currentNoteGroup > noteEventsBatched.length) {
                         // DO NOTHING
                     }
-                    else {
-                        ctx.clearRect(0, 0, canvas.width, topLineHeight);
-                        drawNotes(ctx, noteEvents, currentElapsed, msToPixel, noteFill, topLineHeight);
-                    }
+
 
                 } else {
                     // IDK 
