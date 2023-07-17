@@ -496,7 +496,6 @@ function draw(wholeNoteImage, notes, time) {
 function drawNoteNamesAndTopLine(top) {
     const canvas = document.getElementById('note-canvas');
     const ctx = canvas.getContext('2d');
-    const h = canvas.height, w = canvas.width;
     
     ctx.fillStyle = 'black'
     ctx.font = "10px Georgia";
@@ -504,16 +503,35 @@ function drawNoteNamesAndTopLine(top) {
     const letters = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B", ];
     for (let i = 0; i < 128; i++) {
         const note = letters[i % letters.length];
+        // Mark boundary and middle notes
+        if (i === 60 || i === 21 || i === 108) {
+            ctx.fillStyle = 'red'
+        } else {
+            ctx.fillStyle = 'black'
+        }
+
+        // Draw white or black note
         if (note.length == 2) {
             ctx.fillText(note, 10 + i * 14 - 5, top + 20);
         } else {
             ctx.fillText(note, 10 + i * 14, top + 40);
         }
+
+        // Draw octave partitioner
+        if (note === "B") {
+            ctx.beginPath();
+            ctx.moveTo(21 + i * 14, top);
+            ctx.lineTo(21 + i * 14, top + 45);
+            ctx.stroke();
+
+        }
+
     }
+
     const cutLineHeight = top;
     ctx.beginPath();
     ctx.moveTo(0, cutLineHeight);
-    ctx.lineTo(w, cutLineHeight);
+    ctx.lineTo(canvas.width, cutLineHeight);
     ctx.stroke();
 }
 
@@ -690,6 +708,7 @@ function play(midi) {
         }
 
         midi.currentInput.onmidimessage = (e) => { 
+            l(e)
             switch (e.data[0] & 0xF0) {
                 case MIDI_EVENT.NOTE_ON: {
                     if (e.data[2] === 0) { // If velocity is 0 then it is a lift
@@ -887,9 +906,8 @@ function animateFallingNotes(noteEvents, noteFill, topLineHeight, msToPixel) {
         // TODO: Make a cooler time bar which is a filling tube with a neat colored effect on the filling
         const lineMargin = 100;
         const boundaryNotchHeight = 6;
-        const playNotchHeight = 4;
         const timeBarHeight = 30;
-        const timeBarOffset = 30;
+        const timeBarOffset = 60;
         const playNotchX = Math.max(lineMargin + (songElapsed / end) * (canvas.width - 2*lineMargin), lineMargin);
         ctx.clearRect(0, topLineHeight + timeBarOffset, canvas.width, timeBarHeight);
         
@@ -1103,6 +1121,9 @@ function millisecondsToTimeString(milliseconds) {
     assert(milliseconds >= 0, `Expected input to be non-negative, was ${milliseconds}`);
     var minutes = Math.floor(milliseconds / 60000);
     var seconds = Math.floor((milliseconds % 60000) / 1000);
+    if (seconds < 10) {
+        seconds = "0" + seconds;
+    }
 
     return (minutes + ":" + seconds);
 }
@@ -1413,13 +1434,11 @@ function testMergeTracks() {
 
 }
 
+// Delegate problem of comparing elements in a list to a callback
 function arrayEqual(a, b, elementCompare) {
     if (a.length !== b.length) return false;
-
     for (let i = 0; i < a.length; i++) {
-        const x = a[i];
-        const y = b[i];
-        if (!elementCompare(x, y)) return false;
+        if (!elementCompare(a[i], b[i])) return false;
     }
     return true;
 }
@@ -1431,7 +1450,7 @@ function testBatchNoteEvents() {
         {input: [{start: 0}, {start: 0}], expected: [[{start:0}, {start:0}]]},
         {input: [{start: 0}, {start: 1}], expected: [[{start:0}], [{start:1}]]},
     ];
-      for (const test of tests) {
+    for (const test of tests) {
         let {input, expected} = test;
         let result = batchNoteEvents(input);
 
