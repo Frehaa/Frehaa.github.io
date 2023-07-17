@@ -501,6 +501,7 @@ function drawNoteNamesAndTopLine(top) {
     ctx.font = "10px Georgia";
 
     const letters = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B", ];
+    // const letters = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", ];
     for (let i = 0; i < 128; i++) {
         const note = letters[i % letters.length];
         // Mark boundary and middle notes
@@ -512,7 +513,10 @@ function drawNoteNamesAndTopLine(top) {
 
         // Draw white or black note
         if (note.length == 2) {
-            ctx.fillText(note, 10 + i * 14 - 5, top + 20);
+            ctx.fillText(note[0], 8 + i * 14, top + 20);
+            ctx.font = "8px Georgia";
+            ctx.fillText(note[1], 14 + i * 14, top + 16);
+            ctx.font = "10px Georgia";
         } else {
             ctx.fillText(note, 10 + i * 14, top + 40);
         }
@@ -684,6 +688,10 @@ function play(midi) {
         // TODO: Time based. Press the right notes on time or go back a measure. 
 
         // TODO: Settings from where to restart from and where to restart after. (E.g. practice a specific section)
+        // TODO: Have the restarting notes repeat instead of showing other notes
+
+        // TODO: On correct, animate smoothly to next notes instead of instantly.
+
 
         const currentlyPressed = new Set();
         let lastPedal = false;
@@ -708,10 +716,9 @@ function play(midi) {
         }
 
         midi.currentInput.onmidimessage = (e) => { 
-            l(e)
             switch (e.data[0] & 0xF0) {
                 case MIDI_EVENT.NOTE_ON: {
-                    if (e.data[2] === 0) { // If velocity is 0 then it is a lift
+                    if (e.data[2] === 0) { // If velocity is 0 then it is a NOTE_OFF event
                         noteOff();
                     } else {
                         currentlyPressed.add(e.data[1]);
@@ -719,10 +726,6 @@ function play(midi) {
                 } break;
                 case MIDI_EVENT.NOTE_OFF: {
                     noteOff()
-                    // currentlyPressed.delete(e.data[1]);
-                    // Remove note form currently pressed
-
-
                 } break;
                 case MIDI_EVENT.CONTROL_CHANGE: {
                     if (e.data[1] === CONTROL_FUNCTION.DAMPER_PEDAL) {
