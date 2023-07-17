@@ -1413,6 +1413,17 @@ function testMergeTracks() {
 
 }
 
+function arrayEqual(a, b, elementCompare) {
+    if (a.length !== b.length) return false;
+
+    for (let i = 0; i < a.length; i++) {
+        const x = a[i];
+        const y = b[i];
+        if (!elementCompare(x, y)) return false;
+    }
+    return true;
+}
+
 // This fucking test actually made me find an error. This is especially annoying since I though this was an unnecessary test since my code was "obviously" correct. You live and learn.
 function testBatchNoteEvents() {
     let tests = [
@@ -1424,18 +1435,8 @@ function testBatchNoteEvents() {
         let {input, expected} = test;
         let result = batchNoteEvents(input);
 
-        if (expected.length !== result.length) {
-            console.log(`Expected length ${expected.length}, but was length ${result.length}. Expected:`, expected, " - Result:", result);
-        } else {
-            for (let i = 0; i < result.length; i++) {
-                let e = expected[i].deltaTime;
-                let a = result[i].deltaTime;
-                if (a !== e) {
-                    console.log(`Expected`, input, `gave result ${e}, but was ${a} at index ${i}`);
-                    break;
-                }
-            }
+        if (!arrayEqual(result, expected, (a, b) => arrayEqual(a, b, (x, y) => { return x.start === y.start }))) {
+            console.log("Expected:", expected, " - Actual:", result, " - Input:", input);
         }
-        
     } 
 }
