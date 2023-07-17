@@ -309,6 +309,37 @@ function addSelectOption(select, list) {
     });
 }
 
+function initializeCanvas(midi) {
+    const canvas = document.getElementById('note-canvas');
+    const ctx = canvas.getContext('2d');
+
+    // TODO: Center and pick font
+    ctx.font = '36px Aria';
+    ctx.fillText("Click to Pick file", 100, 500);
+
+    canvas.addEventListener('click', (e) => {
+        if (midi.chunks === null) {
+            document.getElementById('file-input').click();
+        }
+    });
+
+    canvas.addEventListener('dragover', e => {
+        e.preventDefault(); // This is required for drop event
+    });
+
+    canvas.addEventListener('drop', e => {
+        if (e.dataTransfer.files.length == 0) return;
+        e.preventDefault(); // This prevents the downloading of file
+
+        // Add the dropped file and dispatch the change event to the fileInput
+        const fileInput = document.getElementById('file-input');
+        fileInput.files = e.dataTransfer.files;
+        const changeEvent = new Event('change', { bubbles: true });
+        fileInput.dispatchEvent(changeEvent);
+    });
+
+}
+
 function initializeMidiIoSelects(midiState) {
     const midiOutputSelect = document.getElementById('midi-output-select');
     midiOutputSelect.addEventListener('change', e => {
@@ -335,7 +366,6 @@ function initializeMidiIoSelects(midiState) {
     });
 }
 
-// TODO: DRAG AND DROP
 function initializeFileInput(callback) {
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -507,7 +537,6 @@ function handleMidiIOglobalMidiChange(event) {
 // ############# MAIN #############
 
 function main() {
-    l(MIDI_EVENT)
     runTests();
 
     const midi = {
@@ -524,29 +553,7 @@ function main() {
         midi.chunks = chunks;
         play(midi)
     });
-
-    let canvas = document.getElementById('note-canvas');
-    let ctx = canvas.getContext('2d');
-    ctx.font = '36px Aria';
-    ctx.fillText("Click to Pick file", 100, 500);
-    canvas.addEventListener('click', (e) => {
-        if (midi.chunks === null) {
-            document.getElementById('file-input').click();
-        }
-    });
-    canvas.addEventListener('dragover', e => {
-        e.preventDefault(); // This is required for drop event
-    });
-
-    canvas.addEventListener('drop', e => {
-        e.preventDefault(); // This prevents the downloading of file
-        
-        const fileInput = document.getElementById('file-input');
-        fileInput.files = e.dataTransfer.files;
-        // Dispatch the change event
-        const changeEvent = new Event('change', { bubbles: true });
-        fileInput.dispatchEvent(changeEvent);
-    });
+    initializeCanvas(midi);
 
     initializeMIDIUSBAccess(
         midiAccess => {
@@ -637,10 +644,6 @@ function play(midi) {
         // TODO: Time based. Press the right notes on time or go back a measure. 
 
         // TODO: Settings from where to restart from and where to restart after. (E.g. practice a specific section)
-
-
-
-
 
         const currentlyPressed = new Set();
         let lastPedal = false;
@@ -748,7 +751,7 @@ function getPlayTrackEvents(format, chunks) {
         } break; 
         case TRACK_FORMAT.INDEPENDENT_TRACKS: {
             assert(false, `Unhandled multiple independent tracks`);
-            // TODO: Maybe just implement this as a list which adds every tracks event to the tracks list?
+            // TODO: Maybe just implement this as a list which adds every tracks event to the tracks list? This does not seem like an issue for play practice, but may be an issue for ?? maybe nothing. But I guess I will wait with this until I have a file
         } break;
         default: {
             assert(false, `Unknown track format ${format} in header`);
@@ -921,22 +924,6 @@ function drawNotes(ctx, noteEvents, elapsed, msToPixel, noteFill, topLineHeight)
         }            
     }
 }
-
-// TODO: Draw a bit more than just the group so we can compare to other notes
-// TODO: Color notes (consistently)
-function drawGroup(group, topLineHeight, msToPixel) {
-    ctx.clearRect(0, 0, canvas.width, topLineHeight);
-    for (let i = 0; i < group.length; i++) {
-        const event = group[i];
-        const left = 10 + event.note * 14 - 20/2;
-        const height = (event.end - event.start) * msToPixel;
-        const top = topLineHeight - height
-
-        ctx.fillRect(left, top, 20, height);
-    }
-}
-
-
 
 // ################# MIDI PLAY FUNCTIONS ########################
 
