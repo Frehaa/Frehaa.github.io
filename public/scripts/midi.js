@@ -726,7 +726,7 @@ function play(midi) {
 
             }
         }
-        
+        // TODO: Stop playing current song when new song is selected
         animateFallingNotes(noteEvents, noteFill, topLineHeight, msToPixel);
         setTimeout(() => {
             playEventsByScheduling(midi, noteEvents, controlEvents, programEvents)
@@ -869,6 +869,15 @@ function batchNoteEvents(noteEvents) {
     return noteEventsBatched;
 }
 
+// Time string is most in minutes since we do not expect to see hour long midi files. Also, if that happens then 74 or 136 minutes is not too hard to read either.
+function millisecondsToTimeString(milliseconds) {
+    assert(milliseconds >= 0, `Expected input to be non-negative, was ${milliseconds}`);
+    var minutes = Math.floor(milliseconds / 60000);
+    var seconds = Math.floor((milliseconds % 60000) / 1000);
+
+    return (minutes + ":" + seconds);
+}
+
 /// ################# ANIMATE MIDI FUNCTIONS #############
 
 // Assumes noteEvents are sorted 
@@ -879,24 +888,57 @@ function animateFallingNotes(noteEvents, noteFill, topLineHeight, msToPixel) {
     const timeFromTopToBottomMilliseconds = topLineHeight / msToPixel;
     
     const end = getPlayTrackEndTime(noteEvents);
+    const endTimeString = millisecondsToTimeString(end);
     
     let startIndex = 0; // TODO: Stop processing notes already moved outside window. Use a running start index. This seems hard since the length of some notes are longer than others, so we still have to skip those in between. The gain also does not seem very significant
     let startTime = null;
+
     function animate(t) {
         if (startTime === null) { // Initialize Start
             startTime = t;
         }
+        // Draw top 
         ctx.clearRect(0, 0, canvas.width, topLineHeight);
-
         const elapsed = t - startTime;
-
-        // TODO: Write in H, M, S, M
-        // TODO: Slider with min and max
-        ctx.font = "26px Georgia";
-        ctx.fillStyle = "black"
-        ctx.fillText((elapsed - timeFromTopToBottomMilliseconds), 50, 100);
-        
+        const songElapsed = Math.max(elapsed - timeFromTopToBottomMilliseconds, 0);
         drawNotes(ctx, noteEvents, elapsed, msToPixel, noteFill, topLineHeight);
+
+        // TODO: Make a cooler time bar which is a filling tube with a neat colored effect on the filling
+        const lineMargin = 100;
+        const boundaryNotchHeight = 6;
+        const playNotchHeight = 4;
+        const timeBarHeight = 30;
+        const timeBarOffset = 30;
+        const playNotchX = Math.max(lineMargin + (songElapsed / end) * (canvas.width - 2*lineMargin), lineMargin);
+        ctx.clearRect(0, topLineHeight + timeBarOffset, canvas.width, timeBarHeight);
+        
+        ctx.beginPath();
+        // Time bar
+        ctx.moveTo(lineMargin, topLineHeight + timeBarOffset + boundaryNotchHeight / 2);
+        ctx.lineTo(canvas.width - lineMargin, topLineHeight + timeBarOffset + boundaryNotchHeight / 2);
+
+        // Left notch
+        ctx.moveTo(lineMargin, topLineHeight + timeBarOffset);
+        ctx.lineTo(lineMargin, topLineHeight + timeBarOffset + boundaryNotchHeight);
+
+        // Right notch
+        ctx.moveTo(canvas.width - lineMargin, topLineHeight + timeBarOffset);
+        ctx.lineTo(canvas.width - lineMargin, topLineHeight + timeBarOffset + boundaryNotchHeight);
+
+        // Play notch
+        ctx.moveTo(playNotchX, topLineHeight + timeBarOffset);
+        ctx.lineTo(playNotchX, topLineHeight + timeBarOffset + boundaryNotchHeight);
+        ctx.stroke();
+
+        ctx.font = "18px Courier New";
+        ctx.fillStyle = "black"
+        const timeText = millisecondsToTimeString(songElapsed) + "/" + endTimeString;
+        var textMetrics = ctx.measureText(timeText);
+
+        // Get the height of the text
+        var textHeight = textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
+
+        ctx.fillText(timeText, lineMargin, topLineHeight + timeBarOffset + textHeight + boundaryNotchHeight);
 
         if (elapsed > end + timeFromTopToBottomMilliseconds) return;
         requestAnimationFrame(animate)
