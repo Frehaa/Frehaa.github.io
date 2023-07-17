@@ -5,12 +5,17 @@
   <title>MIDI Input Test</title>
   <script src="scripts/midi.js"></script>
   <style>
+    body {
+      margin: 1px;
+    }
     canvas {
       outline: 1px solid black;
+      margin: 0px;
     }
   </style>
 </head>
 <body onload="main()">
+  <canvas id="note-canvas" width="1800" height="700"></canvas><br>
   <input type="file" id="file-input">
   <select id="midi-input-select" name="MIDI Input">
     <option value="">(No MIDI Input)</option>
@@ -18,8 +23,6 @@
   <select id="midi-output-select" name="MIDI Output">
     <option value="">(No MIDI Output)</option>
   </select>
-  <br>
-  <canvas id="note-canvas" width="1800" height="1000"></canvas>
 </body>
 </html>
 

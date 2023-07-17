@@ -344,13 +344,10 @@ function initializeFileInput(callback) {
 
     const fileInput = document.getElementById('file-input');
     fileInput.addEventListener('change', (event) => {
-        const file = event.target.files[0];
+        assert(fileInput.files.length > 0, `File input change event fired even though it contained no files`);
+        const file = fileInput.files[0]; 
         reader.readAsArrayBuffer(file)
     });
-    if (fileInput.files.length > 0) {
-        const file = fileInput.files[0];
-        reader.readAsArrayBuffer(file)
-    }
 }
 
 function initializeMIDIUSBAccess(success, reject) {
@@ -449,6 +446,7 @@ function drawNoteNamesAndTopLine(top) {
     const ctx = canvas.getContext('2d');
     const h = canvas.height, w = canvas.width;
     
+    ctx.fillStyle = 'black'
     ctx.font = "10px Georgia";
 
     const letters = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B", ];
@@ -525,6 +523,29 @@ function main() {
         const chunks = parseMidiFile(buffer);
         midi.chunks = chunks;
         play(midi)
+    });
+
+    let canvas = document.getElementById('note-canvas');
+    let ctx = canvas.getContext('2d');
+    ctx.font = '36px Aria';
+    ctx.fillText("Click to Pick file", 100, 500);
+    canvas.addEventListener('click', (e) => {
+        if (midi.chunks === null) {
+            document.getElementById('file-input').click();
+        }
+    });
+    canvas.addEventListener('dragover', e => {
+        e.preventDefault(); // This is required for drop event
+    });
+
+    canvas.addEventListener('drop', e => {
+        e.preventDefault(); // This prevents the downloading of file
+        
+        const fileInput = document.getElementById('file-input');
+        fileInput.files = e.dataTransfer.files;
+        // Dispatch the change event
+        const changeEvent = new Event('change', { bubbles: true });
+        fileInput.dispatchEvent(changeEvent);
     });
 
     initializeMIDIUSBAccess(
@@ -611,9 +632,15 @@ function play(midi) {
 
         // TODO: Do not draw the whole keyboard but only a subsection which can be zoomed in.
 
-        // TODO: Filter the notes for left and right hand or other criteria.
+        // TODO: Filter the notes for left and right hand or other criteria. Perhaps just manually click some notes to remove in a section / group.
 
         // TODO: Time based. Press the right notes on time or go back a measure. 
+
+        // TODO: Settings from where to restart from and where to restart after. (E.g. practice a specific section)
+
+
+
+
 
         const currentlyPressed = new Set();
         let lastPedal = false;
