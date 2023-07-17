@@ -335,6 +335,7 @@ function initializeMidiIoSelects(midiState) {
     });
 }
 
+// TODO: DRAG AND DROP
 function initializeFileInput(callback) {
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -574,6 +575,8 @@ function play(midi) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const topLineHeight = 560;
     drawNoteNamesAndTopLine(topLineHeight);
+    const timeFromTopToBottomMilliseconds = 2000;
+    const msToPixel = topLineHeight / timeFromTopToBottomMilliseconds;
 
     for (let t = 0; t < playTracks.length; t++) {
         assert(t === 0, `Found ${playTracks.length} tracks, which should not happen while we do not support format 2`);
@@ -592,26 +595,29 @@ function play(midi) {
         const noteEventsBatched = batchNoteEvents(noteEvents);
         l(`Note events batched`, noteEventsBatched)
 
-        // TODO: Draw a bit more than just the group so we can compare to other notes
-        function drawGroup(group) {
-            const msToPixel = topLineHeight / 2000;
-            ctx.clearRect(0, 0, canvas.width, topLineHeight);
-            for (let i = 0; i < group.length; i++) {
-                const event = group[i];
-                const left = 10 + event.note * 14 - 20/2;
-                const height = (event.end - event.start) * msToPixel;
-                const top = topLineHeight - height
-
-                ctx.fillRect(left, top, 20, height);
-            }
-        }
-
-        drawGroup(noteEventsBatched[0]);
+        // TODO: More choices of note coloring
+        const noteFill = [
+            "#54478cff",
+            "#2c699aff",
+            "#048ba8ff",
+            "#0db39eff",
+            "#16db93ff",
+            "#83e377ff",
+            "#b9e769ff",
+            "#efea5aff",
+            "#f1c453ff",
+            "#f29e4cff",
+        ];
 
         const currentlyPressed = new Set();
         let lastPedal = false;
-        let currentNoteGroup = 0;
-        midi.currentInput.onmidimessage = (e) => {
+        let currentNoteGroup = 0; // Start note
+        let currentElapsed = noteEventsBatched[currentNoteGroup][0].start + timeFromTopToBottomMilliseconds;
+
+        ctx.clearRect(0, 0, canvas.width, topLineHeight);
+        drawNotes(ctx, noteEvents, currentElapsed, msToPixel, noteFill, topLineHeight);
+
+        midi.currentInput.onmidimessage = (e) => { 
             switch (e.data[0] & 0xF0) {
                 case MIDI_EVENT.NOTE_ON: {
                     if (e.data[2] === 0) { // If velocity is 0 then it is a lift
@@ -631,7 +637,9 @@ function play(midi) {
                         } else if (lastPedal === false) {
                             // lastPedal = true; // This gives fast return to start
                             currentNoteGroup = Math.max(0, currentNoteGroup - 1);
-                            drawGroup(noteEventsBatched[currentNoteGroup])
+                            currentElapsed = noteEventsBatched[currentNoteGroup][0].start + timeFromTopToBottomMilliseconds;
+                            ctx.clearRect(0, 0, canvas.width, topLineHeight);
+                            drawNotes(ctx, noteEvents, currentElapsed, msToPixel, noteFill, topLineHeight);
                         }
                     } 
                 } break;
@@ -652,6 +660,7 @@ function play(midi) {
 
                 if (success) {
                     currentNoteGroup++;
+                    currentElapsed = noteEventsBatched[currentNoteGroup][0].start + timeFromTopToBottomMilliseconds;
                     if (currentNoteGroup === noteEventsBatched.length) {
                         alert('win')
                     } 
@@ -659,7 +668,8 @@ function play(midi) {
                         // DO NOTHING
                     }
                     else {
-                        drawGroup(noteEventsBatched[currentNoteGroup])
+                        ctx.clearRect(0, 0, canvas.width, topLineHeight);
+                        drawNotes(ctx, noteEvents, currentElapsed, msToPixel, noteFill, topLineHeight);
                     }
 
                 } else {
@@ -669,8 +679,7 @@ function play(midi) {
             }
         }
         
-        // const timeFromTopToBottomMilliseconds = 2000;
-        // animateFallingNotes(noteEvents, topLineHeight, timeFromTopToBottomMilliseconds);
+        // animateFallingNotes(noteEvents, noteFill, topLineHeight, msToPixel);
         // setTimeout(() => {
         //     playEventsByScheduling(midi, noteEvents, controlEvents, programEvents)
         // }, timeFromTopToBottomMilliseconds)
@@ -816,28 +825,14 @@ function batchNoteEvents(noteEvents) {
 
 // Assumes noteEvents are sorted 
 // Combine with drawNoteNamesAndTopLine to have notes falling down to their respective key
-function animateFallingNotes(noteEvents, topLineHeight, timeFromTopToBottomMilliseconds) {
+function animateFallingNotes(noteEvents, noteFill, topLineHeight, msToPixel) {
     const canvas = document.getElementById('note-canvas');
     const ctx = canvas.getContext('2d');
-    const msToPixel = topLineHeight / timeFromTopToBottomMilliseconds;
-    const noteWidth = 20
-    // TODO: More choices of note coloring
-    const noteFill = [
-        "#54478cff",
-        "#2c699aff",
-        "#048ba8ff",
-        "#0db39eff",
-        "#16db93ff",
-        "#83e377ff",
-        "#b9e769ff",
-        "#efea5aff",
-        "#f1c453ff",
-        "#f29e4cff",
-    ];
-
+    const timeFromTopToBottomMilliseconds = topLineHeight * msToPixel;
+    
     const end = getPlayTrackEndTime(noteEvents);
     
-    let startIndex = 0; // TODO: Stop processing notes already moved outside window. Use a running start index.
+    let startIndex = 0; // TODO: Stop processing notes already moved outside window. Use a running start index. This seems hard since the length of some notes are longer than others, so we still have to skip those in between. The gain also does not seem very significant
     let startTime = null;
     function animate(t) {
         if (startTime === null) { // Initialize Start
@@ -853,27 +848,50 @@ function animateFallingNotes(noteEvents, topLineHeight, timeFromTopToBottomMilli
         ctx.fillStyle = "black"
         ctx.fillText((elapsed -2000), 50, 100);
         
-        for (let i = startIndex; i < noteEvents.length; i++) {
-            const event = noteEvents[i];
-            const left = 10 + event.note * 14 - noteWidth/2;
-            const top = (-event.end + elapsed) * msToPixel; 
-            const height = (event.end - event.start) * msToPixel;
-
-            if (elapsed < event.start) break; // Stop processing more events since they wont be shown anyway.
-            if (top > topLineHeight) continue;  
-            ctx.fillStyle = noteFill[i % noteFill.length];
-            if (topLineHeight - top < height) {
-                ctx.fillRect(left, top, noteWidth, topLineHeight - top);
-            } else {
-                ctx.fillRect(left, top, noteWidth, height);
-            }            
-        }
+        drawNotes(ctx, noteEvents, elapsed, msToPixel, noteFill, topLineHeight);
 
         if (elapsed > end + timeFromTopToBottomMilliseconds) return;
         requestAnimationFrame(animate)
     }
     requestAnimationFrame(animate)
 }
+
+function drawNotes(ctx, noteEvents, elapsed, msToPixel, noteFill, topLineHeight) {
+    const noteWidth = 20
+    for (let i = 0; i < noteEvents.length; i++) {
+        const event = noteEvents[i];
+        if (elapsed < event.start) break; // Stop processing more events since they wont be shown anyway.
+
+        const top = (-event.end + elapsed) * msToPixel; 
+        if (top > topLineHeight) continue;  
+
+        const left = 10 + event.note * 14 - noteWidth/2;
+        const height = (event.end - event.start) * msToPixel;
+
+        ctx.fillStyle = noteFill[i % noteFill.length];
+        if (topLineHeight - top < height) {
+            ctx.fillRect(left, top, noteWidth, topLineHeight - top);
+        } else {
+            ctx.fillRect(left, top, noteWidth, height);
+        }            
+    }
+}
+
+// TODO: Draw a bit more than just the group so we can compare to other notes
+// TODO: Color notes (consistently)
+function drawGroup(group, topLineHeight, msToPixel) {
+    ctx.clearRect(0, 0, canvas.width, topLineHeight);
+    for (let i = 0; i < group.length; i++) {
+        const event = group[i];
+        const left = 10 + event.note * 14 - 20/2;
+        const height = (event.end - event.start) * msToPixel;
+        const top = topLineHeight - height
+
+        ctx.fillRect(left, top, 20, height);
+    }
+}
+
+
 
 // ################# MIDI PLAY FUNCTIONS ########################
 
