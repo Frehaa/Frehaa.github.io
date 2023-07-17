@@ -392,6 +392,28 @@ function initializeMIDIUSBAccess(success, reject) {
 
 // ################### DRAWING FUNCTIONS ###########
 
+function drawFallingNotes(ctx, noteEvents, elapsed, msToPixel, noteFill, topLineHeight) {
+    // TODO: Maybe draw the notes such that the start time is equal to when it hits the bottom. e.g. elapsed = 0 is when the first note is played, and so there is a short countdown before the start.
+    const noteWidth = 20
+    for (let i = 0; i < noteEvents.length; i++) {
+        const event = noteEvents[i];
+        if (elapsed < event.start) break; // Stop processing more events since they wont be shown anyway.
+
+        const top = (-event.end + elapsed) * msToPixel; 
+        if (top > topLineHeight) continue;  
+
+        const left = 10 + event.note * 14 - noteWidth/2;
+        const height = (event.end - event.start) * msToPixel;
+
+        ctx.fillStyle = noteFill[i % noteFill.length];
+        if (topLineHeight - top < height) {
+            ctx.fillRect(left, top, noteWidth, topLineHeight - top);
+        } else {
+            ctx.fillRect(left, top, noteWidth, height);
+        }            
+    }
+}
+
 function draw(wholeNoteImage, notes, time) {
     let canvas = document.getElementById('note-canvas');
     let ctx = canvas.getContext('2d');
@@ -651,13 +673,13 @@ function play(midi) {
         let currentElapsed = noteEventsBatched[currentNoteGroup][0].start + timeFromTopToBottomMilliseconds;
 
         ctx.clearRect(0, 0, canvas.width, topLineHeight);
-        drawNotes(ctx, noteEvents, currentElapsed, msToPixel, noteFill, topLineHeight);
+        drawFallingNotes(ctx, noteEvents, currentElapsed, msToPixel, noteFill, topLineHeight);
 
         function update(newNoteGroup) {
             currentNoteGroup = newNoteGroup;
             currentElapsed = noteEventsBatched[currentNoteGroup][0].start + timeFromTopToBottomMilliseconds;
             ctx.clearRect(0, 0, canvas.width, topLineHeight);
-            drawNotes(ctx, noteEvents, currentElapsed, msToPixel, noteFill, topLineHeight);
+            drawFallingNotes(ctx, noteEvents, currentElapsed, msToPixel, noteFill, topLineHeight);
         }
 
         function noteOff() {
@@ -728,7 +750,7 @@ function play(midi) {
         }
         // TODO: Stop playing current song when new song is selected
         animateFallingNotes(noteEvents, noteFill, topLineHeight, msToPixel);
-        setTimeout(() => {
+        setTimeout(() => { // Gives a warning on long files. 
             playEventsByScheduling(midi, noteEvents, controlEvents, programEvents)
         }, timeFromTopToBottomMilliseconds)
     }
@@ -758,17 +780,6 @@ function getPlayTrackEvents(format, chunks) {
         }
     }
     return tracks;
-}
-
-function getPlayTrackEndTime(noteEvents) {
-    let end = 0;
-    for (let i = 0; i < noteEvents.length; i++) {
-        const event = noteEvents[i];
-        if (event.end > end) {
-            end = event.end;
-        }
-    }
-    return end;
 }
 
 // Splits a play track of events into separate lists for notes, controls, and program events.
@@ -848,36 +859,6 @@ function splitEventsAndConvertToMilliseconds(playTrack, division) {
     return [noteEvents, controlEvents, programEvents];
 }
 
-// Takes a list of events with a start time and batches (i.e. groups) them such that events with the same start time are in the same group
-// Assumes the list of events is sorted on the start time.
-// TODO: Generalize to grouping on other values
-// TODO: Create tests 
-function batchNoteEvents(noteEvents) {
-    const noteEventsBatched = [];
-    let previous = noteEvents[0]; // Works even for empty lists
-    let group = [];
-    for (let i = 0; i < noteEvents.length; i++) {
-        const event = noteEvents[i];
-        if (event.start === previous.start) {
-            group.push(event);
-        } else {
-            noteEventsBatched.push(group);
-            group = [event];
-            previous = event;
-        }
-    }
-    return noteEventsBatched;
-}
-
-// Time string is most in minutes since we do not expect to see hour long midi files. Also, if that happens then 74 or 136 minutes is not too hard to read either.
-function millisecondsToTimeString(milliseconds) {
-    assert(milliseconds >= 0, `Expected input to be non-negative, was ${milliseconds}`);
-    var minutes = Math.floor(milliseconds / 60000);
-    var seconds = Math.floor((milliseconds % 60000) / 1000);
-
-    return (minutes + ":" + seconds);
-}
-
 /// ################# ANIMATE MIDI FUNCTIONS #############
 
 // Assumes noteEvents are sorted 
@@ -901,7 +882,7 @@ function animateFallingNotes(noteEvents, noteFill, topLineHeight, msToPixel) {
         ctx.clearRect(0, 0, canvas.width, topLineHeight);
         const elapsed = t - startTime;
         const songElapsed = Math.max(elapsed - timeFromTopToBottomMilliseconds, 0);
-        drawNotes(ctx, noteEvents, elapsed, msToPixel, noteFill, topLineHeight);
+        drawFallingNotes(ctx, noteEvents, elapsed, msToPixel, noteFill, topLineHeight);
 
         // TODO: Make a cooler time bar which is a filling tube with a neat colored effect on the filling
         const lineMargin = 100;
@@ -946,29 +927,10 @@ function animateFallingNotes(noteEvents, noteFill, topLineHeight, msToPixel) {
     requestAnimationFrame(animate)
 }
 
-function drawNotes(ctx, noteEvents, elapsed, msToPixel, noteFill, topLineHeight) {
-    // TODO: Maybe draw the notes such that the start time is equal to when it hits the bottom. e.g. elapsed = 0 is when the first note is played, and so there is a short countdown before the start.
-    const noteWidth = 20
-    for (let i = 0; i < noteEvents.length; i++) {
-        const event = noteEvents[i];
-        if (elapsed < event.start) break; // Stop processing more events since they wont be shown anyway.
 
-        const top = (-event.end + elapsed) * msToPixel; 
-        if (top > topLineHeight) continue;  
-
-        const left = 10 + event.note * 14 - noteWidth/2;
-        const height = (event.end - event.start) * msToPixel;
-
-        ctx.fillStyle = noteFill[i % noteFill.length];
-        if (topLineHeight - top < height) {
-            ctx.fillRect(left, top, noteWidth, topLineHeight - top);
-        } else {
-            ctx.fillRect(left, top, noteWidth, height);
-        }            
-    }
-}
 
 // ################# MIDI PLAY FUNCTIONS ########################
+// TODO: Play function which synchs directly with animation. (Maybe do this with a callback on note start and end? How should this handle program change and control events?)
 
 function playEventsByScheduling(state, noteEvents, controlEvents, programEvents) {
     // TODO: Batch the events if possible to avoid needing multiple timouts 
@@ -1101,6 +1063,49 @@ function debugEventCounter(chunks) {
     return counts;
 }
 
+// ######################## MISC HELPER FUNCTIONS #####################
+
+// Assumes the list contains elements with an end time
+function getPlayTrackEndTime(noteEvents) {
+    let end = 0;
+    for (let i = 0; i < noteEvents.length; i++) {
+        const event = noteEvents[i];
+        if (event.end > end) {
+            end = event.end;
+        }
+    }
+    return end;
+}
+
+// Takes a list of events with a start time and batches (i.e. groups) them such that events with the same start time are in the same group
+// Assumes the list of events is sorted on the start time.
+// TODO: Generalize to grouping on other values
+function batchNoteEvents(noteEvents) {
+    const noteEventsBatched = [];
+    let previous = noteEvents[0]; // Works even for empty lists
+    let group = [];
+    for (let i = 0; i < noteEvents.length; i++) {
+        const event = noteEvents[i];
+        if (event.start === previous.start) {
+            group.push(event);
+        } else {
+            noteEventsBatched.push(group);
+            group = [event];
+            previous = event;
+        }
+    }
+    if (group.length > 0) noteEventsBatched.push(group); // Push any lingering groups
+    return noteEventsBatched;
+}
+
+// Time string is most in minutes since we do not expect to see hour long midi files. Also, if that happens then 74 or 136 minutes is not too hard to read either.
+function millisecondsToTimeString(milliseconds) {
+    assert(milliseconds >= 0, `Expected input to be non-negative, was ${milliseconds}`);
+    var minutes = Math.floor(milliseconds / 60000);
+    var seconds = Math.floor((milliseconds % 60000) / 1000);
+
+    return (minutes + ":" + seconds);
+}
 function calcAccumulatedDeltaTimes(a) {
     const result = [];
     let runningTime = 0;
@@ -1170,6 +1175,7 @@ function runTests() {
     testParseTempoMetaData();
     testCalcAccumulatedDeltaTimes();
     testMergeTracks();
+    testBatchNoteEvents();
 }
 
 /* Implements tests based on the examples from the MIDI specification
@@ -1285,7 +1291,7 @@ function testCalcAccumulatedDeltaTimes() {
 
 
     ];
-      for (const test of tests) {
+    for (const test of tests) {
         let [input, expected] = test;
         let result = calcAccumulatedDeltaTimes(input);
 
@@ -1405,4 +1411,31 @@ function testMergeTracks() {
         console.log("Expected input to mergeTracChunks to be unmodified")
     }
 
+}
+
+// This fucking test actually made me find an error. This is especially annoying since I though this was an unnecessary test since my code was "obviously" correct. You live and learn.
+function testBatchNoteEvents() {
+    let tests = [
+        {input: [], expected: []},
+        {input: [{start: 0}, {start: 0}], expected: [[{start:0}, {start:0}]]},
+        {input: [{start: 0}, {start: 1}], expected: [[{start:0}], [{start:1}]]},
+    ];
+      for (const test of tests) {
+        let {input, expected} = test;
+        let result = batchNoteEvents(input);
+
+        if (expected.length !== result.length) {
+            console.log(`Expected length ${expected.length}, but was length ${result.length}. Expected:`, expected, " - Result:", result);
+        } else {
+            for (let i = 0; i < result.length; i++) {
+                let e = expected[i].deltaTime;
+                let a = result[i].deltaTime;
+                if (a !== e) {
+                    console.log(`Expected`, input, `gave result ${e}, but was ${a} at index ${i}`);
+                    break;
+                }
+            }
+        }
+        
+    } 
 }
