@@ -727,10 +727,10 @@ function play(midi) {
             }
         }
         
-        // animateFallingNotes(noteEvents, noteFill, topLineHeight, msToPixel);
-        // setTimeout(() => {
-        //     playEventsByScheduling(midi, noteEvents, controlEvents, programEvents)
-        // }, timeFromTopToBottomMilliseconds)
+        animateFallingNotes(noteEvents, noteFill, topLineHeight, msToPixel);
+        setTimeout(() => {
+            playEventsByScheduling(midi, noteEvents, controlEvents, programEvents)
+        }, timeFromTopToBottomMilliseconds)
     }
 }
 
@@ -876,7 +876,7 @@ function batchNoteEvents(noteEvents) {
 function animateFallingNotes(noteEvents, noteFill, topLineHeight, msToPixel) {
     const canvas = document.getElementById('note-canvas');
     const ctx = canvas.getContext('2d');
-    const timeFromTopToBottomMilliseconds = topLineHeight * msToPixel;
+    const timeFromTopToBottomMilliseconds = topLineHeight / msToPixel;
     
     const end = getPlayTrackEndTime(noteEvents);
     
@@ -888,13 +888,13 @@ function animateFallingNotes(noteEvents, noteFill, topLineHeight, msToPixel) {
         }
         ctx.clearRect(0, 0, canvas.width, topLineHeight);
 
-        const elapsed = t - startTime;
+        const elapsed = t - startTime + end - 1000;
 
         // TODO: Write in H, M, S, M
         // TODO: Slider with min and max
         ctx.font = "26px Georgia";
         ctx.fillStyle = "black"
-        ctx.fillText((elapsed -2000), 50, 100);
+        ctx.fillText((elapsed - timeFromTopToBottomMilliseconds), 50, 100);
         
         drawNotes(ctx, noteEvents, elapsed, msToPixel, noteFill, topLineHeight);
 
@@ -905,6 +905,7 @@ function animateFallingNotes(noteEvents, noteFill, topLineHeight, msToPixel) {
 }
 
 function drawNotes(ctx, noteEvents, elapsed, msToPixel, noteFill, topLineHeight) {
+    // TODO: Maybe draw the notes such that the start time is equal to when it hits the bottom. e.g. elapsed = 0 is when the first note is played, and so there is a short countdown before the start.
     const noteWidth = 20
     for (let i = 0; i < noteEvents.length; i++) {
         const event = noteEvents[i];
@@ -933,10 +934,10 @@ function playEventsByScheduling(state, noteEvents, controlEvents, programEvents)
         assert(typeof event.note === 'number', `Event note should be a number, but was ${event.note}`);
         setTimeout(() => {
             // TODO: Start by ignoring different channels. This may result in bugs if different channels play the same note
-            state.currentOutput.send([MIDI_EVENT.NOTE_ON, event.note, event.velocity])
+            state.currentOutput.send([MIDI_EVENT.NOTE_ON+1, event.note, event.velocity])
         }, event.start);
         setTimeout(() => {
-            state.currentOutput.send([MIDI_EVENT.NOTE_OFF, event.note, 0])
+            state.currentOutput.send([MIDI_EVENT.NOTE_OFF+1, event.note, 0])
         }, event.end);
     }
     for (const event of controlEvents) {
