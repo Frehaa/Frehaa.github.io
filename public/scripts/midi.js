@@ -1,4 +1,7 @@
 'use strict';
+const KEY_CODE_SPACE = 'Space';
+// const KEY_CODE_NUMPAD_PLUS = "";
+// const KEY_CODE_NUMPAD_PLUS = "";
 let l = console.log
 function assert(p, msg) {
     if (!p) throw new Error(msg);
@@ -88,6 +91,23 @@ function numToKeyboardNoteName(num) {
 
 
 // #################### PARSING FUNCTIONS #####################
+
+// TODO: 
+function parseTimeSignature(metaData) {
+    assert(metaData.length === 4, `Expected four values for the time signature meta data, found ${metaData.length}`);
+    const numerator = metaData[0];
+    const denominator = 2 ** metaData[1];
+
+    const midiClocksPerMetronomeClick = metaData[2];
+    const thirtySecondNotesPerQuarterNote = metaData[3];
+
+    return {
+        numerator,
+        denominator,
+        midiClocksPerMetronomeClick,
+        thirtySecondNotesPerQuarterNote
+    }
+}
 
 function formatParseErrorMessage(offset, msg) {
     return `At byte ${offset}(${offset.toString(16)}): ${msg}`;
@@ -392,20 +412,20 @@ function initializeMIDIUSBAccess(success, reject) {
 
 // ################### DRAWING FUNCTIONS ###########
 
-function drawFallingNotes(ctx, noteEvents, elapsed, msToPixel, noteFill, topLineHeight) {
+function drawFallingNotes(ctx, noteEvents, elapsed, { msToPixel, noteFill, topLineHeight }) {
     // TODO: Maybe draw the notes such that the start time is equal to when it hits the bottom. e.g. elapsed = 0 is when the first note is played, and so there is a short countdown before the start.
     const noteWidth = 20
     for (let i = 0; i < noteEvents.length; i++) {
         const event = noteEvents[i];
-        if (elapsed < event.start) break; // Stop processing more events since they wont be shown anyway.
+        // if (elapsed < event.start) break; // Stop processing more events since they wont be shown anyway. (Requires input to be sorted)
 
-        const top = (-event.end + elapsed) * msToPixel; 
+        const top = (-event.start + elapsed) * msToPixel; 
         if (top > topLineHeight) continue;  
 
         const left = 10 + event.note * 14 - noteWidth/2;
         const height = (event.end - event.start) * msToPixel;
 
-        ctx.fillStyle = noteFill[i % noteFill.length];
+        ctx.fillStyle = noteFill(event, i);
         if (topLineHeight - top < height) {
             ctx.fillRect(left, top, noteWidth, topLineHeight - top);
         } else {
@@ -582,6 +602,76 @@ function handleMidiIOglobalMidiChange(event) {
 
 function main() {
     runTests();
+    
+    const canvas = document.getElementById('note-canvas');
+    const ctx = canvas.getContext('2d');
+
+    const noteFill = (note, i) => {
+        return [
+            "#54478cff",
+            "#2c699aff",
+            "#048ba8ff",
+            "#0db39eff",
+            "#16db93ff",
+            "#83e377ff",
+            "#b9e769ff",
+            "#efea5aff",
+            "#f1c453ff",
+            "#f29e4cff",
+        ][i % 10];
+    };
+    let pause = false;
+    document.addEventListener('keypress', e => {
+        if (e.code === "Space") pause = !pause
+        else if (e.key === "+") speedMultiplier += 1
+        else if (e.key === "-") speedMultiplier -= 1
+    });
+
+    const input = document.createElement('input');
+    input.type = 'number'
+    input.addEventListener('input', e => {
+        const n = Number(input.value);
+        if (Number.isNaN(n)) {
+            input.classList.add('invalid');
+        } else {
+            input.classList.remove('invalid');
+            speedMultiplier = n;
+        }
+    });
+    document.body.appendChild(input)
+
+    let previous = 0;
+    let elapsed = 0;
+    let speedMultiplier = 1;
+    const endTime = getPlayTrackEndTime(noteEvents);
+    const animate = t => {
+        if (pause) {
+            previous = t;
+            return requestAnimationFrame(animate)
+        } 
+
+        elapsed += (t - previous) * speedMultiplier
+        elapsed = clamp(0, elapsed, endTime);
+        previous = t;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawFallingNotes(ctx, noteEvents, elapsed, {msToPixel: 0.27, noteFill, topLineHeight: 600});
+        drawTimeBar(ctx, elapsed, endTime, {
+            width: canvas.width - 400, 
+            offsetX: 200, 
+            offsetY: canvas.height - 50, 
+            notchHeight: 6
+        });
+        requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(t => {
+        previous = t;
+        animate(t);
+    });
+
+
+    return;
+
 
     const midi = {
         chunks: null,
@@ -654,7 +744,17 @@ function play(midi) {
         assert(t === 0, `Found ${playTracks.length} tracks, which should not happen while we do not support format 2`);
         l(`Track ${t}`, playTracks[t])
 
-        const [noteEvents, controlEvents, programEvents] = splitEventsAndConvertToMilliseconds(playTracks[t], division);
+        // TODO: HOW THE F DO I FIND THE TIMES FOR WHEN TO ADD MEASURE LINES??? (I FOUND TIMES BUT THEY ARE OFTEN BAD. HOW TO FIX?
+        // TODO: Make the measure starts and time signatures customizable. 
+        // The first one is a 0. So far so good. The next time is at??????????????
+        const timeMeasures = [] //getMeasures(playTracks[t], division); 
+        l(`Time measures`, timeMeasures)
+
+        const [noteEvents, controlEvents, programEvents, keySignatures] = splitEventsAndConvertToMilliseconds(playTracks[t], division);
+
+        l(noteEvents);
+
+        // return;
 
         noteEvents.sort((a, b) => {
             if (a.start < b.start) return -1;
@@ -666,18 +766,20 @@ function play(midi) {
         l(`Note events batched`, noteEventsBatched)
 
         // TODO: More choices of note coloring
-        const noteFill = [
-            "#54478cff",
-            "#2c699aff",
-            "#048ba8ff",
-            "#0db39eff",
-            "#16db93ff",
-            "#83e377ff",
-            "#b9e769ff",
-            "#efea5aff",
-            "#f1c453ff",
-            "#f29e4cff",
-        ];
+        const noteFill = (note, i) => {
+            return [
+                "#54478cff",
+                "#2c699aff",
+                "#048ba8ff",
+                "#0db39eff",
+                "#16db93ff",
+                "#83e377ff",
+                "#b9e769ff",
+                "#efea5aff",
+                "#f1c453ff",
+                "#f29e4cff",
+            ][i % 10];
+        };
 
         // TODO: Deal with the issue of lingering notes somehow. What should be done about a note which should be played longer than other notes? Do I keep holding it down? Should it be optional? Should it be grayed out such that it is visible that it should not be played? Should only the next notes to be played be colored? 
 
@@ -689,89 +791,92 @@ function play(midi) {
 
         // TODO: Settings from where to restart from and where to restart after. (E.g. practice a specific section)
         // TODO: Have the restarting notes repeat instead of showing other notes
+        // TODO: Specify the restart by measure or time with a conversion between (What happens when the time is not on the start and end of a measure? This seems like it would ruin the rhythm).
 
         // TODO: On correct, animate smoothly to next notes instead of instantly.
 
 
-        const currentlyPressed = new Set();
-        let lastPedal = false;
-        let currentNoteGroup = 0; // Start note
-        let currentElapsed = noteEventsBatched[currentNoteGroup][0].start + timeFromTopToBottomMilliseconds;
+        // INTERACTIVE STUFF
+        // const currentlyPressed = new Set();
+        // let lastPedal = false;
+        // let currentNoteGroup = 0; // Start note
+        // let currentElapsed = noteEventsBatched[currentNoteGroup][0].start + timeFromTopToBottomMilliseconds;
 
-        ctx.clearRect(0, 0, canvas.width, topLineHeight);
-        drawFallingNotes(ctx, noteEvents, currentElapsed, msToPixel, noteFill, topLineHeight);
+        // ctx.clearRect(0, 0, canvas.width, topLineHeight);
+        // drawFallingNotes(ctx, noteEvents, currentElapsed, msToPixel, noteFill, topLineHeight);
 
-        function update(newNoteGroup) {
-            currentNoteGroup = newNoteGroup;
-            currentElapsed = noteEventsBatched[currentNoteGroup][0].start + timeFromTopToBottomMilliseconds;
-            ctx.clearRect(0, 0, canvas.width, topLineHeight);
-            drawFallingNotes(ctx, noteEvents, currentElapsed, msToPixel, noteFill, topLineHeight);
-        }
+        // function update(newNoteGroup) {
+        //     currentNoteGroup = newNoteGroup;
+        //     currentElapsed = noteEventsBatched[currentNoteGroup][0].start + timeFromTopToBottomMilliseconds;
+        //     ctx.clearRect(0, 0, canvas.width, topLineHeight);
+        //     drawFallingNotes(ctx, noteEvents, currentElapsed, msToPixel, noteFill, topLineHeight);
+        // }
 
-        function noteOff() {
-            if (currentlyPressed.size > 0) { // Reset on error
-                currentlyPressed.clear();
-                update(0);
-            }
-        }
+        // function noteOff() {
+        //     if (currentlyPressed.size > 0) { // Reset on error
+        //         currentlyPressed.clear();
+        //         update(0);
+        //     }
+        // }
 
-        midi.currentInput.onmidimessage = (e) => { 
-            switch (e.data[0] & 0xF0) {
-                case MIDI_EVENT.NOTE_ON: {
-                    if (e.data[2] === 0) { // If velocity is 0 then it is a NOTE_OFF event
-                        noteOff();
-                    } else {
-                        currentlyPressed.add(e.data[1]);
-                    }
-                } break;
-                case MIDI_EVENT.NOTE_OFF: {
-                    noteOff()
-                } break;
-                case MIDI_EVENT.CONTROL_CHANGE: {
-                    if (e.data[1] === CONTROL_FUNCTION.DAMPER_PEDAL) {
-                        if (e.data[2] === 0) {
-                            lastPedal = false;
-                        } else if (lastPedal === false) {
-                            // lastPedal = true; // This gives fast return to start
-                            // currentNoteGroup = Math.max(0, currentNoteGroup - 1);
-                            update(0);
-                        }
-                    } 
-                } break;
-                default: {// Do not know yet? Maybe do nothing
-                } break
-            }
+        // midi.currentInput.onmidimessage = (e) => { 
+        //     switch (e.data[0] & 0xF0) {
+        //         case MIDI_EVENT.NOTE_ON: {
+        //             if (e.data[2] === 0) { // If velocity is 0 then it is a NOTE_OFF event
+        //                 noteOff();
+        //             } else {
+        //                 currentlyPressed.add(e.data[1]);
+        //             }
+        //         } break;
+        //         case MIDI_EVENT.NOTE_OFF: {
+        //             noteOff()
+        //         } break;
+        //         case MIDI_EVENT.CONTROL_CHANGE: {
+        //             if (e.data[1] === CONTROL_FUNCTION.DAMPER_PEDAL) {
+        //                 if (e.data[2] === 0) {
+        //                     lastPedal = false;
+        //                 } else if (lastPedal === false) {
+        //                     // lastPedal = true; // This gives fast return to start
+        //                     // currentNoteGroup = Math.max(0, currentNoteGroup - 1);
+        //                     update(0);
+        //                 }
+        //             } 
+        //         } break;
+        //         default: {// Do not know yet? Maybe do nothing
+        //         } break
+        //     }
             
-            const currentGroup = noteEventsBatched[currentNoteGroup]
-            if (currentlyPressed.size === currentGroup.length) {
-                let success = true;
-                for (let i = 0; i < currentGroup.length; i++) {
-                    const event = currentGroup[i];
-                    if (!currentlyPressed.has(event.note)) {
-                        success = false;
-                        break
-                    }
-                }
+        //     const currentGroup = noteEventsBatched[currentNoteGroup]
+        //     if (currentlyPressed.size === currentGroup.length) {
+        //         let success = true;
+        //         for (let i = 0; i < currentGroup.length; i++) {
+        //             const event = currentGroup[i];
+        //             if (!currentlyPressed.has(event.note)) {
+        //                 success = false;
+        //                 break
+        //             }
+        //         }
 
-                if (success) {
-                    currentlyPressed.clear();
-                    update(currentNoteGroup + 1);
-                    if (currentNoteGroup === noteEventsBatched.length) {
-                        alert('win')
-                    } 
-                    if (currentNoteGroup > noteEventsBatched.length) {
-                        // DO NOTHING
-                    }
+        //         if (success) {
+        //             currentlyPressed.clear();
+        //             update(currentNoteGroup + 1);
+        //             if (currentNoteGroup === noteEventsBatched.length) {
+        //                 alert('win')
+        //             } 
+        //             if (currentNoteGroup > noteEventsBatched.length) {
+        //                 // DO NOTHING
+        //             }
 
 
-                } else {
-                    // IDK 
-                }
+        //         } else {
+        //             // IDK 
+        //         }
 
-            }
-        }
+        //     }
+        // }
+
         // TODO: Stop playing current song when new song is selected
-        animateFallingNotes(noteEvents, noteFill, topLineHeight, msToPixel);
+        animateFallingNotes(noteEvents, timeMeasures, { noteFill, topLineHeight, msToPixel } );
         setTimeout(() => { // Gives a warning on long files. 
             playEventsByScheduling(midi, noteEvents, controlEvents, programEvents)
         }, timeFromTopToBottomMilliseconds)
@@ -804,17 +909,92 @@ function getPlayTrackEvents(format, chunks) {
     return tracks;
 }
 
+
+function getMeasures(playTrack, division) {
+    let measures = [{deltaTime: 0, measure: true}]; // First measure is at deltaTime 0 
+    let summedMeasureTimes = 0;
+    const deltaTimes = playTrack.map(v => v.deltaTime);
+    const summedDeltaTime = deltaTimes.reduce((s, a) => s + a, 0);
+
+    let currentTimeSignature = { numerator: 4, denominator: 4 };  // Default time signature
+    for (let i = 0; i < playTrack.length; i++) {
+        const event = playTrack[i];
+        if (event.status === STATUS.META_EVENT && event.metaType === META_EVENT.TIME_SIGNATURE) {
+            let deltaTime = event.deltaTime;
+            // assert(deltaTime, `Expected the deltaTime to be at the start of a new measure, but was ${deltaTime}`); // Not sure how to write the test
+            while (summedMeasureTimes < deltaTime) {
+                if (currentTimeSignature.denominator === 4) {
+                    const nextMeasure = currentTimeSignature.numerator * division;
+                    measures.push({deltaTime: nextMeasure, measure: true });
+                    summedMeasureTimes += nextMeasure;
+                } else if (currentTimeSignature.denominator === 2) {
+                    const nextMeasure = currentTimeSignature.numerator * division * 2;
+                    measures.push({deltaTime: nextMeasure, measure: true });
+                    summedMeasureTimes += nextMeasure;
+                } else {
+                    assert(false, `Not implemented for other time signatures`);
+                }
+            }
+            currentTimeSignature = parseTimeSignature(event.metaData);
+            l(`Updated time signature`, currentTimeSignature, "current measure times", measures)
+            // return []
+        }
+    }
+    while (summedMeasureTimes <= summedDeltaTime) { 
+        if (currentTimeSignature.denominator === 4) {
+            const nextMeasure = currentTimeSignature.numerator * division;
+            measures.push({deltaTime: nextMeasure, measure: true });
+            summedMeasureTimes += nextMeasure;
+        } else if (currentTimeSignature.denominator === 2) {
+            const nextMeasure = currentTimeSignature.numerator * division * 2;
+            measures.push({deltaTime: nextMeasure, measure: true });
+            summedMeasureTimes += nextMeasure;
+        } else {
+            assert(false, `Not implemented for other time signatures`);
+        }
+    }
+
+    const tempos = playTrack.filter(isTempoEvent);
+    return computeTimedEvents(measures, tempos, division);
+}
+
+// Midifies the events by adding a start time in milliseconds based on the tempos
+function computeTimedEvents(events, tempos, division) {
+    let currentTempo = parseTempoMetaData([0x07, 0xA1, 0x20]) // Default value of tempo 500.000 
+    let tickToMsFactor = (currentTempo / division) / 1000;
+    let result = [];
+
+    const merged = mergeTrackChunksEvents(events, tempos);
+
+    let runningTimeMilliseconds = 0;
+    for (const event of merged) {
+        runningTimeMilliseconds += event.deltaTime * tickToMsFactor;
+        if (event.status === STATUS.META_EVENT && event.metaType === META_EVENT.SET_TEMPO) {
+            currentTempo = parseTempoMetaData(event.metaData);
+            tickToMsFactor = (currentTempo / division) / 1000;
+        } else {
+            result.push({
+                start: runningTimeMilliseconds,
+                ...event
+            });
+        }
+    }
+    return result;
+}
+
 // Splits a play track of events into separate lists for notes, controls, and program events.
 // Events are transformed to have a start time in milliseconds
 // Note events have a start and end time instead of two events
 function splitEventsAndConvertToMilliseconds(playTrack, division) {
-    // TODO: Maybe split into two functions. One for calculating milliseconds to events and another for splitting
+    // TODO: Maybe split into two functions. One for calculating milliseconds to events and another for splitting. Seriously, this method is starting to do too to much.
     const noteEvents = [];
     const controlEvents = [];
     const programEvents = [];
-
+    const keySignatures = [];
+    
     let tempo = parseTempoMetaData([0x07, 0xA1, 0x20]) // Default value of tempo 500.000 
     let tickToMsFactor = (tempo / division) / 1000;
+
 
     const startedNotes = {}; // Notes which are started but not ended.
     let runningTimeMilliseconds = 0
@@ -824,6 +1004,9 @@ function splitEventsAndConvertToMilliseconds(playTrack, division) {
         if (event.status === STATUS.META_EVENT) {
             switch (event.metaType) {
                 case META_EVENT.KEY_SIGNATURE: {
+                    keySignatures.push({
+                        ...event
+                    });
                 } break;
                 case META_EVENT.SET_TEMPO: {
                     tempo = parseTempoMetaData(event.metaData);
@@ -838,6 +1021,7 @@ function splitEventsAndConvertToMilliseconds(playTrack, division) {
             let note = startedNotes[event.note];
             if (note === null || note === undefined) continue;
             note.end = runningTimeMilliseconds;
+            note.deltaTimeEnd = event.deltaTime;
             noteEvents.push(note);
             startedNotes[event.note] = null;
         }
@@ -846,6 +1030,7 @@ function splitEventsAndConvertToMilliseconds(playTrack, division) {
             // assert(note === null || note === undefined, `Expected ${event.note} to be null on channel ${event.channel}, was ${startedNotes[event.note]}`);
             if (note === null || note === undefined) {
                 startedNotes[event.note] = {
+                    deltaTimeStart: event.deltaTime,
                     note: event.note,
                     start: runningTimeMilliseconds,
                     velocity: event.velocity,
@@ -854,8 +1039,10 @@ function splitEventsAndConvertToMilliseconds(playTrack, division) {
             } else { // TODO: Figure out what to do about the same note being played twice before being turned off (It is hard to hear a difference. So maybe it does not matter?)
                 console.warn(`Double note ${event.note} at event ${i} at time ${runningTimeMilliseconds}`)
                 note.end = runningTimeMilliseconds;
+                note.deltaTimeEnd = event.deltaTime;
                 noteEvents.push(note);
                 startedNotes[event.note] = {
+                    deltaTimeStart: event.deltaTime,
                     note: event.note,
                     start: runningTimeMilliseconds,
                     velocity: event.velocity,
@@ -864,6 +1051,7 @@ function splitEventsAndConvertToMilliseconds(playTrack, division) {
             }
         } else if (event.type === MIDI_EVENT.CONTROL_CHANGE) {
             controlEvents.push({
+                deltaTimeStart: event.deltaTime,
                 start: runningTimeMilliseconds,
                 channel: event.channel,
                 control: event.control,
@@ -871,27 +1059,29 @@ function splitEventsAndConvertToMilliseconds(playTrack, division) {
             });
         } else if (event.type === MIDI_EVENT.PROGRAM_CHANGE) {
             programEvents.push({
+                deltaTimeStart: event.deltaTime,
                 start: runningTimeMilliseconds,
                 channel: event.channel,
                 program: event.program,
             });
         }             
     }
+    // Add all remaining measures
+    // TODO: What if the time signature changes between measures? (Who the fuck knows. Seems like undefined behavior)
 
-    return [noteEvents, controlEvents, programEvents];
+    return [noteEvents, controlEvents, programEvents, keySignatures];
 }
 
 /// ################# ANIMATE MIDI FUNCTIONS #############
 
 // Assumes noteEvents are sorted 
 // Combine with drawNoteNamesAndTopLine to have notes falling down to their respective key
-function animateFallingNotes(noteEvents, noteFill, topLineHeight, msToPixel) {
+function animateFallingNotes(noteEvents, timeMeasures, { noteFill, topLineHeight, msToPixel }) {
     const canvas = document.getElementById('note-canvas');
     const ctx = canvas.getContext('2d');
     const timeFromTopToBottomMilliseconds = topLineHeight / msToPixel;
     
     const end = getPlayTrackEndTime(noteEvents);
-    const endTimeString = millisecondsToTimeString(end);
     
     let startIndex = 0; // TODO: Stop processing notes already moved outside window. Use a running start index. This seems hard since the length of some notes are longer than others, so we still have to skip those in between. The gain also does not seem very significant
     let startTime = null;
@@ -904,43 +1094,24 @@ function animateFallingNotes(noteEvents, noteFill, topLineHeight, msToPixel) {
         ctx.clearRect(0, 0, canvas.width, topLineHeight);
         const elapsed = t - startTime;
         const songElapsed = Math.max(elapsed - timeFromTopToBottomMilliseconds, 0);
-        drawFallingNotes(ctx, noteEvents, elapsed, msToPixel, noteFill, topLineHeight);
+        drawFallingNotes(ctx, noteEvents, elapsed, { msToPixel, noteFill, topLineHeight });
 
-        // TODO: Make a cooler time bar which is a filling tube with a neat colored effect on the filling
-        const lineMargin = 100;
-        const boundaryNotchHeight = 6;
-        const timeBarHeight = 30;
-        const timeBarOffset = 60;
-        const playNotchX = Math.max(lineMargin + (songElapsed / end) * (canvas.width - 2*lineMargin), lineMargin);
-        ctx.clearRect(0, topLineHeight + timeBarOffset, canvas.width, timeBarHeight);
-        
+        ctx.fillStyle = 'black';
         ctx.beginPath();
-        // Time bar
-        ctx.moveTo(lineMargin, topLineHeight + timeBarOffset + boundaryNotchHeight / 2);
-        ctx.lineTo(canvas.width - lineMargin, topLineHeight + timeBarOffset + boundaryNotchHeight / 2);
-
-        // Left notch
-        ctx.moveTo(lineMargin, topLineHeight + timeBarOffset);
-        ctx.lineTo(lineMargin, topLineHeight + timeBarOffset + boundaryNotchHeight);
-
-        // Right notch
-        ctx.moveTo(canvas.width - lineMargin, topLineHeight + timeBarOffset);
-        ctx.lineTo(canvas.width - lineMargin, topLineHeight + timeBarOffset + boundaryNotchHeight);
-
-        // Play notch
-        ctx.moveTo(playNotchX, topLineHeight + timeBarOffset);
-        ctx.lineTo(playNotchX, topLineHeight + timeBarOffset + boundaryNotchHeight);
+        for (let i = 0; i < timeMeasures.length; i++) {
+            const measureTime = timeMeasures[i].start;
+            let y = (elapsed - measureTime) * msToPixel;
+            if (y > topLineHeight) continue
+            ctx.fillText(i, 25, y)
+            ctx.moveTo(50, y);
+            ctx.lineTo(canvas.width, y);
+        }
         ctx.stroke();
 
-        ctx.font = "18px Courier New";
-        ctx.fillStyle = "black"
-        const timeText = millisecondsToTimeString(songElapsed) + "/" + endTimeString;
-        var textMetrics = ctx.measureText(timeText);
-
-        // Get the height of the text
-        var textHeight = textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
-
-        ctx.fillText(timeText, lineMargin, topLineHeight + timeBarOffset + textHeight + boundaryNotchHeight);
+        const timeBarOffsetX = 100;
+        const timeBarWidth = canvas.width - 2 * timeBarOffsetX;
+        const timeBarOffsetY = topLineHeight + 60;
+        drawTimeBar(ctx, songElapsed, end, { width: timeBarWidth, offsetX: timeBarOffsetX, offsetY: timeBarOffsetY, notchHeight: 6 });
 
         if (elapsed > end + timeFromTopToBottomMilliseconds) return;
         requestAnimationFrame(animate)
@@ -948,6 +1119,40 @@ function animateFallingNotes(noteEvents, noteFill, topLineHeight, msToPixel) {
     requestAnimationFrame(animate)
 }
 
+function drawTimeBar(ctx, elapsed, end, drawSettings) {
+    // TODO: Make a cooler time bar which is a filling tube with a neat colored effect on the filling
+    // TODO: Make it possible to click time on bar (make this visualy clear)
+    const endTimeString = millisecondsToTimeString(end);
+    const { width, offsetX, offsetY, notchHeight } = drawSettings;
+    const playNotchX = offsetX + (elapsed / end) * width;
+
+    ctx.font = "18px Courier New";
+    ctx.fillStyle = "black"
+    const timeText = millisecondsToTimeString(elapsed) + "/" + endTimeString;
+    const textHeight = getTextHeight(ctx, timeText);
+
+    ctx.clearRect(0, offsetY, width, 30); // TODO: Calculate height based on font size and notch heights
+    
+    ctx.beginPath();
+    // Time bar
+    ctx.moveTo(offsetX,         offsetY + notchHeight / 2);
+    ctx.lineTo(width + offsetX, offsetY + notchHeight / 2);
+
+    // Left notch
+    ctx.moveTo(offsetX, offsetY);
+    ctx.lineTo(offsetX, offsetY + notchHeight);
+
+    // Right notch
+    ctx.moveTo(offsetX + width, offsetY);
+    ctx.lineTo(offsetX + width, offsetY + notchHeight);
+
+    // Play notch
+    ctx.moveTo(playNotchX, offsetY);
+    ctx.lineTo(playNotchX, offsetY + notchHeight);
+    ctx.stroke();
+
+    ctx.fillText(timeText, offsetX, offsetY + textHeight + notchHeight);
+}
 
 
 // ################# MIDI PLAY FUNCTIONS ########################
@@ -1085,6 +1290,25 @@ function debugEventCounter(chunks) {
 }
 
 // ######################## MISC HELPER FUNCTIONS #####################
+
+function getTextHeight(ctx, text) {
+    const textMetrics = ctx.measureText(text);
+    return textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
+}
+
+function clamp(min, v, max) {
+    if (v < min) {
+        return min;
+    } 
+    if (v > max) {
+        return max;
+    }
+    return v;
+}
+
+function isTempoEvent(event) {
+    return event.metaType && event.metaType === META_EVENT.setTimeout;
+}
 
 // Assumes the list contains elements with an end time
 function getPlayTrackEndTime(noteEvents) {
@@ -1462,3 +1686,5 @@ function testBatchNoteEvents() {
         }
     } 
 }
+
+;
