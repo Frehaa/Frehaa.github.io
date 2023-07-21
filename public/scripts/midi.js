@@ -598,28 +598,91 @@ function handleMidiIOglobalMidiChange(event) {
     l('MidiIO globalMidi Change', event);
 }
 
+// ########### ANIMATION STUFF ##############
+function pyramidUpdater(timeStep) {
+    const state = {
+        i: 0,
+        k: 0,
+        timeToUpdate: 1,
+        velocity: [5 / timeStep, 0.0]
+    };
+
+    return [state, (currentPosition, currentTime, state) => {
+        let {i, k, timeToUpdate, velocity} = state;
+        // l(currentPosition, velocity, timeStep)
+        const newPosition = [
+            currentPosition[0] + velocity[0] * timeStep,
+            currentPosition[1] + velocity[1] * timeStep
+        ];
+
+        // Rotate 
+        if (i % timeToUpdate === 0) {
+            state.i = 0;
+            let tmp = velocity[0];
+            if (k % 2 === 0) {
+                state.velocity[0] = velocity[1];
+                state.velocity[1] = tmp;
+            } else {
+                state.velocity[0] = -velocity[1];
+                state.velocity[1] = tmp;
+                state.timeToUpdate++
+            }
+            state.k++;
+        }
+        state.i++
+
+        return newPosition
+    }];
+}
+
+function spiralUpdater(timeStep) {
+    const state = {
+        r: 0,
+        angle: 0
+    };
+
+    return [state, (currentPosition, currentTime, state) => {
+        if (!state.center) {
+            state.center = currentPosition;
+        }
+        state.r += 0.01 * timeStep;
+        state.angle += 0.01 * timeStep;
+
+        const x = state.r * Math.cos(state.angle);
+        const y = state.r * Math.sin(state.angle);
+
+        return [
+            state.center[0] + x,
+            state.center[1] + y,
+        ];
+    }];
+}
+
+// Creates a shape of points using a given update function.
+function createPointShape(framesPerSecond, startPosition, duration, createUpdate) {
+    const timeStep = 1000 / framesPerSecond; 
+    const positions = [];
+    let currentPosition = startPosition;
+    positions.push(currentPosition);
+    const [state, update] = createUpdate(timeStep);
+    let currentTime = 0;
+    while (currentTime < duration) {
+        currentPosition = update(currentPosition, currentTime, state);
+        positions.push(currentPosition);
+
+        currentTime += timeStep
+    }
+    return positions;
+}
+
 // ############# MAIN #############
 
 function main() {
     runTests();
-    
+
     const canvas = document.getElementById('note-canvas');
     const ctx = canvas.getContext('2d');
 
-    const noteFill = (note, i) => {
-        return [
-            "#54478cff",
-            "#2c699aff",
-            "#048ba8ff",
-            "#0db39eff",
-            "#16db93ff",
-            "#83e377ff",
-            "#b9e769ff",
-            "#efea5aff",
-            "#f1c453ff",
-            "#f29e4cff",
-        ][i % 10];
-    };
     let pause = false;
     document.addEventListener('keypress', e => {
         if (e.code === "Space") pause = !pause
@@ -640,30 +703,82 @@ function main() {
     });
     document.body.appendChild(input)
 
+    const endTime = 30000; //getPlayTrackEndTime(noteEvents);
     let previous = 0;
     let elapsed = 0;
     let speedMultiplier = 1;
-    const endTime = getPlayTrackEndTime(noteEvents);
+
+    // const noteFill = (note, i) => {
+    //     return [
+    //         "#54478cff",
+    //         "#2c699aff",
+    //         "#048ba8ff",
+    //         "#0db39eff",
+    //         "#16db93ff",
+    //         "#83e377ff",
+    //         "#b9e769ff",
+    //         "#efea5aff",
+    //         "#f1c453ff",
+    //         "#f29e4cff",
+    //     ][i % 10];
+    // };
+    // const animateFallingNotesWithSpeed = t => {
+    //     if (pause) {
+    //         previous = t;
+    //         return requestAnimationFrame(animateFallingNotesWithSpeed)
+    //     } 
+
+    //     elapsed += (t - previous) * speedMultiplier
+    //     elapsed = clamp(0, elapsed, endTime);
+    //     previous = t;
+
+    //     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    //     drawFallingNotes(ctx, noteEvents, elapsed, {msToPixel: 0.27, noteFill, topLineHeight: 600});
+    //     drawTimeBar(ctx, elapsed, endTime, {
+    //         width: canvas.width - 400, 
+    //         offsetX: 200, 
+    //         offsetY: canvas.height - 50, 
+    //         notchHeight: 6,
+    //         font: "18px Courier New", 
+    //         textColor: 'black', 
+    //         lineColor: 'black'
+    //     });
+    //     requestAnimationFrame(animateFallingNotesWithSpeed);
+    // };
+
+
+    //TODO: Make the line draw animation 3 dimensional
+    const framesPerSecond = 300
+    ctx.lineWidth = 2;
+    const positions = createPointShape(framesPerSecond, [canvas.width / 2, canvas.height / 2], endTime, spiralUpdater);
+
+    const timeStep = 1000 / framesPerSecond; 
     const animate = t => {
         if (pause) {
             previous = t;
             return requestAnimationFrame(animate)
         } 
 
-        elapsed += (t - previous) * speedMultiplier
+        elapsed += (t - previous) * speedMultiplier;
         elapsed = clamp(0, elapsed, endTime);
         previous = t;
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        drawFallingNotes(ctx, noteEvents, elapsed, {msToPixel: 0.27, noteFill, topLineHeight: 600});
-        drawTimeBar(ctx, elapsed, endTime, {
-            width: canvas.width - 400, 
-            offsetX: 200, 
-            offsetY: canvas.height - 50, 
-            notchHeight: 6
-        });
-        requestAnimationFrame(animate);
-    }
+
+        // const lastPosition = Math.min(k, positions.length-1);  
+        const lastPosition = Math.floor(elapsed / timeStep);
+
+        ctx.beginPath();
+        ctx.moveTo(...positions[0]);
+        for (let i = 1; i < lastPosition; i++) {
+            const [x, y] = positions[i];
+            // TODO: Wrap around
+            ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        requestAnimationFrame(animate)
+    };
     requestAnimationFrame(t => {
         previous = t;
         animate(t);
@@ -995,7 +1110,6 @@ function splitEventsAndConvertToMilliseconds(playTrack, division) {
     let tempo = parseTempoMetaData([0x07, 0xA1, 0x20]) // Default value of tempo 500.000 
     let tickToMsFactor = (tempo / division) / 1000;
 
-
     const startedNotes = {}; // Notes which are started but not ended.
     let runningTimeMilliseconds = 0
     for (let i = 0; i < playTrack.length; i++) {
@@ -1111,7 +1225,7 @@ function animateFallingNotes(noteEvents, timeMeasures, { noteFill, topLineHeight
         const timeBarOffsetX = 100;
         const timeBarWidth = canvas.width - 2 * timeBarOffsetX;
         const timeBarOffsetY = topLineHeight + 60;
-        drawTimeBar(ctx, songElapsed, end, { width: timeBarWidth, offsetX: timeBarOffsetX, offsetY: timeBarOffsetY, notchHeight: 6 });
+        drawTimeBar(ctx, songElapsed, end, { width: timeBarWidth, offsetX: timeBarOffsetX, offsetY: timeBarOffsetY, notchHeight: 6, font: "18px Courier New", textColor: 'black', lineColor: 'black' });
 
         if (elapsed > end + timeFromTopToBottomMilliseconds) return;
         requestAnimationFrame(animate)
@@ -1123,16 +1237,19 @@ function drawTimeBar(ctx, elapsed, end, drawSettings) {
     // TODO: Make a cooler time bar which is a filling tube with a neat colored effect on the filling
     // TODO: Make it possible to click time on bar (make this visualy clear)
     const endTimeString = millisecondsToTimeString(end);
-    const { width, offsetX, offsetY, notchHeight } = drawSettings;
+    const { width, offsetX, offsetY, notchHeight, font, lineColor, textColor} = drawSettings;
     const playNotchX = offsetX + (elapsed / end) * width;
 
-    ctx.font = "18px Courier New";
-    ctx.fillStyle = "black"
+    ctx.font = font;
+    ctx.fillStyle = textColor;
     const timeText = millisecondsToTimeString(elapsed) + "/" + endTimeString;
     const textHeight = getTextHeight(ctx, timeText);
 
     ctx.clearRect(0, offsetY, width, 30); // TODO: Calculate height based on font size and notch heights
+
+    ctx.fillText(timeText, offsetX, offsetY + textHeight + notchHeight);
     
+    ctx.strokeTyle = lineColor;
     ctx.beginPath();
     // Time bar
     ctx.moveTo(offsetX,         offsetY + notchHeight / 2);
@@ -1151,7 +1268,6 @@ function drawTimeBar(ctx, elapsed, end, drawSettings) {
     ctx.lineTo(playNotchX, offsetY + notchHeight);
     ctx.stroke();
 
-    ctx.fillText(timeText, offsetX, offsetY + textHeight + notchHeight);
 }
 
 
@@ -1686,5 +1802,3 @@ function testBatchNoteEvents() {
         }
     } 
 }
-
-;
