@@ -329,7 +329,7 @@ function addSelectOption(select, list) {
     });
 }
 
-function initializeCanvas(midi) {
+function initializeCanvasMidiEvents(mideState) {
     const canvas = document.getElementById('note-canvas');
     const ctx = canvas.getContext('2d');
 
@@ -338,7 +338,7 @@ function initializeCanvas(midi) {
     ctx.fillText("Click to Pick file", 100, 500);
 
     canvas.addEventListener('click', (e) => {
-        if (midi.chunks === null) {
+        if (mideState.chunks === null) {
             document.getElementById('file-input').click();
         }
     });
@@ -357,10 +357,9 @@ function initializeCanvas(midi) {
         const changeEvent = new Event('change', { bubbles: true });
         fileInput.dispatchEvent(changeEvent);
     });
-
 }
 
-function initializeMidiIoSelects(midiState) {
+function initializeInputMidiEvents(midiState) {
     const midiOutputSelect = document.getElementById('midi-output-select');
     midiOutputSelect.addEventListener('change', e => {
         let value = midiOutputSelect.value
@@ -386,6 +385,54 @@ function initializeMidiIoSelects(midiState) {
     });
 }
 
+// Initialized the midi state and sets up the events for it
+function initializeMidiState() {
+    const midi = {
+        chunks: null,
+        inputs: emptyMap,
+        outputs: emptyMap,
+        currentInput: emptyIO,
+        currentOutput: emptyIO
+    };
+
+    initializeInputMidiEvents(midi);
+    initializeCanvasMidiEvents(midi);
+
+    initializeMIDIUSBAccess(
+        midiAccess => {
+            // TODO: Handle disconnects and reconnects
+            // midiAccess.onglobalMidichange = handleMidiAccessStateChange;
+            l("Inputs:", midiAccess.inputs, " - Outputs:", midiAccess.outputs, " - Sysex:", midiAccess.sysexEnabled, midiAccess);
+            midi.inputs = midiAccess.inputs;
+            midi.outputs = midiAccess.outputs;
+
+            const midiInputSelect = document.getElementById('midi-input-select');
+            addSelectOption(midiInputSelect, midiAccess.inputs);
+            let entry = midiAccess.inputs.entries().next();
+            if (!entry.done) {
+                let [value, input] = entry.value;
+                midiInputSelect.value = value;
+                midi.currentInput = input;
+            }
+            
+            const midiOutputSelect = document.getElementById('midi-output-select');
+            addSelectOption(midiOutputSelect, midiAccess.outputs);
+            entry = midiAccess.outputs.entries().next();
+            if (!entry.done) {
+                let [value, input] = entry.value;
+                midiOutputSelect.value = value;
+                midi.currentOutput = input;
+            }
+            l(midi)
+        }, 
+        error => {
+            console.log("Failed to access MIDI devices:", error);
+        }
+    );
+
+    return midi;
+}
+
 function initializeFileInput(callback) {
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -409,17 +456,47 @@ function initializeMIDIUSBAccess(success, reject) {
         reject("Operation unsupported");
     }
 }
+function initializePlaybackState() {
+    const playbackState = {
+        pause: false,
+        speedMultiplier: 1
+    };
+    document.addEventListener('keypress', e => {
+        if (e.code === "Space") playbackState.pause = !playbackState.pause
+        else if (e.key === "+") playbackState.speedMultiplier += 1
+        else if (e.key === "-") playbackState.speedMultiplier -= 1
+    });
+
+    const input = document.createElement('input');
+    input.type = 'number'
+    input.addEventListener('input', e => {
+        const n = Number(input.value);
+        if (Number.isNaN(n)) {
+            input.classList.add('invalid');
+        } else {
+            input.classList.remove('invalid');
+            playbackState.speedMultiplier = n;
+        }
+    });
+    document.body.appendChild(input)
+    return playbackState;
+}
 
 // ################### DRAWING FUNCTIONS ###########
 
 function drawFallingNotes(ctx, noteEvents, elapsed, { msToPixel, noteFill, topLineHeight }) {
     // TODO: Maybe draw the notes such that the start time is equal to when it hits the bottom. e.g. elapsed = 0 is when the first note is played, and so there is a short countdown before the start.
     const noteWidth = 20
+    ctx.beginPath()
+    ctx.moveTo(0, topLineHeight);
+    ctx.lineTo(ctx.canvas.width, topLineHeight);
+    ctx.stroke();
     for (let i = 0; i < noteEvents.length; i++) {
         const event = noteEvents[i];
+        // l(event.start, event.end, elapsed)
         // if (elapsed < event.start) break; // Stop processing more events since they wont be shown anyway. (Requires input to be sorted)
 
-        const top = (-event.start + elapsed) * msToPixel; 
+        const top = (-event.end + elapsed) * msToPixel + topLineHeight;
         if (top > topLineHeight) continue;  
 
         const left = 10 + event.note * 14 - noteWidth/2;
@@ -432,6 +509,20 @@ function drawFallingNotes(ctx, noteEvents, elapsed, { msToPixel, noteFill, topLi
             ctx.fillRect(left, top, noteWidth, height);
         }            
     }
+}
+
+function drawTimeMeasures(ctx, timeMeasures) {
+    ctx.fillStyle = 'black';
+    ctx.beginPath();
+    for (let i = 0; i < timeMeasures.length; i++) {
+        const measureTime = timeMeasures[i].start;
+        let y = (elapsed - measureTime) * msToPixel;
+        if (y > topLineHeight) continue
+        ctx.fillText(i, 25, y)
+        ctx.moveTo(50, y);
+        ctx.lineTo(canvas.width, y);
+    }
+    ctx.stroke();
 }
 
 function draw(wholeNoteImage, notes, time) {
@@ -599,6 +690,126 @@ function handleMidiIOglobalMidiChange(event) {
 }
 
 // ########### ANIMATION STUFF ##############
+function playback(ctx, endTime, playbackState, createDraw) {
+    const canvas = ctx.canvas;
+    let previous = 0
+    let elapsed = 0
+    const [state, draw] = createDraw();
+    const animate = t => {
+        if (playbackState.pause) {
+            previous = t;
+            return requestAnimationFrame(animate)
+        } 
+
+        elapsed += (t - previous) * playbackState.speedMultiplier
+        elapsed = clamp(0, elapsed, endTime);
+        previous = t;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        draw(ctx, elapsed, state);
+        requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(t => {
+        previous = t;
+        animate(t);
+    });
+}
+
+//TODO: Make the line draw animation 3 dimensional
+function animatePointLine(ctx, framesPerSecond, endTime, points, playbackState) {
+    const timeStep = 1000 / framesPerSecond; 
+    const canvas = ctx.canvas
+    let previous = 0;
+    let elapsed = 0;
+    const animate = t => {
+        if (playbackState.pause) {
+            previous = t;
+            return requestAnimationFrame(animate)
+        } 
+
+        elapsed += (t - previous) * playbackState.speedMultiplier;
+        elapsed = clamp(0, elapsed, endTime);
+        previous = t;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // const frameEnd = 3;
+        const frameEnd = Math.floor(elapsed / timeStep);
+
+        ctx.beginPath();
+        ctx.moveTo(...points[0]);
+        for (let i = 1; i < frameEnd; i++) {
+            // DEBUG COLORING
+            // if (i % 3 === 0) {
+            //     ctx.strokeStyle = 'red'
+            // } else if (i % 3 === 1) {
+            //     ctx.strokeStyle = 'blue'
+            // } else if (i % 3 === 2) {
+            //     ctx.strokeStyle = 'green'
+            // }
+
+            let [x0, y0] = points[i-1];
+            let [x1, y1] = points[i];
+            // Wrap around horizontally
+            
+            let x0Wraps = Math.floor(x0 / canvas.width); 
+            let x1Wraps = Math.floor(x1 / canvas.width); 
+            x1 = x1 - x0Wraps * canvas.width;
+
+            let wrapDiffs = x1Wraps - x0Wraps;
+            for (let j = 0; j < wrapDiffs; j++) {
+                // x0 = x0 % canvas.width;
+                const distW = canvas.width - x0;
+                const distX = x1 - x0;
+                const ratioX = distW / distX;
+                const distY = y1 - y0;
+                const y = y0 + distY * ratioX;
+                x0 = 0;
+                y0 = y;
+                ctx.lineTo(canvas.width, y0);
+                ctx.moveTo(x0, y0)
+                x1 = x1 - canvas.width;
+            }
+            while (x1 < 0) {
+                const distX = Math.abs(x1 - x0);
+                const distW = Math.abs(x0);
+                const ratioX = distW / distX;
+                const distY = y1 - y0;
+                const y = y0 + distY * ratioX;
+                x0 = canvas.width;
+                y0 = y;
+                ctx.lineTo(0, y0);
+                ctx.moveTo(x0, y0)
+                x1 = x1 + canvas.width;
+            }
+
+
+            // TODO: Wrap around
+            // x = x % canvas.width;
+            // if (x < 0) {
+            //     x = canvas.width + x;
+            // }
+            // y = y % canvas.height;
+            // if (y < 0) {
+            //     y = canvas.height + y;
+            // }
+
+            ctx.lineTo(x1, y1);
+            // DEBUG COLORING
+            // ctx.stroke();
+            // ctx.beginPath()
+            // ctx.moveTo(x1, y1);
+        }
+        ctx.stroke();
+            // return
+
+        requestAnimationFrame(animate)
+    };
+    requestAnimationFrame(t => {
+        previous = t;
+        animate(t);
+    });
+}
+
 function pyramidUpdater(timeStep) {
     const state = {
         i: 0,
@@ -679,162 +890,39 @@ function createPointShape(framesPerSecond, startPosition, duration, createUpdate
 
 function main() {
     runTests();
+    const playbackState = initializePlaybackState();
 
-    const canvas = document.getElementById('note-canvas');
-    const ctx = canvas.getContext('2d');
+    // const ctx = document.getElementById('note-canvas').getContext('2d');
+    // const endTime = getPlayTrackEndTime(noteEvents)
+    // return playback(ctx, endTime, playbackState, () => {
+    //     const width = ctx.canvas.width - 400;
+    //     const offsetY = ctx.canvas.height - 50;
+    //     const noteFill = (note, i) => {
+    //         return [ "#54478cff", "#2c699aff", "#048ba8ff", "#0db39eff", "#16db93ff", "#83e377ff", "#b9e769ff", "#efea5aff", "#f1c453ff", "#f29e4cff", ][i % 10];
+    //     };
+    //     return [{}, (ctx, elapsed, state) => {
+    //         drawFallingNotes(ctx, noteEvents, elapsed, {msToPixel: 0.27, noteFill, topLineHeight: 600});
+    //         drawTimeBar(ctx, elapsed, endTime, {
+    //             width, offsetX: 200, offsetY, notchHeight: 6, font: "18px Courier New", textColor: 'black', lineColor: 'black'
+    //         });
+    //     }];
+    // });
 
-    let pause = false;
-    document.addEventListener('keypress', e => {
-        if (e.code === "Space") pause = !pause
-        else if (e.key === "+") speedMultiplier += 1
-        else if (e.key === "-") speedMultiplier -= 1
-    });
+    // const framesPerSecond = 300
+    // const positions = [
+    //     [canvas.width / 2, canvas.height / 2],
+    //     [0.1 * canvas.width,  50],
+    //     [0.7 * canvas.width,  canvas.height -100]
+    // ]
+    // const positions = createPointShape(framesPerSecond, [canvas.width / 2, canvas.height / 2], endTime, spiralUpdater);
+    // return animatePointLine(ctx, framesPerSecond, endTime, positions, playbackState)
 
-    const input = document.createElement('input');
-    input.type = 'number'
-    input.addEventListener('input', e => {
-        const n = Number(input.value);
-        if (Number.isNaN(n)) {
-            input.classList.add('invalid');
-        } else {
-            input.classList.remove('invalid');
-            speedMultiplier = n;
-        }
-    });
-    document.body.appendChild(input)
-
-    const endTime = 30000; //getPlayTrackEndTime(noteEvents);
-    let previous = 0;
-    let elapsed = 0;
-    let speedMultiplier = 1;
-
-    // const noteFill = (note, i) => {
-    //     return [
-    //         "#54478cff",
-    //         "#2c699aff",
-    //         "#048ba8ff",
-    //         "#0db39eff",
-    //         "#16db93ff",
-    //         "#83e377ff",
-    //         "#b9e769ff",
-    //         "#efea5aff",
-    //         "#f1c453ff",
-    //         "#f29e4cff",
-    //     ][i % 10];
-    // };
-    // const animateFallingNotesWithSpeed = t => {
-    //     if (pause) {
-    //         previous = t;
-    //         return requestAnimationFrame(animateFallingNotesWithSpeed)
-    //     } 
-
-    //     elapsed += (t - previous) * speedMultiplier
-    //     elapsed = clamp(0, elapsed, endTime);
-    //     previous = t;
-
-    //     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    //     drawFallingNotes(ctx, noteEvents, elapsed, {msToPixel: 0.27, noteFill, topLineHeight: 600});
-    //     drawTimeBar(ctx, elapsed, endTime, {
-    //         width: canvas.width - 400, 
-    //         offsetX: 200, 
-    //         offsetY: canvas.height - 50, 
-    //         notchHeight: 6,
-    //         font: "18px Courier New", 
-    //         textColor: 'black', 
-    //         lineColor: 'black'
-    //     });
-    //     requestAnimationFrame(animateFallingNotesWithSpeed);
-    // };
-
-
-    //TODO: Make the line draw animation 3 dimensional
-    const framesPerSecond = 300
-    ctx.lineWidth = 2;
-    const positions = createPointShape(framesPerSecond, [canvas.width / 2, canvas.height / 2], endTime, spiralUpdater);
-
-    const timeStep = 1000 / framesPerSecond; 
-    const animate = t => {
-        if (pause) {
-            previous = t;
-            return requestAnimationFrame(animate)
-        } 
-
-        elapsed += (t - previous) * speedMultiplier;
-        elapsed = clamp(0, elapsed, endTime);
-        previous = t;
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // const lastPosition = Math.min(k, positions.length-1);  
-        const lastPosition = Math.floor(elapsed / timeStep);
-
-        ctx.beginPath();
-        ctx.moveTo(...positions[0]);
-        for (let i = 1; i < lastPosition; i++) {
-            const [x, y] = positions[i];
-            // TODO: Wrap around
-            ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-
-        requestAnimationFrame(animate)
-    };
-    requestAnimationFrame(t => {
-        previous = t;
-        animate(t);
-    });
-
-
-    return;
-
-
-    const midi = {
-        chunks: null,
-        inputs: emptyMap,
-        outputs: emptyMap,
-        currentInput: emptyIO,
-        currentOutput: emptyIO
-    };
-
-    initializeMidiIoSelects(midi);
+    const midi = initializeMidiState();
     initializeFileInput(buffer => {
         const chunks = parseMidiFile(buffer);
         midi.chunks = chunks;
         play(midi)
     });
-    initializeCanvas(midi);
-
-    initializeMIDIUSBAccess(
-        midiAccess => {
-            // TODO: Handle disconnects and reconnects
-            // midiAccess.onglobalMidichange = handleMidiAccessStateChange;
-            l("Inputs:", midiAccess.inputs, " - Outputs:", midiAccess.outputs, " - Sysex:", midiAccess.sysexEnabled, midiAccess);
-            midi.inputs = midiAccess.inputs;
-            midi.outputs = midiAccess.outputs;
-
-            const midiInputSelect = document.getElementById('midi-input-select');
-            addSelectOption(midiInputSelect, midiAccess.inputs);
-            let entry = midiAccess.inputs.entries().next();
-            if (!entry.done) {
-                let [value, input] = entry.value;
-                midiInputSelect.value = value;
-                midi.currentInput = input;
-            }
-            
-            const midiOutputSelect = document.getElementById('midi-output-select');
-            addSelectOption(midiOutputSelect, midiAccess.outputs);
-            entry = midiAccess.outputs.entries().next();
-            if (!entry.done) {
-                let [value, input] = entry.value;
-                midiOutputSelect.value = value;
-                midi.currentOutput = input;
-            }
-            l(midi)
-        }, 
-        error => {
-            console.log("Failed to access MIDI devices:", error);
-        }
-    );
 }
 
 function play(midi) {
@@ -878,23 +966,19 @@ function play(midi) {
         });    
 
         const noteEventsBatched = batchNoteEvents(noteEvents);
-        l(`Note events batched`, noteEventsBatched)
+        // l(`Note events batched`, noteEventsBatched)
 
-        // TODO: More choices of note coloring
         const noteFill = (note, i) => {
-            return [
-                "#54478cff",
-                "#2c699aff",
-                "#048ba8ff",
-                "#0db39eff",
-                "#16db93ff",
-                "#83e377ff",
-                "#b9e769ff",
-                "#efea5aff",
-                "#f1c453ff",
-                "#f29e4cff",
-            ][i % 10];
+            return [ "#54478cff", "#2c699aff", "#048ba8ff", "#0db39eff", "#16db93ff", "#83e377ff", "#b9e769ff", "#efea5aff", "#f1c453ff", "#f29e4cff", ][i % 10];
         };
+
+        // TODO: Stop playing current song when new song is selected
+        animateFallingNotes(noteEvents, timeMeasures, { noteFill, topLineHeight, msToPixel } );
+        setTimeout(() => { // Gives a warning on long files. 
+            playEventsByScheduling(midi, noteEvents, controlEvents, programEvents)
+        }, timeFromTopToBottomMilliseconds)
+        
+        return
 
         // TODO: Deal with the issue of lingering notes somehow. What should be done about a note which should be played longer than other notes? Do I keep holding it down? Should it be optional? Should it be grayed out such that it is visible that it should not be played? Should only the next notes to be played be colored? 
 
@@ -990,11 +1074,6 @@ function play(midi) {
         //     }
         // }
 
-        // TODO: Stop playing current song when new song is selected
-        animateFallingNotes(noteEvents, timeMeasures, { noteFill, topLineHeight, msToPixel } );
-        setTimeout(() => { // Gives a warning on long files. 
-            playEventsByScheduling(midi, noteEvents, controlEvents, programEvents)
-        }, timeFromTopToBottomMilliseconds)
     }
 }
 
@@ -1198,39 +1277,24 @@ function animateFallingNotes(noteEvents, timeMeasures, { noteFill, topLineHeight
     const end = getPlayTrackEndTime(noteEvents);
     
     let startIndex = 0; // TODO: Stop processing notes already moved outside window. Use a running start index. This seems hard since the length of some notes are longer than others, so we still have to skip those in between. The gain also does not seem very significant
-    let startTime = null;
-
+    let elapsed = -timeFromTopToBottomMilliseconds;
+    let previous = null;
     function animate(t) {
-        if (startTime === null) { // Initialize Start
-            startTime = t;
-        }
-        // Draw top 
+        elapsed += t - previous;
+        previous = t;
+
         ctx.clearRect(0, 0, canvas.width, topLineHeight);
-        const elapsed = t - startTime;
         const songElapsed = Math.max(elapsed - timeFromTopToBottomMilliseconds, 0);
         drawFallingNotes(ctx, noteEvents, elapsed, { msToPixel, noteFill, topLineHeight });
-
-        ctx.fillStyle = 'black';
-        ctx.beginPath();
-        for (let i = 0; i < timeMeasures.length; i++) {
-            const measureTime = timeMeasures[i].start;
-            let y = (elapsed - measureTime) * msToPixel;
-            if (y > topLineHeight) continue
-            ctx.fillText(i, 25, y)
-            ctx.moveTo(50, y);
-            ctx.lineTo(canvas.width, y);
-        }
-        ctx.stroke();
-
-        const timeBarOffsetX = 100;
-        const timeBarWidth = canvas.width - 2 * timeBarOffsetX;
-        const timeBarOffsetY = topLineHeight + 60;
-        drawTimeBar(ctx, songElapsed, end, { width: timeBarWidth, offsetX: timeBarOffsetX, offsetY: timeBarOffsetY, notchHeight: 6, font: "18px Courier New", textColor: 'black', lineColor: 'black' });
-
+        // drawTimeMeasures(ctx, timeMeasures);
+        drawTimeBar(ctx, songElapsed, end, { width: canvas.width - 200, offsetX: 100, offsetY: topLineHeight + 60, notchHeight: 6, font: "18px Courier New", textColor: 'black', lineColor: 'black' });
         if (elapsed > end + timeFromTopToBottomMilliseconds) return;
         requestAnimationFrame(animate)
     }
-    requestAnimationFrame(animate)
+    requestAnimationFrame(t => {
+        previous = t;
+        animate(t)
+    });
 }
 
 function drawTimeBar(ctx, elapsed, end, drawSettings) {
@@ -1270,30 +1334,30 @@ function drawTimeBar(ctx, elapsed, end, drawSettings) {
 
 }
 
-
 // ################# MIDI PLAY FUNCTIONS ########################
 // TODO: Play function which synchs directly with animation. (Maybe do this with a callback on note start and end? How should this handle program change and control events?)
 
-function playEventsByScheduling(state, noteEvents, controlEvents, programEvents) {
+function playEventsByScheduling(midiState, noteEvents, controlEvents, programEvents) {
+    l(`Play events MidiState:`, midiState)
     // TODO: Batch the events if possible to avoid needing multiple timouts 
     for (const event of noteEvents) {
         assert(typeof event.note === 'number', `Event note should be a number, but was ${event.note}`);
         setTimeout(() => {
             // TODO: Start by ignoring different channels. This may result in bugs if different channels play the same note
-            state.currentOutput.send([MIDI_EVENT.NOTE_ON+1, event.note, event.velocity])
+            midiState.currentOutput.send([MIDI_EVENT.NOTE_ON+1, event.note, event.velocity])
         }, event.start);
         setTimeout(() => {
-            state.currentOutput.send([MIDI_EVENT.NOTE_OFF+1, event.note, 0])
+            midiState.currentOutput.send([MIDI_EVENT.NOTE_OFF+1, event.note, 0])
         }, event.end);
     }
     for (const event of controlEvents) {
         setTimeout(() => {
-            state.currentOutput.send([MIDI_EVENT.CONTROL_CHANGE, event.control, event.value])
+            midiState.currentOutput.send([MIDI_EVENT.CONTROL_CHANGE, event.control, event.value])
         }, event.start);
     }
     for (const event of programEvents) {
         setTimeout(() => {
-            state.currentOutput.send([MIDI_EVENT.PROGRAM_CHANGE, event.program])
+            midiState.currentOutput.send([MIDI_EVENT.PROGRAM_CHANGE, event.program])
         }, event.start);
     }
 }
