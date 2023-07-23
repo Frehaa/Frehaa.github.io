@@ -901,10 +901,17 @@ function main() {
     //         return [ "#54478cff", "#2c699aff", "#048ba8ff", "#0db39eff", "#16db93ff", "#83e377ff", "#b9e769ff", "#efea5aff", "#f1c453ff", "#f29e4cff", ][i % 10];
     //     };
     //     return [{}, (ctx, elapsed, state) => {
-    //         drawFallingNotes(ctx, noteEvents, elapsed, {msToPixel: 0.27, noteFill, topLineHeight: 600});
+    //         drawFallingNotes(ctx, [{
+    //             "note": 60,
+    //             "start": 0,
+    //             "velocity": 78,
+    //             "end": 1000,
+    //         }], elapsed, {msToPixel: 0.27, noteFill, topLineHeight: 600});
+    //         drawNoteNamesAndTopLine(600)
     //         drawTimeBar(ctx, elapsed, endTime, {
     //             width, offsetX: 200, offsetY, notchHeight: 6, font: "18px Courier New", textColor: 'black', lineColor: 'black'
     //         });
+    //         playbackState.pause = true
     //     }];
     // });
 
@@ -917,15 +924,23 @@ function main() {
     // const positions = createPointShape(framesPerSecond, [canvas.width / 2, canvas.height / 2], endTime, spiralUpdater);
     // return animatePointLine(ctx, framesPerSecond, endTime, positions, playbackState)
 
-    const midi = initializeMidiState();
+    const midiState = initializeMidiState();
     initializeFileInput(buffer => {
-        const chunks = parseMidiFile(buffer);
-        midi.chunks = chunks;
-        play(midi)
+        try {
+            midiState.chunks = parseMidiFile(buffer);
+        } catch(e) {
+            l('Stuff went wrong in parsing', e)
+        }
+        try {
+            play(midiState)
+        } catch(e) {
+            l('Stuff went wrong in playing', e)
+        }
     });
 }
 
 function play(midi) {
+    // TODO: Have playback with speed modifier and pause work for this too. (Possibly do this by sending MIDI events based on animation)
     l("\nGlobal MIDI:", midi)
     l("Event Counts:", debugEventCounter(midi.chunks));
 
@@ -951,11 +966,9 @@ function play(midi) {
         // TODO: Make the measure starts and time signatures customizable. 
         // The first one is a 0. So far so good. The next time is at??????????????
         const timeMeasures = [] //getMeasures(playTracks[t], division); 
-        l(`Time measures`, timeMeasures)
+        // l(`Time measures`, timeMeasures)
 
         const [noteEvents, controlEvents, programEvents, keySignatures] = splitEventsAndConvertToMilliseconds(playTracks[t], division);
-
-        l(noteEvents);
 
         // return;
 
@@ -973,12 +986,12 @@ function play(midi) {
         };
 
         // TODO: Stop playing current song when new song is selected
-        animateFallingNotes(noteEvents, timeMeasures, { noteFill, topLineHeight, msToPixel } );
-        setTimeout(() => { // Gives a warning on long files. 
-            playEventsByScheduling(midi, noteEvents, controlEvents, programEvents)
-        }, timeFromTopToBottomMilliseconds)
+        // animateFallingNotes(noteEvents, timeMeasures, { noteFill, topLineHeight, msToPixel } );
+        // setTimeout(() => { // Gives a warning on long files. 
+        //     playEventsByScheduling(midi, noteEvents, controlEvents, programEvents)
+        // }, timeFromTopToBottomMilliseconds)
         
-        return
+        // return
 
         // TODO: Deal with the issue of lingering notes somehow. What should be done about a note which should be played longer than other notes? Do I keep holding it down? Should it be optional? Should it be grayed out such that it is visible that it should not be played? Should only the next notes to be played be colored? 
 
@@ -996,83 +1009,73 @@ function play(midi) {
 
 
         // INTERACTIVE STUFF
-        // const currentlyPressed = new Set();
-        // let lastPedal = false;
-        // let currentNoteGroup = 0; // Start note
-        // let currentElapsed = noteEventsBatched[currentNoteGroup][0].start + timeFromTopToBottomMilliseconds;
+        const currentlyPressed = new Set();
+        let lastPedal = false;
+        let currentNoteGroup = 0; // Start note
+        let currentElapsed = noteEventsBatched[currentNoteGroup][0].start;
 
-        // ctx.clearRect(0, 0, canvas.width, topLineHeight);
-        // drawFallingNotes(ctx, noteEvents, currentElapsed, msToPixel, noteFill, topLineHeight);
+        ctx.clearRect(0, 0, canvas.width, topLineHeight);
+        drawFallingNotes(ctx, noteEvents, currentElapsed, { msToPixel, noteFill, topLineHeight });
+        // TODO: fix wrong display
 
-        // function update(newNoteGroup) {
-        //     currentNoteGroup = newNoteGroup;
-        //     currentElapsed = noteEventsBatched[currentNoteGroup][0].start + timeFromTopToBottomMilliseconds;
-        //     ctx.clearRect(0, 0, canvas.width, topLineHeight);
-        //     drawFallingNotes(ctx, noteEvents, currentElapsed, msToPixel, noteFill, topLineHeight);
-        // }
+        function update(newNoteGroup) {
+            ctx.clearRect(0, 0, canvas.width, topLineHeight);
 
-        // function noteOff() {
-        //     if (currentlyPressed.size > 0) { // Reset on error
-        //         currentlyPressed.clear();
-        //         update(0);
-        //     }
-        // }
+            currentNoteGroup = newNoteGroup;
+            if (currentNoteGroup >= noteEventsBatched.length) {
 
-        // midi.currentInput.onmidimessage = (e) => { 
-        //     switch (e.data[0] & 0xF0) {
-        //         case MIDI_EVENT.NOTE_ON: {
-        //             if (e.data[2] === 0) { // If velocity is 0 then it is a NOTE_OFF event
-        //                 noteOff();
-        //             } else {
-        //                 currentlyPressed.add(e.data[1]);
-        //             }
-        //         } break;
-        //         case MIDI_EVENT.NOTE_OFF: {
-        //             noteOff()
-        //         } break;
-        //         case MIDI_EVENT.CONTROL_CHANGE: {
-        //             if (e.data[1] === CONTROL_FUNCTION.DAMPER_PEDAL) {
-        //                 if (e.data[2] === 0) {
-        //                     lastPedal = false;
-        //                 } else if (lastPedal === false) {
-        //                     // lastPedal = true; // This gives fast return to start
-        //                     // currentNoteGroup = Math.max(0, currentNoteGroup - 1);
-        //                     update(0);
-        //                 }
-        //             } 
-        //         } break;
-        //         default: {// Do not know yet? Maybe do nothing
-        //         } break
-        //     }
+            } else {
+                currentElapsed = noteEventsBatched[currentNoteGroup][0].start;
+                drawFallingNotes(ctx, noteEvents, currentElapsed, { msToPixel, noteFill, topLineHeight });
+            }
+        }
+
+        function noteOff() {
+            if (currentlyPressed.size > 0) { // Reset on error
+                currentlyPressed.clear();
+                update(0);
+            }
+        }
+
+        midi.currentInput.onmidimessage = (e) => { 
+            switch (e.data[0] & 0xF0) {
+                case MIDI_EVENT.NOTE_ON: {
+                    if (e.data[2] === 0) { // If velocity is 0 then it is a NOTE_OFF event
+                        noteOff();
+                    } else {
+                        currentlyPressed.add(e.data[1]);
+                    }
+                } break;
+                case MIDI_EVENT.NOTE_OFF: {
+                    noteOff()
+                } break;
+                case MIDI_EVENT.CONTROL_CHANGE: {
+                    if (e.data[1] === CONTROL_FUNCTION.DAMPER_PEDAL) {
+                        if (e.data[2] === 0) {
+                            lastPedal = false;
+                        } else if (lastPedal === false) {
+                            // lastPedal = true; // This gives fast return to start
+                            // currentNoteGroup = Math.max(0, currentNoteGroup - 1);
+                            update(0);
+                        }
+                    } 
+                } break;
+                default: {// Do not know yet? Maybe do nothing
+                } break
+            }
             
-        //     const currentGroup = noteEventsBatched[currentNoteGroup]
-        //     if (currentlyPressed.size === currentGroup.length) {
-        //         let success = true;
-        //         for (let i = 0; i < currentGroup.length; i++) {
-        //             const event = currentGroup[i];
-        //             if (!currentlyPressed.has(event.note)) {
-        //                 success = false;
-        //                 break
-        //             }
-        //         }
-
-        //         if (success) {
-        //             currentlyPressed.clear();
-        //             update(currentNoteGroup + 1);
-        //             if (currentNoteGroup === noteEventsBatched.length) {
-        //                 alert('win')
-        //             } 
-        //             if (currentNoteGroup > noteEventsBatched.length) {
-        //                 // DO NOTHING
-        //             }
-
-
-        //         } else {
-        //             // IDK 
-        //         }
-
-        //     }
-        // }
+            const currentGroup = noteEventsBatched[currentNoteGroup]
+            if (currentNoteGroup < noteEventsBatched.length && currentlyPressed.size === currentGroup.length) {
+                const success = currentGroup.reduce((s, e) => currentlyPressed.has(e.note) && s, true);
+                if (success) {
+                    currentlyPressed.clear();
+                    update(currentNoteGroup + 1);
+                    if (currentNoteGroup === noteEventsBatched.length) {
+                        l('win')
+                    } 
+                }  
+            }
+        }
 
     }
 }
@@ -1218,6 +1221,7 @@ function splitEventsAndConvertToMilliseconds(playTrack, division) {
             noteEvents.push(note);
             startedNotes[event.note] = null;
         }
+        // TODO: The deltaTimeStart should be based on the accumulative delta time. Right now it is useless because it is relative to deleted events.
         else if (event.type === MIDI_EVENT.NOTE_ON) {
             let note = startedNotes[event.note];
             // assert(note === null || note === undefined, `Expected ${event.note} to be null on channel ${event.channel}, was ${startedNotes[event.note]}`);
@@ -1866,3 +1870,4 @@ function testBatchNoteEvents() {
         }
     } 
 }
+
