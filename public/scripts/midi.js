@@ -891,72 +891,32 @@ function createPointShape(framesPerSecond, startPosition, duration, createUpdate
 function main() {
     runTests();
     const playbackState = initializePlaybackState();
-
-    // const ctx = document.getElementById('note-canvas').getContext('2d');
-    // const endTime = getPlayTrackEndTime(noteEvents)
-    // return playback(ctx, endTime, playbackState, () => {
-    //     const width = ctx.canvas.width - 400;
-    //     const offsetY = ctx.canvas.height - 50;
-    //     const noteFill = (note, i) => {
-    //         return [ "#54478cff", "#2c699aff", "#048ba8ff", "#0db39eff", "#16db93ff", "#83e377ff", "#b9e769ff", "#efea5aff", "#f1c453ff", "#f29e4cff", ][i % 10];
-    //     };
-    //     return [{}, (ctx, elapsed, state) => {
-    //         drawFallingNotes(ctx, [{
-    //             "note": 60,
-    //             "start": 0,
-    //             "velocity": 78,
-    //             "end": 1000,
-    //         }], elapsed, {msToPixel: 0.27, noteFill, topLineHeight: 600});
-    //         drawNoteNamesAndTopLine(600)
-    //         drawTimeBar(ctx, elapsed, endTime, {
-    //             width, offsetX: 200, offsetY, notchHeight: 6, font: "18px Courier New", textColor: 'black', lineColor: 'black'
-    //         });
-    //         playbackState.pause = true
-    //     }];
-    // });
-
-    // const framesPerSecond = 300
-    // const positions = [
-    //     [canvas.width / 2, canvas.height / 2],
-    //     [0.1 * canvas.width,  50],
-    //     [0.7 * canvas.width,  canvas.height -100]
-    // ]
-    // const positions = createPointShape(framesPerSecond, [canvas.width / 2, canvas.height / 2], endTime, spiralUpdater);
-    // return animatePointLine(ctx, framesPerSecond, endTime, positions, playbackState)
-
     const midiState = initializeMidiState();
     initializeFileInput(buffer => {
         try {
-            midiState.chunks = parseMidiFile(buffer);
+            const midiChunks = parseMidiFile(buffer);
+            midiState.chunks = midiChunks;
+            const representation = transformMidiChunksToBetterRepresentation(midiChunks)
+            play(representation.melodies[0], midiState)
         } catch(e) {
-            l('Stuff went wrong in parsing', e)
-        }
-        try {
-            play(midiState)
-        } catch(e) {
-            l('Stuff went wrong in playing', e)
+            l('Stuff went wrong', e)
         }
     });
 }
 
-function play(midi) {
-    // TODO: Have playback with speed modifier and pause work for this too. (Possibly do this by sending MIDI events based on animation)
-    l("\nGlobal MIDI:", midi)
-    l("Event Counts:", debugEventCounter(midi.chunks));
-
-    const division = midi.chunks[0].division;
-    const format = midi.chunks[0].format;
-    const playTracks = getPlayTrackEvents(format, midi.chunks);
+function transformMidiChunksToBetterRepresentation(midiChunks) {
+    l('Midi Chunks after parsing', midiChunks);
+    const division = midiChunks[0].division;
+    const format = midiChunks[0].format;
+    const playTracks = getPlayTrackEvents(format, midiChunks);
     l(`Format ${format} division ${division}`);
     l(`Play tracks:`, playTracks);
 
-    const canvas = document.getElementById('note-canvas');
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const topLineHeight = 560;
-    drawNoteNamesAndTopLine(topLineHeight);
-    const timeFromTopToBottomMilliseconds = 2000;
-    const msToPixel = topLineHeight / timeFromTopToBottomMilliseconds;
+    const result = {
+        division,
+        format,
+        melodies: []
+    };
 
     for (let t = 0; t < playTracks.length; t++) {
         assert(t === 0, `Found ${playTracks.length} tracks, which should not happen while we do not support format 2`);
@@ -966,117 +926,136 @@ function play(midi) {
         // TODO: Make the measure starts and time signatures customizable. 
         // The first one is a 0. So far so good. The next time is at??????????????
         const timeMeasures = [] //getMeasures(playTracks[t], division); 
-        // l(`Time measures`, timeMeasures)
-
         const [noteEvents, controlEvents, programEvents, keySignatures] = splitEventsAndConvertToMilliseconds(playTracks[t], division);
-
-        // return;
-
         noteEvents.sort((a, b) => {
             if (a.start < b.start) return -1;
             if (b.start < a.start) return 1;
             return 0;
         });    
 
-        const noteEventsBatched = batchNoteEvents(noteEvents);
-        // l(`Note events batched`, noteEventsBatched)
+        result.melodies.push({
+            noteEvents, 
+            controlEvents, 
+            programEvents, 
+            keySignatures, 
+            timeMeasures
+        });
+    }
+    return result;
+}
 
-        const noteFill = (note, i) => {
-            return [ "#54478cff", "#2c699aff", "#048ba8ff", "#0db39eff", "#16db93ff", "#83e377ff", "#b9e769ff", "#efea5aff", "#f1c453ff", "#f29e4cff", ][i % 10];
-        };
+function play(melody, midiState) {
+    // TODO: Have playback with speed modifier and pause work for this too. (Possibly do this by sending MIDI events based on animation)
+    l("\nMIDI State:", midiState)
+    // l("Event Counts:", debugEventCounter(midi.chunks));
 
-        // TODO: Stop playing current song when new song is selected
-        // animateFallingNotes(noteEvents, timeMeasures, { noteFill, topLineHeight, msToPixel } );
-        // setTimeout(() => { // Gives a warning on long files. 
-        //     playEventsByScheduling(midi, noteEvents, controlEvents, programEvents)
-        // }, timeFromTopToBottomMilliseconds)
-        
-        // return
+    const canvas = document.getElementById('note-canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const topLineHeight = 560;
+    drawNoteNamesAndTopLine(topLineHeight);
+    const timeFromTopToBottomMilliseconds = 2000;
+    const msToPixel = topLineHeight / timeFromTopToBottomMilliseconds;
 
-        // TODO: Deal with the issue of lingering notes somehow. What should be done about a note which should be played longer than other notes? Do I keep holding it down? Should it be optional? Should it be grayed out such that it is visible that it should not be played? Should only the next notes to be played be colored? 
+    const noteFill = (note, i) => {
+        return [ "#54478cff", "#2c699aff", "#048ba8ff", "#0db39eff", "#16db93ff", "#83e377ff", "#b9e769ff", "#efea5aff", "#f1c453ff", "#f29e4cff", ][i % 10];
+    };
 
-        // TODO: Do not draw the whole keyboard but only a subsection which can be zoomed in.
+    const noteEvents = melody.noteEvents;
+    const timeMeasures = melody.timeMeasures;
+    const controlEvents = melody.controlEvents;
+    const programEvents = melody.programEvents;
+    // TODO: Stop playing current song when new song is selected
+    animateFallingNotes(noteEvents, timeMeasures, { noteFill, topLineHeight, msToPixel } );
+    setTimeout(() => { // Gives a warning on long files. 
+        playEventsByScheduling(midiState, noteEvents, controlEvents, programEvents)
+    }, timeFromTopToBottomMilliseconds)
+    
+    return
 
-        // TODO: Filter the notes for left and right hand or other criteria. Perhaps just manually click some notes to remove in a section / group.
+    // TODO: Deal with the issue of lingering notes somehow. What should be done about a note which should be played longer than other notes? Do I keep holding it down? Should it be optional? Should it be grayed out such that it is visible that it should not be played? Should only the next notes to be played be colored? 
 
-        // TODO: Time based. Press the right notes on time or go back a measure. 
+    // TODO: Do not draw the whole keyboard but only a subsection which can be zoomed in.
 
-        // TODO: Settings from where to restart from and where to restart after. (E.g. practice a specific section)
-        // TODO: Have the restarting notes repeat instead of showing other notes
-        // TODO: Specify the restart by measure or time with a conversion between (What happens when the time is not on the start and end of a measure? This seems like it would ruin the rhythm).
+    // TODO: Filter the notes for left and right hand or other criteria. Perhaps just manually click some notes to remove in a section / group.
 
-        // TODO: On correct, animate smoothly to next notes instead of instantly.
+    // TODO: Time based. Press the right notes on time or go back a measure. 
 
+    // TODO: Settings from where to restart from and where to restart after. (E.g. practice a specific section)
+    // TODO: Have the restarting notes repeat instead of showing other notes
+    // TODO: Specify the restart by measure or time with a conversion between (What happens when the time is not on the start and end of a measure? This seems like it would ruin the rhythm).
 
-        // INTERACTIVE STUFF
-        const currentlyPressed = new Set();
-        let lastPedal = false;
-        let currentNoteGroup = 0; // Start note
-        let currentElapsed = noteEventsBatched[currentNoteGroup][0].start;
+    // TODO: On correct, animate smoothly to next notes instead of instantly.
 
+    // INTERACTIVE STUFF
+
+    const noteEventsBatched = batchNoteEvents(noteEvents);
+    // l(`Note events batched`, noteEventsBatched)
+    const currentlyPressed = new Set();
+    let lastPedal = false;
+    let currentNoteGroup = 0; // Start note
+    let currentElapsed = noteEventsBatched[currentNoteGroup][0].start;
+
+    ctx.clearRect(0, 0, canvas.width, topLineHeight);
+    drawFallingNotes(ctx, noteEvents, currentElapsed, { msToPixel, noteFill, topLineHeight });
+
+    function update(newNoteGroup) {
         ctx.clearRect(0, 0, canvas.width, topLineHeight);
-        drawFallingNotes(ctx, noteEvents, currentElapsed, { msToPixel, noteFill, topLineHeight });
-        // TODO: fix wrong display
 
-        function update(newNoteGroup) {
-            ctx.clearRect(0, 0, canvas.width, topLineHeight);
+        currentNoteGroup = newNoteGroup;
+        if (currentNoteGroup >= noteEventsBatched.length) {
 
-            currentNoteGroup = newNoteGroup;
-            if (currentNoteGroup >= noteEventsBatched.length) {
-
-            } else {
-                currentElapsed = noteEventsBatched[currentNoteGroup][0].start;
-                drawFallingNotes(ctx, noteEvents, currentElapsed, { msToPixel, noteFill, topLineHeight });
-            }
+        } else {
+            currentElapsed = noteEventsBatched[currentNoteGroup][0].start;
+            drawFallingNotes(ctx, noteEvents, currentElapsed, { msToPixel, noteFill, topLineHeight });
         }
+    }
 
-        function noteOff() {
-            if (currentlyPressed.size > 0) { // Reset on error
-                currentlyPressed.clear();
-                update(0);
-            }
+    function noteOff() {
+        if (currentlyPressed.size > 0) { // Reset on error
+            currentlyPressed.clear();
+            update(0);
         }
+    }
 
-        midi.currentInput.onmidimessage = (e) => { 
-            switch (e.data[0] & 0xF0) {
-                case MIDI_EVENT.NOTE_ON: {
-                    if (e.data[2] === 0) { // If velocity is 0 then it is a NOTE_OFF event
-                        noteOff();
-                    } else {
-                        currentlyPressed.add(e.data[1]);
+    midiState.currentInput.onmidimessage = (e) => { 
+        switch (e.data[0] & 0xF0) {
+            case MIDI_EVENT.NOTE_ON: {
+                if (e.data[2] === 0) { // If velocity is 0 then it is a NOTE_OFF event
+                    noteOff();
+                } else {
+                    currentlyPressed.add(e.data[1]);
+                }
+            } break;
+            case MIDI_EVENT.NOTE_OFF: {
+                noteOff()
+            } break;
+            case MIDI_EVENT.CONTROL_CHANGE: {
+                if (e.data[1] === CONTROL_FUNCTION.DAMPER_PEDAL) {
+                    if (e.data[2] === 0) {
+                        lastPedal = false;
+                    } else if (lastPedal === false) {
+                        // lastPedal = true; // This gives fast return to start
+                        // currentNoteGroup = Math.max(0, currentNoteGroup - 1);
+                        update(0);
                     }
-                } break;
-                case MIDI_EVENT.NOTE_OFF: {
-                    noteOff()
-                } break;
-                case MIDI_EVENT.CONTROL_CHANGE: {
-                    if (e.data[1] === CONTROL_FUNCTION.DAMPER_PEDAL) {
-                        if (e.data[2] === 0) {
-                            lastPedal = false;
-                        } else if (lastPedal === false) {
-                            // lastPedal = true; // This gives fast return to start
-                            // currentNoteGroup = Math.max(0, currentNoteGroup - 1);
-                            update(0);
-                        }
-                    } 
-                } break;
-                default: {// Do not know yet? Maybe do nothing
-                } break
-            }
-            
-            const currentGroup = noteEventsBatched[currentNoteGroup]
-            if (currentNoteGroup < noteEventsBatched.length && currentlyPressed.size === currentGroup.length) {
-                const success = currentGroup.reduce((s, e) => currentlyPressed.has(e.note) && s, true);
-                if (success) {
-                    currentlyPressed.clear();
-                    update(currentNoteGroup + 1);
-                    if (currentNoteGroup === noteEventsBatched.length) {
-                        l('win')
-                    } 
-                }  
-            }
+                } 
+            } break;
+            default: {// Do not know yet? Maybe do nothing
+            } break
         }
-
+        
+        const currentGroup = noteEventsBatched[currentNoteGroup]
+        if (currentNoteGroup < noteEventsBatched.length && currentlyPressed.size === currentGroup.length) {
+            const success = currentGroup.reduce((s, e) => currentlyPressed.has(e.note) && s, true);
+            if (success) {
+                currentlyPressed.clear();
+                update(currentNoteGroup + 1);
+                if (currentNoteGroup === noteEventsBatched.length) {
+                    l('win')
+                } 
+            }  
+        }
     }
 }
 
@@ -1854,7 +1833,7 @@ function arrayEqual(a, b, elementCompare) {
     return true;
 }
 
-// This fucking test actually made me find an error. This is especially annoying since I though this was an unnecessary test since my code was "obviously" correct. You live and learn.
+// This fucking test actually made me find an error. This is especially annoying since I thought this was an unnecessary test since my code was "obviously" correct. You live and learn.
 function testBatchNoteEvents() {
     let tests = [
         {input: [], expected: []},
@@ -1871,3 +1850,38 @@ function testBatchNoteEvents() {
     } 
 }
 
+
+// ################ FUNCTIONALITY TESTING #################
+function playgroundCode() {
+    const ctx = document.getElementById('note-canvas').getContext('2d');
+    const endTime = getPlayTrackEndTime(noteEvents)
+    return playback(ctx, endTime, playbackState, () => {
+        const width = ctx.canvas.width - 400;
+        const offsetY = ctx.canvas.height - 50;
+        const noteFill = (note, i) => {
+            return [ "#54478cff", "#2c699aff", "#048ba8ff", "#0db39eff", "#16db93ff", "#83e377ff", "#b9e769ff", "#efea5aff", "#f1c453ff", "#f29e4cff", ][i % 10];
+        };
+        return [{}, (ctx, elapsed, state) => {
+            drawFallingNotes(ctx, [{
+                "note": 60,
+                "start": 0,
+                "velocity": 78,
+                "end": 1000,
+            }], elapsed, {msToPixel: 0.27, noteFill, topLineHeight: 600});
+            drawNoteNamesAndTopLine(600)
+            drawTimeBar(ctx, elapsed, endTime, {
+                width, offsetX: 200, offsetY, notchHeight: 6, font: "18px Courier New", textColor: 'black', lineColor: 'black'
+            });
+            playbackState.pause = true
+        }];
+    });
+
+    const framesPerSecond = 300;
+    // const positions = [
+    //     [canvas.width / 2, canvas.height / 2],
+    //     [0.1 * canvas.width,  50],
+    //     [0.7 * canvas.width,  canvas.height -100]
+    // ];
+    const positions = createPointShape(framesPerSecond, [canvas.width / 2, canvas.height / 2], endTime, spiralUpdater);
+    return animatePointLine(ctx, framesPerSecond, endTime, positions, playbackState)
+}
