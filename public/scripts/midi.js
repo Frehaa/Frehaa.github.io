@@ -2,7 +2,7 @@
 const KEY_CODE_SPACE = 'Space';
 // const KEY_CODE_NUMPAD_PLUS = "";
 // const KEY_CODE_NUMPAD_PLUS = "";
-let l = console.log
+const l = console.log
 function assert(p, msg) {
     if (!p) throw new Error(msg);
 }
@@ -63,7 +63,6 @@ const CLEFF = Object.freeze({
     TREBLE: 0,
     BASS: 1,
 });
-const ENTER_KEY = "Enter";
 
 // Assuming input is valid noteName
 function flatToSharp(noteName) {
@@ -94,7 +93,7 @@ function numToKeyboardNoteName(num) {
 
 // TODO: 
 function parseTimeSignature(metaData) {
-    assert(metaData.length === 4, `Expected four values for the time signature meta data, found ${metaData.length}`);
+    assert(metaData.length >= 4, `Expected at least four values for the time signature meta data, found ${metaData.length}`);
     const numerator = metaData[0];
     const denominator = 2 ** metaData[1];
 
@@ -115,6 +114,7 @@ function formatParseErrorMessage(offset, msg) {
 
 // Transforming meta data for SET TEMPO META EVENT into value (meta data should be an array of 3 bytes)
 function parseTempoMetaData(metaData) {
+    assert(metaData.length >= 3, `Expected at least three values for the set tempo meta data, found ${metaData.length}`);
     return metaData[0] << 16 | metaData[1] << 8 | metaData[2];
 }
 
@@ -132,11 +132,11 @@ function parseVariableLengthValue(dataView, offset) {
 }
 
 function parseMidiFile(buffer) {
-    let dataView = new DataView(buffer);
-    let offset = 0, chunk, chunks = [];
-    [chunk, offset] = parseChunk(dataView, offset)
-    let header = chunk;
+    const dataView = new DataView(buffer);
+    let [chunk, offset] = parseChunk(dataView, 0)
+    const header = chunk;
     assert(header.type === CHUNK_TYPE.HEADER, `First chunk had invalid type. Expected header found ${header.type}`);
+    const chunks = [];
     chunks.push(header);
 
     let count = 0;
@@ -146,8 +146,7 @@ function parseMidiFile(buffer) {
             if (chunk.type === CHUNK_TYPE.TRACK) { // Ignore non track chunks
                 chunks.push(chunk);
                 count++;
-            } else {
-                // TODO: Silently ignore unknown chunk types  (use log warn instead?)
+            } else { // TODO: Silently ignore unknown chunk types (use log warn instead?) or have a list for each type 
                 assert(false, `Found unknown chunk type found ${chunk.type}`);
             }
         } catch (e) {
@@ -158,19 +157,6 @@ function parseMidiFile(buffer) {
     return chunks;
 }
 
-// struct MTHD_CHUNK
-// {
-//    /* Here's the 8 byte header that all chunks must have */
-//    char           ID[4];  /* This will be 'M','T','h','d' */
-//    unsigned long  Length; /* This will be 6 */
-
-//    /* Here are the 6 bytes */
-//    unsigned short Format;
-//    unsigned short NumTracks;
-//    unsigned short Division;
-// };
-
-// TODO: Maybe throw away chunk length information (or keep for debugging? Or assert correctness and then throw away?)
 function parseChunk(dataview, offset) {
     assert(dataview.byteLength > offset + 8, formatParseErrorMessage(offset, `The dataview did not contain enough bytes to read chunk`));
     const type = dataview.getUint32(offset);
@@ -180,18 +166,13 @@ function parseChunk(dataview, offset) {
     switch (type) {
         case CHUNK_TYPE.HEADER: { // Parse Header chunk
             assert(length >= 6, formatParseErrorMessage(offset-4, `Data length too small for header chunk. Expected at least 6, found ${length}`));  
-            const format = dataview.getUint16(offset);
-            const ntrks = dataview.getUint16(offset + 2);
-            const division = dataview.getUint16(offset + 4);
-            // assert((division & 0x80) === 0, `Expected division to be given as ticks per quarter-note, but was in SMPTE format`);
-
-            offset += length;
             const chunk = {
                 type,
-                format,
-                ntrks,
-                division
+                format: dataview.getUint16(offset),
+                ntrks: dataview.getUint16(offset + 2),
+                division: dataview.getUint16(offset + 4)
             };
+            offset += length;
             return [chunk, offset];
         } 
         case CHUNK_TYPE.TRACK: { // Parse Track chunk
@@ -199,7 +180,7 @@ function parseChunk(dataview, offset) {
                 type, 
                 events: [] 
             };
-            let finalOffset = offset + length;
+            const finalOffset = offset + length;
             assert(length > 0, formatParseErrorMessage(offset, `Length of Track chunk was 0`));
             let event, runningStatus = null;
             do {
@@ -218,6 +199,7 @@ function parseChunk(dataview, offset) {
         default: {
             const chunk = {
                 type,
+                offset
             };
             return [chunk, offset + length];
         }
@@ -235,7 +217,6 @@ function parseEvent(dataView, offset, runningStatus) {
     [dt, offset] = parseVariableLengthValue(dataView, offset)
     const deltaTime = dt;
     let status = dataView.getUint8(offset);
-
     if ((status & 0x80) === 0) { // Use running status as status and shift offset back
         assert(runningStatus !== null, formatParseErrorMessage(offset, `Expected running status to be set but was null`));
         status = runningStatus;
@@ -250,7 +231,6 @@ function parseEvent(dataView, offset, runningStatus) {
             sysex: []
         }
         readUint8ToArray(dataView, offset, length, eventData.sysex);
-        assert(eventData.sysex.length === length, formatParseErrorMessage(offset, `System exclusive message length was different from expected. expected ${eventData.sysex.length} actual ${length}`));
         assert(eventData.sysex[length-1] === 0xF7, formatParseErrorMessage(offset + length - 1, `Expected 0xF7 at end of SYSEX Event, found ${eventData.sysex[length-1]}`));
         offset = offset + length;
     } else if (status === STATUS.META_EVENT) { 
@@ -258,16 +238,13 @@ function parseEvent(dataView, offset, runningStatus) {
         [length, offset] = parseVariableLengthValue(dataView, offset + 2);
         eventData = { metaType, length, metaData: [] };
         readUint8ToArray(dataView, offset, length, eventData.metaData);
-        assert(eventData.metaData.length === length, formatParseErrorMessage(offset, `META event message length was different from expected. expected ${eventData.metaData.length} actual ${length}`));
         offset = offset + length;
     } else { 
-        const channel = status & 0x0F;
-        const type = status & 0xF0;
         eventData = {
-            type,
-            channel
+            type: status & 0xF0,
+            channel: status & 0x0F
         }
-        switch (type) {
+        switch (eventData.type) {
             case MIDI_EVENT.NOTE_OFF: 
             case MIDI_EVENT.NOTE_ON: {
                 eventData["note"] = dataView.getUint8(offset + 1);
@@ -298,7 +275,7 @@ function parseEvent(dataView, offset, runningStatus) {
                 offset += 3;
             } break;
             default: {
-                assert(false, formatParseErrorMessage(offset, `Unknown MIDI event ${type}`));
+                assert(false, formatParseErrorMessage(offset, `Unknown MIDI event ${eventData.type}`));
             } break;
         }
     } 
@@ -310,7 +287,6 @@ function parseEvent(dataView, offset, runningStatus) {
     return [event, offset];
 }
 
-
 // ################ INITIALIZATION FUNCTIONS #########################
 
 const emptyIO = {
@@ -320,13 +296,20 @@ const emptyMap = {
     has: () => { return false; }
 }
 
-function addSelectOption(select, list) {
+function addSelectOptionsAndReturnFirst(select, list) {
     list.forEach((v, i, a) => {
         const option = document.createElement('option');
         option.value = i;
         option.innerHTML = i
         select.appendChild(option);
     });
+    let entry = list.entries().next();
+    if (!entry.done) {
+        let [value, input] = entry.value;
+        select.value = value;
+        return input;
+    }
+    return null;
 }
 
 function initializeCanvasMidiEvents(mideState) {
@@ -335,7 +318,8 @@ function initializeCanvasMidiEvents(mideState) {
 
     // TODO: Center and pick font
     ctx.font = '36px Aria';
-    ctx.fillText("Click to Pick file", 100, 500);
+    ctx.fillText("Click to pick a MIDI file", 100, 500);
+    ctx.fillText("or drag and drop it in the window", 100, 540);
 
     canvas.addEventListener('click', (e) => {
         if (mideState.chunks === null) {
@@ -360,28 +344,20 @@ function initializeCanvasMidiEvents(mideState) {
 }
 
 function initializeInputMidiEvents(midiState) {
+    const getOrEmptyIO = (value, map) => {
+        return map.has(value)? map.get(value) : emptyIO;
+    };
     const midiOutputSelect = document.getElementById('midi-output-select');
-    midiOutputSelect.addEventListener('change', e => {
-        let value = midiOutputSelect.value
-        l('change output', value)
-        if (midiState.outputs.has(value)) {
-            let output = midiState.outputs.get(value);
-            midiState.currentOutput = output;
-        } else {
-            midiState.currentOutput = emptyIO;
-        }
+    midiOutputSelect.addEventListener('change', event => {
+        const value = midiOutputSelect.value
+        midiState.currentOutput = getOrEmptyIO(value, midiState.outputs);
+        l('change output', value, midiState.currentOutput);
     });
-
     const midiInputSelect = document.getElementById('midi-input-select');
-    midiInputSelect.addEventListener('change', e => {
+    midiInputSelect.addEventListener('change', event => {
         let value = midiInputSelect.value
-        l('change input', value)
-        if (midiState.outputs.has(value)) {
-            let output = midiState.outputs.get(value);
-            midiState.currentOutput = output;
-        } else {
-            midiState.currentOutput = emptyIO;
-        }
+        midiState.currentInput = getOrEmptyIO(value, midiState.inputs);
+        l('change input', value, midiState.currentInput)
     });
 }
 
@@ -397,33 +373,21 @@ function initializeMidiState() {
 
     initializeInputMidiEvents(midi);
     initializeCanvasMidiEvents(midi);
-
     initializeMIDIUSBAccess(
         midiAccess => {
+            l("Inputs:", midiAccess.inputs, " - Outputs:", midiAccess.outputs, " - Sysex:", midiAccess.sysexEnabled, midiAccess);
+
             // TODO: Handle disconnects and reconnects
             // midiAccess.onglobalMidichange = handleMidiAccessStateChange;
-            l("Inputs:", midiAccess.inputs, " - Outputs:", midiAccess.outputs, " - Sysex:", midiAccess.sysexEnabled, midiAccess);
+
             midi.inputs = midiAccess.inputs;
             midi.outputs = midiAccess.outputs;
 
             const midiInputSelect = document.getElementById('midi-input-select');
-            addSelectOption(midiInputSelect, midiAccess.inputs);
-            let entry = midiAccess.inputs.entries().next();
-            if (!entry.done) {
-                let [value, input] = entry.value;
-                midiInputSelect.value = value;
-                midi.currentInput = input;
-            }
-            
             const midiOutputSelect = document.getElementById('midi-output-select');
-            addSelectOption(midiOutputSelect, midiAccess.outputs);
-            entry = midiAccess.outputs.entries().next();
-            if (!entry.done) {
-                let [value, input] = entry.value;
-                midiOutputSelect.value = value;
-                midi.currentOutput = input;
-            }
-            l(midi)
+            midi.currentInput = addSelectOptionsAndReturnFirst(midiInputSelect, midiAccess.inputs);
+            midi.currentOutput = addSelectOptionsAndReturnFirst(midiOutputSelect, midiAccess.outputs);
+            l('', midi)
         }, 
         error => {
             console.log("Failed to access MIDI devices:", error);
@@ -453,9 +417,10 @@ function initializeMIDIUSBAccess(success, reject) {
         .then(success)
         .catch(reject);
     } else {
-        reject("Operation unsupported");
+        reject("Cannot request MIDI Access");
     }
 }
+
 function initializePlaybackState() {
     const playbackState = {
         pause: false,
@@ -487,14 +452,14 @@ function initializePlaybackState() {
 function drawFallingNotes(ctx, noteEvents, elapsed, { msToPixel, noteFill, topLineHeight }) {
     // TODO: Maybe draw the notes such that the start time is equal to when it hits the bottom. e.g. elapsed = 0 is when the first note is played, and so there is a short countdown before the start.
     const noteWidth = 20
+    const timeFromTopToBottomMilliseconds = topLineHeight / msToPixel;
     ctx.beginPath()
     ctx.moveTo(0, topLineHeight);
     ctx.lineTo(ctx.canvas.width, topLineHeight);
     ctx.stroke();
     for (let i = 0; i < noteEvents.length; i++) {
         const event = noteEvents[i];
-        // l(event.start, event.end, elapsed)
-        // if (elapsed < event.start) break; // Stop processing more events since they wont be shown anyway. (Requires input to be sorted)
+        if (elapsed + timeFromTopToBottomMilliseconds < event.start) break; // Stop processing more events since they wont be shown anyway. (Requires input to be sorted)
 
         const top = (-event.end + elapsed) * msToPixel + topLineHeight;
         if (top > topLineHeight) continue;  
@@ -908,7 +873,7 @@ function transformMidiChunksToBetterRepresentation(midiChunks) {
     l('Midi Chunks after parsing', midiChunks);
     const division = midiChunks[0].division;
     const format = midiChunks[0].format;
-    const playTracks = getPlayTrackEvents(format, midiChunks);
+    const playTracks = getCannonicalPlayTrackEvents(format, midiChunks.slice(1));
     l(`Format ${format} division ${division}`);
     l(`Play tracks:`, playTracks);
 
@@ -1059,24 +1024,25 @@ function play(melody, midiState) {
     }
 }
 
-function getPlayTrackEvents(format, chunks) {
+// The cannonical representation of play-track events is a list of midi events. If the format is 0 or 1, this list consists of a single list of midi events.
+// If the format is 2, the list contains one list of midi events for every track in the file
+function getCannonicalPlayTrackEvents(format, trackChunks) {
     const tracks = []; // Size should be 1 for format 0 and 1. Format 2 can have multiple
     switch (format) {
         case TRACK_FORMAT.SINGLE_MULTICHANNEL_TRACK: {
-            assert(chunks.length === 2, `Expected Single track format to only have 1 header chunk and 1 track chunk`);
-            tracks.push(chunks[1].events);
+            assert(trackChunks.length === 1, `Expected Single track format to only 1 track chunk`);
+            tracks.push(trackChunks[0].events);
         } break;
         case TRACK_FORMAT.SIMULTANEOUS_TRACKS: {
-            assert(chunks.length > 2, `Expected simultaneous track format to only have 1 header chunk and at least 2 track chunk`);
-            let trackEvents = chunks[1].events
-            for (let i = 2; i < chunks.length; i++) {
-                trackEvents = mergeTrackChunksEvents(trackEvents, chunks[i].events)
-            }
+            assert(trackChunks.length > 1, `Expected simultaneous track format to have at least 2 track chunk`);
+            const trackEvents = trackChunks.map(t => t.events).reduce(mergeTrackChunksEvents, []);
             tracks.push(trackEvents);
         } break; 
         case TRACK_FORMAT.INDEPENDENT_TRACKS: {
             assert(false, `Unhandled multiple independent tracks`);
-            // TODO: Maybe just implement this as a list which adds every tracks event to the tracks list? This does not seem like an issue for play practice, but may be an issue for ?? maybe nothing. But I guess I will wait with this until I have a file
+            for (const chunk of trackChunks) {// TODO: Test this works with some file
+                tracks.push(chunk.events);
+            }
         } break;
         default: {
             assert(false, `Unknown track format ${format} in header`);
@@ -1162,6 +1128,7 @@ function computeTimedEvents(events, tempos, division) {
 // Events are transformed to have a start time in milliseconds
 // Note events have a start and end time instead of two events
 function splitEventsAndConvertToMilliseconds(playTrack, division) {
+    assert((division & 0x80) === 0, `Expected division to be given as ticks per quarter-note, but was in SMPTE format`);
     // TODO: Maybe split into two functions. One for calculating milliseconds to events and another for splitting. Seriously, this method is starting to do too to much.
     const noteEvents = [];
     const controlEvents = [];
@@ -1267,7 +1234,7 @@ function animateFallingNotes(noteEvents, timeMeasures, { noteFill, topLineHeight
         previous = t;
 
         ctx.clearRect(0, 0, canvas.width, topLineHeight);
-        const songElapsed = Math.max(elapsed - timeFromTopToBottomMilliseconds, 0);
+        const songElapsed = Math.max(elapsed, 0);
         drawFallingNotes(ctx, noteEvents, elapsed, { msToPixel, noteFill, topLineHeight });
         // drawTimeMeasures(ctx, timeMeasures);
         drawTimeBar(ctx, songElapsed, end, { width: canvas.width - 200, offsetX: 100, offsetY: topLineHeight + 60, notchHeight: 6, font: "18px Courier New", textColor: 'black', lineColor: 'black' });
@@ -1280,19 +1247,18 @@ function animateFallingNotes(noteEvents, timeMeasures, { noteFill, topLineHeight
     });
 }
 
-function drawTimeBar(ctx, elapsed, end, drawSettings) {
+function drawTimeBar(ctx, elapsed, totalDutation, drawSettings) {
     // TODO: Make a cooler time bar which is a filling tube with a neat colored effect on the filling
     // TODO: Make it possible to click time on bar (make this visualy clear)
-    const endTimeString = millisecondsToTimeString(end);
     const { width, offsetX, offsetY, notchHeight, font, lineColor, textColor} = drawSettings;
-    const playNotchX = offsetX + (elapsed / end) * width;
+    const playNotchX = offsetX + (elapsed / totalDutation) * width;
 
     ctx.font = font;
     ctx.fillStyle = textColor;
-    const timeText = millisecondsToTimeString(elapsed) + "/" + endTimeString;
+    const timeText = millisecondsToTimeString(elapsed) + "/" + millisecondsToTimeString(totalDutation);
     const textHeight = getTextHeight(ctx, timeText);
 
-    ctx.clearRect(0, offsetY, width, 30); // TODO: Calculate height based on font size and notch heights
+    ctx.clearRect(0, offsetY, ctx.canvas.width, 30); // TODO: Calculate height based on font size and notch heights
 
     ctx.fillText(timeText, offsetX, offsetY + textHeight + notchHeight);
     
@@ -1314,7 +1280,6 @@ function drawTimeBar(ctx, elapsed, end, drawSettings) {
     ctx.moveTo(playNotchX, offsetY);
     ctx.lineTo(playNotchX, offsetY + notchHeight);
     ctx.stroke();
-
 }
 
 // ################# MIDI PLAY FUNCTIONS ########################
