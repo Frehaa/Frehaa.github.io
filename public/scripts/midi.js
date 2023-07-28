@@ -911,20 +911,24 @@ function computeTempoMappingFunction(setTempoEvents, division) {
     let tickToMsFactor = (currentTempo / division) / 1000;
     const tempos = [];
     if (setTempoEvents.length === 0 || setTempoEvents[0].time > 0) {
+        console.warn("File did not contain an initial set tempo event");
         tempos.push({
             time: 0,
             startMs: 0,
             tickToMsFactor
         });
     }
-    let runningTimeMilliseconds = 0;
+    let runningTimeMs = 0;
+    let previousEventTime = 0;
     for (const event of setTempoEvents) {
-        runningTimeMilliseconds += (event.time - runningTimeMilliseconds) * tickToMsFactor;
+        runningTimeMs += (event.time - previousEventTime) * tickToMsFactor;
         currentTempo = parseTempoMetaData(event.metaData);
         tickToMsFactor = (currentTempo / division) / 1000;
+        previousEventTime = event.time;
+        // l(event, runningTimeMs, currentTempo, tickToMsFactor)
         tempos.push({
             time: event.time,
-            startMs: runningTimeMilliseconds,
+            startMs: runningTimeMs,
             tickToMsFactor
         });
     }
@@ -1563,9 +1567,8 @@ function batchNoteEvents(noteEvents) {
     const noteEventsBatched = [];
     let previous = noteEvents[0]; // Works even for empty lists
     let group = [];
-    for (let i = 0; i < noteEvents.length; i++) {
-        const event = noteEvents[i];
-        if (event.startMs === previous.startMs) {
+    for (const event of noteEvents) {
+        if (event.time === previous.time) {
             group.push(event);
         } else {
             noteEventsBatched.push(group);
@@ -1970,11 +1973,10 @@ function arrayEqual(a, b, elementCompare) {
 function testBatchNoteEvents() {
     let tests = [
         {input: [], expected: []},
-        {input: [{start: 0}, {start: 0}], expected: [[{start:0}, {start:0}]]},
-        {input: [{start: 0}, {start: 1}], expected: [[{start:0}], [{start:1}]]},
+        {input: [{time: 0}, {time: 0}], expected: [[{time:0}, {time:0}]]},
+        {input: [{time: 0}, {time: 1}], expected: [[{time:0}], [{time:1}]]},
     ];
-    for (const test of tests) {
-        let {input, expected} = test;
+    for (const {input, expected} of tests) {
         let result = batchNoteEvents(input);
 
         if (!arrayEqual(result, expected, (a, b) => arrayEqual(a, b, (x, y) => { return x.start === y.start }))) {
@@ -1997,6 +1999,13 @@ function testComputeTempoMap() {
         {input: [[{time: 0, metaData: hundredThousand}, {time: 1000, metaData: twohundredThousand }], 100, [{time: 1000}, {time: 1500}]], expected: [{startMs: 1000}, {startMs: 2000}]},
         {input: [[{time: 0, metaData: twohundredThousand}, {time: 1000, metaData: fiftyThousand}], 100, [{time: 1000}, {time: 1500}]], expected: [{startMs: 2000}, {startMs: 2250}]},
         {input: [[{time: 0, metaData: twohundredThousand}, {time: 3000, metaData: fiftyThousand}], 200, [{time: 1000}, {time: 1500}]], expected: [{startMs: 1000}, {startMs: 1500}]},
+        { // Test for initially undiscovered bug. When the tempo changed multiple times, the new runningTimeMilliseconds was based on difference between time quarter note time and ms which is nonsense. 
+            input: [
+                [{time: 0, metaData: twohundredThousand}, {time: 1000, metaData: hundredThousand}, {time: 2000, metaData: twohundredThousand}], 100, 
+                [{time: 1500}, {time: 2500}]
+            ], 
+            expected: [{startMs: 2500}, {startMs: 4000}] 
+        },
     ];    
 
     for (const {input, expected} of tests) {
