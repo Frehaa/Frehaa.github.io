@@ -91,20 +91,14 @@ function numToKeyboardNoteName(num) {
 
 // #################### PARSING FUNCTIONS #####################
 
-// TODO: 
+// TODO: Understand what midiClocksPerMetronomeClick and thirtySecondNotesPerQuarterNotes mean
 function parseTimeSignature(metaData) {
     assert(metaData.length >= 4, `Expected at least four values for the time signature meta data, found ${metaData.length}`);
-    const numerator = metaData[0];
-    const denominator = 2 ** metaData[1];
-
-    const midiClocksPerMetronomeClick = metaData[2];
-    const thirtySecondNotesPerQuarterNote = metaData[3];
-
     return {
-        numerator,
-        denominator,
-        midiClocksPerMetronomeClick,
-        thirtySecondNotesPerQuarterNote
+        numerator: metaData[0],
+        denominator: 2 ** metaData[1],
+        midiClocksPerMetronomeClick: metaData[2],
+        thirtySecondNotesPerQuarterNote: metaData[3]
     }
 }
 
@@ -133,19 +127,20 @@ function parseVariableLengthValue(dataView, offset) {
 
 function parseMidiFile(buffer) {
     const dataView = new DataView(buffer);
-    let [chunk, offset] = parseChunk(dataView, 0)
+    let [chunk, offset] = parseChunk(dataView, 0, 0)
     const header = chunk;
     assert(header.type === CHUNK_TYPE.HEADER, `First chunk had invalid type. Expected header found ${header.type}`);
     const chunks = [];
     chunks.push(header);
 
-    let count = 0;
-    while (count < header.ntrks) {
+    let trackNumber = 0;
+    while (trackNumber < header.ntrks) {
         try {
-            [chunk, offset] = parseChunk(dataView, offset);
+            [chunk, offset] = parseChunk(dataView, offset, trackNumber);
             if (chunk.type === CHUNK_TYPE.TRACK) { // Ignore non track chunks
+                chunk.trackNumber = trackNumber;
                 chunks.push(chunk);
-                count++;
+                trackNumber++;
             } else { // TODO: Silently ignore unknown chunk types (use log warn instead?) or have a list for each type 
                 assert(false, `Found unknown chunk type found ${chunk.type}`);
             }
@@ -157,7 +152,7 @@ function parseMidiFile(buffer) {
     return chunks;
 }
 
-function parseChunk(dataview, offset) {
+function parseChunk(dataview, offset, trackNumber) {
     assert(dataview.byteLength > offset + 8, formatParseErrorMessage(offset, `The dataview did not contain enough bytes to read chunk`));
     const type = dataview.getUint32(offset);
     const length = dataview.getUint32(offset + 4);
@@ -182,12 +177,15 @@ function parseChunk(dataview, offset) {
             };
             const finalOffset = offset + length;
             assert(length > 0, formatParseErrorMessage(offset, `Length of Track chunk was 0`));
-            let event, runningStatus = null;
+            let event, runningStatus = null, runningTime = 0, eventNumber = 0;
             do {
                 try {
-                    [event, offset] = parseEvent(dataview, offset, runningStatus);
+                    [event, offset] = parseEvent(dataview, offset, runningStatus, runningTime);
+                    event.eventNumber = eventNumber++;
+                    event.trackNumber = trackNumber;
                     chunk.events.push(event);
                     runningStatus = event.status;
+                    runningTime += event.deltaTime;
                 } catch(e) {
                     l('Current chunk', chunk)
                     throw e
@@ -212,13 +210,14 @@ function readUint8ToArray(dataView, offset, length, array) {
     }
 }
 
-function parseEvent(dataView, offset, runningStatus) {
+// TODO: Should we make NoteOn events with velocity 0 into NoteOff events?
+function parseEvent(dataView, offset, runningStatus, runningTime) {
     let dt;
     [dt, offset] = parseVariableLengthValue(dataView, offset)
-    const deltaTime = dt;
     let status = dataView.getUint8(offset);
     if ((status & 0x80) === 0) { // Use running status as status and shift offset back
         assert(runningStatus !== null, formatParseErrorMessage(offset, `Expected running status to be set but was null`));
+        // Running status should not be a META or SYSEX event, but we are not testing for this. Should we?
         status = runningStatus;
         offset -= 1;
     }
@@ -280,7 +279,8 @@ function parseEvent(dataView, offset, runningStatus) {
         }
     } 
     const event = {
-        deltaTime, 
+        deltaTime: dt, 
+        time: runningTime + dt,
         status, 
         ...eventData
     };
@@ -315,6 +315,7 @@ function addSelectOptionsAndReturnFirst(select, list) {
 function initializeCanvasMidiEvents(mideState) {
     const canvas = document.getElementById('note-canvas');
     const ctx = canvas.getContext('2d');
+    const fileInput = document.getElementById('file-input');
 
     // TODO: Center and pick font
     ctx.font = '36px Aria';
@@ -323,7 +324,7 @@ function initializeCanvasMidiEvents(mideState) {
 
     canvas.addEventListener('click', (e) => {
         if (mideState.chunks === null) {
-            document.getElementById('file-input').click();
+            fileInput.click();
         }
     });
 
@@ -336,7 +337,6 @@ function initializeCanvasMidiEvents(mideState) {
         e.preventDefault(); // This prevents the downloading of file
 
         // Add the dropped file and dispatch the change event to the fileInput
-        const fileInput = document.getElementById('file-input');
         fileInput.files = e.dataTransfer.files;
         const changeEvent = new Event('change', { bubbles: true });
         fileInput.dispatchEvent(changeEvent);
@@ -449,8 +449,8 @@ function initializePlaybackState() {
 
 // ################### DRAWING FUNCTIONS ###########
 
+// TODO: Wareta ringo has some weird boxes in the bottom of the falling notes. Figure out why these exist.
 function drawFallingNotes(ctx, noteEvents, elapsed, { msToPixel, noteFill, topLineHeight }) {
-    // TODO: Maybe draw the notes such that the start time is equal to when it hits the bottom. e.g. elapsed = 0 is when the first note is played, and so there is a short countdown before the start.
     const noteWidth = 20
     const timeFromTopToBottomMilliseconds = topLineHeight / msToPixel;
     ctx.beginPath()
@@ -608,10 +608,9 @@ function drawNoteNamesAndTopLine(top) {
 
     }
 
-    const cutLineHeight = top;
     ctx.beginPath();
-    ctx.moveTo(0, cutLineHeight);
-    ctx.lineTo(canvas.width, cutLineHeight);
+    ctx.moveTo(0, top);
+    ctx.lineTo(canvas.width, top);
     ctx.stroke();
 }
 
@@ -859,10 +858,9 @@ function main() {
     const midiState = initializeMidiState();
     initializeFileInput(buffer => {
         try {
-            const midiChunks = parseMidiFile(buffer);
-            midiState.chunks = midiChunks;
-            const representation = transformMidiChunksToBetterRepresentation(midiChunks)
-            play(representation.melodies[0], midiState)
+            midiState.chunks = parseMidiFile(buffer);
+            const representation = transformMidiChunksToBetterRepresentation(midiState.chunks)
+            // play(representation.melodies[0], midiState)
         } catch(e) {
             l('Stuff went wrong', e)
         }
@@ -873,15 +871,11 @@ function transformMidiChunksToBetterRepresentation(midiChunks) {
     l('Midi Chunks after parsing', midiChunks);
     const division = midiChunks[0].division;
     const format = midiChunks[0].format;
-    const playTracks = getCannonicalPlayTrackEvents(format, midiChunks.slice(1));
     l(`Format ${format} division ${division}`);
+    const melodies = [];
+    const trackChunks = midiChunks.slice(1);
+    const playTracks = getCannonicalPlayTrackEvents(format, trackChunks);
     l(`Play tracks:`, playTracks);
-
-    const result = {
-        division,
-        format,
-        melodies: []
-    };
 
     for (let t = 0; t < playTracks.length; t++) {
         assert(t === 0, `Found ${playTracks.length} tracks, which should not happen while we do not support format 2`);
@@ -890,15 +884,24 @@ function transformMidiChunksToBetterRepresentation(midiChunks) {
         // TODO: HOW THE F DO I FIND THE TIMES FOR WHEN TO ADD MEASURE LINES??? (I FOUND TIMES BUT THEY ARE OFTEN BAD. HOW TO FIX?
         // TODO: Make the measure starts and time signatures customizable. 
         // The first one is a 0. So far so good. The next time is at??????????????
+        const eventMap = splitEvents(playTracks[t]);
+        l('Event map', eventMap)
+        eventMap["notes"] = combineNoteEvents(eventMap[MIDI_EVENT.NOTE_ON], eventMap[MIDI_EVENT.NOTE_OFF]);
+        eventMap["notes"].sort((a, b) => {
+            if (a.time < b.time) return -1;
+            if (b.time < a.time) return 1;
+            return 0;
+        });
+
+        const tempoMap = computeTempoMappingFunction(eventMap[STATUS.META_EVENT][META_EVENT.SET_TEMPO]);
+
         const timeMeasures = [] //getMeasures(playTracks[t], division); 
         const [noteEvents, controlEvents, programEvents, keySignatures] = splitEventsAndConvertToMilliseconds(playTracks[t], division);
-        noteEvents.sort((a, b) => {
-            if (a.start < b.start) return -1;
-            if (b.start < a.start) return 1;
-            return 0;
-        });    
 
-        result.melodies.push({
+
+        return
+
+        melodies.push({
             noteEvents, 
             controlEvents, 
             programEvents, 
@@ -906,7 +909,53 @@ function transformMidiChunksToBetterRepresentation(midiChunks) {
             timeMeasures
         });
     }
-    return result;
+    return {
+        division,
+        format,
+        melodies
+    };
+}
+
+function computeTempoMappingFunction(setTempoEvents, division) {
+    let currentTempo = parseTempoMetaData([0x07, 0xA1, 0x20]);
+    let tickToMsFactor = (currentTempo / division) / 1000;
+    const tempos = [];
+    if (setTempoEvents.length === 0 || setTempoEvents[0].time > 0) {
+        tempos.push({
+            time: 0,
+            startMs: 0,
+            tickToMsFactor
+        });
+    }
+    let runningTimeMilliseconds = 0;
+    for (const event of setTempoEvents) {
+        runningTimeMilliseconds += (event.time - runningTimeMilliseconds) * tickToMsFactor;
+        currentTempo = parseTempoMetaData(event.metaData);
+        tickToMsFactor = (currentTempo / division) / 1000;
+        tempos.push({
+            time: event.time,
+            startMs: runningTimeMilliseconds,
+            tickToMsFactor
+        });
+    }
+
+    // l('tempos', tempos)
+
+    return (events) => { // Assumes that events are 
+        assert(isSorted(events.map(e => e.time)), `Expected the events to tempo map to be sorted based on time`);
+        let currentTempoIdx = 0;
+        let currentTempo = tempos[currentTempoIdx];
+        for (const event of events) {
+            // While the there is a next tempo and the time of the next tempo is still smaller than the event time, increment.
+            while ((currentTempoIdx+1) < tempos.length && tempos[currentTempoIdx+1].time < event.time) {
+                currentTempoIdx++;
+                currentTempo = tempos[currentTempoIdx];
+            }
+            // l(currentTempo.startMs, event.time, currentTempo.time, currentTempo.tickToMsFactor)
+            event.startMs = currentTempo.startMs + (event.time - currentTempo.time) * currentTempo.tickToMsFactor;
+        }
+        return events;
+    };
 }
 
 function play(melody, midiState) {
@@ -1024,6 +1073,8 @@ function play(melody, midiState) {
     }
 }
 
+
+
 // The cannonical representation of play-track events is a list of midi events. If the format is 0 or 1, this list consists of a single list of midi events.
 // If the format is 2, the list contains one list of midi events for every track in the file
 function getCannonicalPlayTrackEvents(format, trackChunks) {
@@ -1106,7 +1157,7 @@ function computeTimedEvents(events, tempos, division) {
     let tickToMsFactor = (currentTempo / division) / 1000;
     let result = [];
 
-    const merged = mergeTrackChunksEvents(events, tempos);
+    const merged = mergeTrackChunksEventsOld(events, tempos);
 
     let runningTimeMilliseconds = 0;
     for (const event of merged) {
@@ -1122,6 +1173,90 @@ function computeTimedEvents(events, tempos, division) {
         }
     }
     return result;
+}
+
+function splitEvents(playTrack) {
+    const result = {};
+    result[STATUS.META_EVENT] = {};
+    result[STATUS.META_EVENT][META_EVENT.SEQUENCE_NUMBER] = [];
+    result[STATUS.META_EVENT][META_EVENT.TEXT_EVENT] = [];
+    result[STATUS.META_EVENT][META_EVENT.COPYRIGHT_NOTICE] = [];
+    result[STATUS.META_EVENT][META_EVENT.TRACK_NAME] = [];
+    result[STATUS.META_EVENT][META_EVENT.INSTRUMENT_NAME] = [];
+    result[STATUS.META_EVENT][META_EVENT.LYRIC] = [];
+    result[STATUS.META_EVENT][META_EVENT.MARKER] = [];
+    result[STATUS.META_EVENT][META_EVENT.CUE_POINT] = [];
+    result[STATUS.META_EVENT][META_EVENT.MIDI_CHANNEL_PRFIX] = [];
+    result[STATUS.META_EVENT][META_EVENT.END_OF_TRACK] = [];
+    result[STATUS.META_EVENT][META_EVENT.SET_TEMPO] = [];
+    result[STATUS.META_EVENT][META_EVENT.SMPTE_OFFSET] = [];
+    result[STATUS.META_EVENT][META_EVENT.TIME_SIGNATURE] = [];
+    result[STATUS.META_EVENT][META_EVENT.KEY_SIGNATURE] = [];
+    result[STATUS.META_EVENT][META_EVENT.SEQUENCE_SPECIFIC] = [];
+    result[STATUS.META_EVENT]["other"] = [];
+    result["sysex"] = {};
+    result["sysex"][STATUS.SYS_EXCLUSIVE_START] = [];
+    result["sysex"][STATUS.SYS_EXCLUSIVE_END] = [];
+    result[MIDI_EVENT.NOTE_OFF] = [];
+    result[MIDI_EVENT.NOTE_ON] = [];
+    result[MIDI_EVENT.POLYPHONIC_AFTERTOUCH] = [];
+    result[MIDI_EVENT.CONTROL_CHANGE] = [];
+    result[MIDI_EVENT.PROGRAM_CHANGE] = [];
+    result[MIDI_EVENT.CHANNEL_AFTERTOUCH] = [];
+    result[MIDI_EVENT.PITCH_BEND] = [];
+
+    for (const event of playTrack) {
+        if (event.status === STATUS.META_EVENT) {
+            if (result[STATUS.META_EVENT].hasOwnProperty(event.metaType)) {
+                result[STATUS.META_EVENT][event.metaType].push(event);
+            } else {
+                result[STATUS.META_EVENT]["other"].push(event);
+            }
+            
+        } else if (event.status === STATUS.SYS_EXCLUSIVE_START || event.status === STATUS.SYS_EXCLUSIVE_END) {
+            result["sysex"][event.status].push(event);
+        } else {
+            result[event.type].push(event);
+        }
+    }
+    return result;
+}
+
+// TODO: Figure out whether deltaTimes are invalidated by this function. Maybe just a simple verification loop.
+// TODO: There may be some issue where we merge on and off note events, but the off note events come before the on note event for events with the same time. I.e. after splitting we do not know the original order. The fix may be to push both types of event to the same list in the event map. Alternatively, we can give every event a number to indicate its relative order in the track. This may still be an issue for multiple tracks. 
+// TODO: When combining note events, the track from where it came from should be taken into consideration. Right now a note off from one track can turn off a note from another track. The same is true for different channels. 
+// Returns a list of note events with duration between noteOn event time and noteOff event time
+function combineNoteEvents(noteOnEvents, noteOffEvents) {
+    const result = [];
+    const noteEvents = mergeTrackChunksEvents(noteOnEvents, noteOffEvents);
+    const startedNotes = {};
+    for (let i = 0; i < noteEvents.length; i++) {
+        const event = noteEvents[i];
+        const note = startedNotes[event.note];
+        if (isNoteOffEvent(event)) {
+            if (note === null || note === undefined) {
+                console.warn('Found a note off event which was not started', event);
+                continue; 
+            }
+            note.duration = event.time - note.time;
+            result.push(note);
+            startedNotes[event.note] = null;
+        } else if (note === null || note === undefined) { // Normal noteOn event
+            startedNotes[event.note] = event;
+        } else {  // Unusual Double noteOn event
+            // TODO: Figure out what to do about the same note being played twice before being turned off (It is hard to hear a difference. So maybe it does not matter?)
+            console.warn(`Double note ${event.note} at note event ${i} at time ${event.start}`, event)
+            note.duration = event.time - note.time;
+            if (note.duration === 0) console.warn('0 duration note', note)
+            result.push(note);
+            startedNotes[event.note] = event;
+        }
+    }
+    return result;
+}
+
+function convertToMilliseconds() {
+
 }
 
 // Splits a play track of events into separate lists for notes, controls, and program events.
@@ -1310,41 +1445,6 @@ function playEventsByScheduling(midiState, noteEvents, controlEvents, programEve
     }
 }
 
-async function playEventsBySleep(output, midiEvents) {
-    for (const event of midiEvents) {
-        if (event.deltaTime > 0) {
-            await sleep(event.deltaTime);
-        }
-        assert(event.type !== undefined && event.type !== null, `midiEvents should always have a type`);
-        switch (event.type) {
-            case MIDI_EVENT.NOTE_OFF:
-            case MIDI_EVENT.NOTE_ON: {
-                output.send([event.type, event.note, event.velocity]);
-            } break;
-            case MIDI_EVENT.PROGRAM_CHANGE: {
-                assert(event.program >= 0 && event.program <= 127, `Event program was outside expected range ${event.program.toString(16)}`);
-                output.send([event.type, event.program]);
-            } break;
-            case MIDI_EVENT.CONTROL_CHANGE: {
-                assert(0 <= event.value && event.value <= 127, `Control Change values was outside expected range ${event.value.toString(16)}`);
-                switch (event.control) {
-                    case CONTROL_FUNCTION.CHANNEL_VOLUME:  
-                    case CONTROL_FUNCTION.DAMPER_PEDAL: 
-                    case CONTROL_FUNCTION.SOSTENUTO: 
-                    case CONTROL_FUNCTION.SOFT_PEDAL: { // Supported functions
-                        output.send([event.type, event.control, event.value]);
-                    } break;
-                    default: {
-                        l('Unsuported control', event.control);
-                    }
-                }
-            } break;
-            default: {
-                l('Unsuported midi', event.type);
-            }
-        }
-    }
-}
 // ################### DEBUG FUNCTIONS (prefixed with debug) ##################
 
 function debugChannels(tracks) {
@@ -1419,6 +1519,24 @@ function debugEventCounter(chunks) {
 
 // ######################## MISC HELPER FUNCTIONS #####################
 
+function isSorted(values) {
+    if (values.length === 0) return true;
+    let result = true;
+    let current = values[0];
+    for (let i = 1; i < values.length; i++) {
+        const value = values[i];
+        if (value < current) {
+            result = false;
+            break;
+        }
+    }
+    return result;
+}
+
+function isNoteOffEvent(event) {
+    return event.type === MIDI_EVENT.NOTE_OFF || (event.type === MIDI_EVENT.NOTE_ON && event.velocity === 0);
+}
+
 function getTextHeight(ctx, text) {
     const textMetrics = ctx.measureText(text);
     return textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
@@ -1492,9 +1610,74 @@ function calcAccumulatedDeltaTimes(a) {
     }
     return result;
 }
+function addAccumulativeDeltaTimesToTrackEvents(trackEvents) {
+    let runningTime = 0;
+    for (const event of trackEvents) {
+        assert(typeof event.deltaTime === 'number', `Expected event to have a deltaTime number`);
+        runningTime += event.deltaTime;
+        event.accumulatedDeltaTime = runningTime;
+    }
+}
+
+function mergeTrackChunksEvents(a, b) {
+    const result = [];
+    let i = 0, j = 0, prevTime = 0;
+    while (i < a.length && j < b.length) {
+        if (a[i].time < b[j].time) {
+            result.push({
+                ...a[i], // Copy
+                deltaTime: a[i].time - prevTime
+            });
+            prevTime = a[i].time;
+            i++;
+        } else if (b[j].time < a[i].time){
+            result.push({
+                ...b[j], // Copy
+                deltaTime: b[j].time - prevTime
+            });
+            prevTime = b[j].time;
+            j++;
+        } else if (a[i].trackNumber < b[j].trackNumber) {
+            result.push({
+                ...a[i], // Copy
+                deltaTime: a[i].time - prevTime
+            });
+            prevTime = a[i].time;
+            i++;
+        } else {
+            result.push({
+                ...b[j], // Copy
+                deltaTime: b[j].time - prevTime
+            });
+            prevTime = b[j].time;
+            j++;
+        }
+    }
+    if (i >= a.length) { // Rest of b
+        while (j < b.length) {
+            result.push({
+                ...b[j], // Copy
+                deltaTime: b[j].time - prevTime
+            });
+            prevTime = b[j].time;
+            j++;
+        }
+    } else {            // Rest of a
+        while (i < a.length) {
+            result.push({
+                ...a[i], // Copy
+                deltaTime: a[i].time - prevTime
+            });
+            prevTime = a[i].time;
+            i++;
+        }
+        
+    }
+    return result; 
+}
 
 // Assumes two lists of track events which contains a deltaTime 
-function mergeTrackChunksEvents(a, b) {
+function mergeTrackChunksEventsOld(a, b) {
     const result = [];
     const aAccum = calcAccumulatedDeltaTimes(a);
     const bAccum = calcAccumulatedDeltaTimes(b);
@@ -1540,10 +1723,6 @@ function mergeTrackChunksEvents(a, b) {
     return result; 
 }
 
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 // ######################### TESTING CODE ############################
 
 function runTests() {
@@ -1552,6 +1731,7 @@ function runTests() {
     testCalcAccumulatedDeltaTimes();
     testMergeTracks();
     testBatchNoteEvents();
+    testComputeTempoMap();
 }
 
 /* Implements tests based on the examples from the MIDI specification
@@ -1762,7 +1942,7 @@ function testMergeTracks() {
     ];
     for (const test of tests) {
         let [input, expected] = test;
-        let result = mergeTrackChunksEvents(...input);
+        let result = mergeTrackChunksEventsOld(...input);
 
         if (expected.length !== result.length) {
             console.log(`Expected ${input} gave result ${expected}, but was ${result}`);
@@ -1781,7 +1961,7 @@ function testMergeTracks() {
     // Test that inputs are not modified, but instead properly copied.
     let inputA = {deltaTime: 5};
     let inputB = {deltaTime: 5};
-    mergeTrackChunksEvents([inputA], [inputB]);
+    mergeTrackChunksEventsOld([inputA], [inputB]);
     
     if (inputA.deltaTime !== 5 || inputB.deltaTime !== 5) {
         console.log("Expected input to mergeTracChunks to be unmodified")
@@ -1811,6 +1991,41 @@ function testBatchNoteEvents() {
 
         if (!arrayEqual(result, expected, (a, b) => arrayEqual(a, b, (x, y) => { return x.start === y.start }))) {
             console.log("Expected:", expected, " - Actual:", result, " - Input:", input);
+        }
+    } 
+}
+
+// TODO: Any more test?
+function testComputeTempoMap() {
+    let hundredThousand = [0x1, 0x86, 0xa0];    // 100000
+    let twohundredThousand = [0x3, 0x0d, 0x40]; // 200000
+    let fiftyThousand = [0x00, 0xc3, 0x50];     // 50000
+
+    let tests = [
+        {input: [[/* empty for default */], 100, [{time: 1000}, {time: 2000}]], expected: [{startMs: 5000}, {startMs: 10000}]}, // Default tempo map
+        {input: [[{time: 0, metaData: hundredThousand}], 100, [{time: 1000}, {time: 1500}]], expected: [{startMs: 1000}, {startMs: 1500}]},
+        {input: [[{time: 0, metaData: twohundredThousand}], 100, [{time: 1000}, {time: 1500}]], expected: [{startMs: 2000}, {startMs: 3000}]},
+        {input: [[{time: 0, metaData: twohundredThousand}], 200, [{time: 1000}, {time: 1500}]], expected: [{startMs: 1000}, {startMs: 1500}]},
+        {input: [[{time: 0, metaData: hundredThousand}, {time: 1000, metaData: twohundredThousand }], 100, [{time: 1000}, {time: 1500}]], expected: [{startMs: 1000}, {startMs: 2000}]},
+        {input: [[{time: 0, metaData: twohundredThousand}, {time: 1000, metaData: fiftyThousand}], 100, [{time: 1000}, {time: 1500}]], expected: [{startMs: 2000}, {startMs: 2250}]},
+        {input: [[{time: 0, metaData: twohundredThousand}, {time: 3000, metaData: fiftyThousand}], 200, [{time: 1000}, {time: 1500}]], expected: [{startMs: 1000}, {startMs: 1500}]},
+    ];    
+
+    for (const {input, expected} of tests) {
+        const mappingFunction = computeTempoMappingFunction(input[0], input[1]);
+        const result = mappingFunction(input[2]);
+
+        if (expected.length !== result.length) {
+            console.log('Expected', input[2], 'gave result of length', expected.length, 'but was', result.length);
+        } else {
+            for (let i = 0; i < result.length; i++) {
+                let e = expected[i].startMs;
+                let a = result[i].startMs;
+                if (a !== e) {
+                    console.log(`Expected`, input, `gave result ${e}, but was ${a} at index ${i}`);
+                    break;
+                }
+            }
         }
     } 
 }
@@ -1848,5 +2063,4 @@ function playgroundCode() {
     //     [0.7 * canvas.width,  canvas.height -100]
     // ];
     const positions = createPointShape(framesPerSecond, [canvas.width / 2, canvas.height / 2], endTime, spiralUpdater);
-    return animatePointLine(ctx, framesPerSecond, endTime, positions, playbackState)
 }
