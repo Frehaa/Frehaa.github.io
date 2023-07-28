@@ -309,7 +309,7 @@ function addSelectOptionsAndReturnFirst(select, list) {
         select.value = value;
         return input;
     }
-    return null;
+    return emptyIO;
 }
 
 function initializeCanvasMidiEvents(mideState) {
@@ -459,13 +459,13 @@ function drawFallingNotes(ctx, noteEvents, elapsed, { msToPixel, noteFill, topLi
     ctx.stroke();
     for (let i = 0; i < noteEvents.length; i++) {
         const event = noteEvents[i];
-        if (elapsed + timeFromTopToBottomMilliseconds < event.start) break; // Stop processing more events since they wont be shown anyway. (Requires input to be sorted)
+        if (elapsed + timeFromTopToBottomMilliseconds < event.startMs) break; // Stop processing more events since they wont be shown anyway. (Requires input to be sorted)
 
-        const top = (-event.end + elapsed) * msToPixel + topLineHeight;
+        const top = (-event.endMs + elapsed) * msToPixel + topLineHeight;
         if (top > topLineHeight) continue;  
 
         const left = 10 + event.note * 14 - noteWidth/2;
-        const height = (event.end - event.start) * msToPixel;
+        const height = (event.endMs - event.startMs) * msToPixel;
 
         ctx.fillStyle = noteFill(event, i);
         if (topLineHeight - top < height) {
@@ -859,15 +859,15 @@ function main() {
     initializeFileInput(buffer => {
         try {
             midiState.chunks = parseMidiFile(buffer);
-            const representation = transformMidiChunksToBetterRepresentation(midiState.chunks)
-            // play(representation.melodies[0], midiState)
+            const melodies = chunksToMelodiesList(midiState.chunks)
+            play(melodies[0].eventMap, melodies[0].tempoMap, midiState)
         } catch(e) {
             l('Stuff went wrong', e)
         }
     });
 }
 
-function transformMidiChunksToBetterRepresentation(midiChunks) {
+function chunksToMelodiesList(midiChunks) {
     l('Midi Chunks after parsing', midiChunks);
     const division = midiChunks[0].division;
     const format = midiChunks[0].format;
@@ -886,34 +886,24 @@ function transformMidiChunksToBetterRepresentation(midiChunks) {
         // The first one is a 0. So far so good. The next time is at??????????????
         const eventMap = splitEvents(playTracks[t]);
         l('Event map', eventMap)
-        eventMap["notes"] = combineNoteEvents(eventMap[MIDI_EVENT.NOTE_ON], eventMap[MIDI_EVENT.NOTE_OFF]);
+
+
+        const tempoMap = computeTempoMappingFunction(eventMap[STATUS.META_EVENT][META_EVENT.SET_TEMPO], division);
+
+        const noteOnEvents = tempoMap(eventMap[MIDI_EVENT.NOTE_ON]);
+        const noteOffEvents = tempoMap(eventMap[MIDI_EVENT.NOTE_OFF]);
+        eventMap["notes"] = combineNoteEvents(noteOnEvents, noteOffEvents);
         eventMap["notes"].sort((a, b) => {
             if (a.time < b.time) return -1;
             if (b.time < a.time) return 1;
             return 0;
         });
-
-        const tempoMap = computeTempoMappingFunction(eventMap[STATUS.META_EVENT][META_EVENT.SET_TEMPO]);
-
-        const timeMeasures = [] //getMeasures(playTracks[t], division); 
-        const [noteEvents, controlEvents, programEvents, keySignatures] = splitEventsAndConvertToMilliseconds(playTracks[t], division);
-
-
-        return
-
         melodies.push({
-            noteEvents, 
-            controlEvents, 
-            programEvents, 
-            keySignatures, 
-            timeMeasures
+            eventMap,
+            tempoMap
         });
     }
-    return {
-        division,
-        format,
-        melodies
-    };
+    return melodies;
 }
 
 function computeTempoMappingFunction(setTempoEvents, division) {
@@ -958,7 +948,7 @@ function computeTempoMappingFunction(setTempoEvents, division) {
     };
 }
 
-function play(melody, midiState) {
+function play(eventMap, tempoMap, midiState) {
     // TODO: Have playback with speed modifier and pause work for this too. (Possibly do this by sending MIDI events based on animation)
     l("\nMIDI State:", midiState)
     // l("Event Counts:", debugEventCounter(midi.chunks));
@@ -975,10 +965,10 @@ function play(melody, midiState) {
         return [ "#54478cff", "#2c699aff", "#048ba8ff", "#0db39eff", "#16db93ff", "#83e377ff", "#b9e769ff", "#efea5aff", "#f1c453ff", "#f29e4cff", ][i % 10];
     };
 
-    const noteEvents = melody.noteEvents;
-    const timeMeasures = melody.timeMeasures;
-    const controlEvents = melody.controlEvents;
-    const programEvents = melody.programEvents;
+    const noteEvents = eventMap["notes"];
+    const timeMeasures = []; 
+    const controlEvents = tempoMap(eventMap[MIDI_EVENT.CONTROL_CHANGE]);
+    const programEvents = tempoMap(eventMap[MIDI_EVENT.PROGRAM_CHANGE]);
     // TODO: Stop playing current song when new song is selected
     animateFallingNotes(noteEvents, timeMeasures, { noteFill, topLineHeight, msToPixel } );
     setTimeout(() => { // Gives a warning on long files. 
@@ -1239,24 +1229,22 @@ function combineNoteEvents(noteOnEvents, noteOffEvents) {
                 continue; 
             }
             note.duration = event.time - note.time;
+            note.endMs = event.startMs;
             result.push(note);
             startedNotes[event.note] = null;
         } else if (note === null || note === undefined) { // Normal noteOn event
             startedNotes[event.note] = event;
         } else {  // Unusual Double noteOn event
             // TODO: Figure out what to do about the same note being played twice before being turned off (It is hard to hear a difference. So maybe it does not matter?)
-            console.warn(`Double note ${event.note} at note event ${i} at time ${event.start}`, event)
+            console.warn(`Double note ${event.note} at note event ${i} at time ${event.startMs}`, event)
             note.duration = event.time - note.time;
+            note.endMs = event.startMs;
             if (note.duration === 0) console.warn('0 duration note', note)
             result.push(note);
             startedNotes[event.note] = event;
         }
     }
     return result;
-}
-
-function convertToMilliseconds() {
-
 }
 
 // Splits a play track of events into separate lists for notes, controls, and program events.
@@ -1359,7 +1347,7 @@ function animateFallingNotes(noteEvents, timeMeasures, { noteFill, topLineHeight
     const ctx = canvas.getContext('2d');
     const timeFromTopToBottomMilliseconds = topLineHeight / msToPixel;
     
-    const end = getPlayTrackEndTime(noteEvents);
+    const end = getPlayTrackEndMsTime(noteEvents);
     
     let startIndex = 0; // TODO: Stop processing notes already moved outside window. Use a running start index. This seems hard since the length of some notes are longer than others, so we still have to skip those in between. The gain also does not seem very significant
     let elapsed = -timeFromTopToBottomMilliseconds;
@@ -1428,20 +1416,20 @@ function playEventsByScheduling(midiState, noteEvents, controlEvents, programEve
         setTimeout(() => {
             // TODO: Start by ignoring different channels. This may result in bugs if different channels play the same note
             midiState.currentOutput.send([MIDI_EVENT.NOTE_ON+1, event.note, event.velocity])
-        }, event.start);
+        }, event.startMs);
         setTimeout(() => {
             midiState.currentOutput.send([MIDI_EVENT.NOTE_OFF+1, event.note, 0])
-        }, event.end);
+        }, event.endMs);
     }
     for (const event of controlEvents) {
         setTimeout(() => {
             midiState.currentOutput.send([MIDI_EVENT.CONTROL_CHANGE, event.control, event.value])
-        }, event.start);
+        }, event.startMs);
     }
     for (const event of programEvents) {
         setTimeout(() => {
             midiState.currentOutput.send([MIDI_EVENT.PROGRAM_CHANGE, event.program])
-        }, event.start);
+        }, event.startMs);
     }
 }
 
@@ -1557,15 +1545,15 @@ function isTempoEvent(event) {
 }
 
 // Assumes the list contains elements with an end time
-function getPlayTrackEndTime(noteEvents) {
-    let end = 0;
+function getPlayTrackEndMsTime(noteEvents) {
+    let endMs = 0;
     for (let i = 0; i < noteEvents.length; i++) {
         const event = noteEvents[i];
-        if (event.end > end) {
-            end = event.end;
+        if (event.endMs > endMs) {
+            endMs = event.endMs;
         }
     }
-    return end;
+    return endMs;
 }
 
 // Takes a list of events with a start time and batches (i.e. groups) them such that events with the same start time are in the same group
@@ -1577,7 +1565,7 @@ function batchNoteEvents(noteEvents) {
     let group = [];
     for (let i = 0; i < noteEvents.length; i++) {
         const event = noteEvents[i];
-        if (event.start === previous.start) {
+        if (event.startMs === previous.startMs) {
             group.push(event);
         } else {
             noteEventsBatched.push(group);
@@ -2034,7 +2022,7 @@ function testComputeTempoMap() {
 // ################ FUNCTIONALITY TESTING #################
 function playgroundCode() {
     const ctx = document.getElementById('note-canvas').getContext('2d');
-    const endTime = getPlayTrackEndTime(noteEvents)
+    const endTime = getPlayTrackEndMsTime(noteEvents)
     return playback(ctx, endTime, playbackState, () => {
         const width = ctx.canvas.width - 400;
         const offsetY = ctx.canvas.height - 50;
