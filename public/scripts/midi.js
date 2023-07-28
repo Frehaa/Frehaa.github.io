@@ -925,7 +925,6 @@ function computeTempoMappingFunction(setTempoEvents, division) {
         currentTempo = parseTempoMetaData(event.metaData);
         tickToMsFactor = (currentTempo / division) / 1000;
         previousEventTime = event.time;
-        // l(event, runningTimeMs, currentTempo, tickToMsFactor)
         tempos.push({
             time: event.time,
             startMs: runningTimeMs,
@@ -1096,77 +1095,10 @@ function getCannonicalPlayTrackEvents(format, trackChunks) {
     return tracks;
 }
 
-
-function getMeasures(playTrack, division) {
-    let measures = [{deltaTime: 0, measure: true}]; // First measure is at deltaTime 0 
-    let summedMeasureTimes = 0;
-    const deltaTimes = playTrack.map(v => v.deltaTime);
-    const summedDeltaTime = deltaTimes.reduce((s, a) => s + a, 0);
-
+// Returns a list of times of measure lines given a list of timeSignatureEvents, a tempoMap, and an end time (given in time)
+function getMeasures(timeSignatureEvents, tempoMap, end) {
     let currentTimeSignature = { numerator: 4, denominator: 4 };  // Default time signature
-    for (let i = 0; i < playTrack.length; i++) {
-        const event = playTrack[i];
-        if (event.status === STATUS.META_EVENT && event.metaType === META_EVENT.TIME_SIGNATURE) {
-            let deltaTime = event.deltaTime;
-            // assert(deltaTime, `Expected the deltaTime to be at the start of a new measure, but was ${deltaTime}`); // Not sure how to write the test
-            while (summedMeasureTimes < deltaTime) {
-                if (currentTimeSignature.denominator === 4) {
-                    const nextMeasure = currentTimeSignature.numerator * division;
-                    measures.push({deltaTime: nextMeasure, measure: true });
-                    summedMeasureTimes += nextMeasure;
-                } else if (currentTimeSignature.denominator === 2) {
-                    const nextMeasure = currentTimeSignature.numerator * division * 2;
-                    measures.push({deltaTime: nextMeasure, measure: true });
-                    summedMeasureTimes += nextMeasure;
-                } else {
-                    assert(false, `Not implemented for other time signatures`);
-                }
-            }
-            currentTimeSignature = parseTimeSignature(event.metaData);
-            l(`Updated time signature`, currentTimeSignature, "current measure times", measures)
-            // return []
-        }
-    }
-    while (summedMeasureTimes <= summedDeltaTime) { 
-        if (currentTimeSignature.denominator === 4) {
-            const nextMeasure = currentTimeSignature.numerator * division;
-            measures.push({deltaTime: nextMeasure, measure: true });
-            summedMeasureTimes += nextMeasure;
-        } else if (currentTimeSignature.denominator === 2) {
-            const nextMeasure = currentTimeSignature.numerator * division * 2;
-            measures.push({deltaTime: nextMeasure, measure: true });
-            summedMeasureTimes += nextMeasure;
-        } else {
-            assert(false, `Not implemented for other time signatures`);
-        }
-    }
-
-    const tempos = playTrack.filter(isTempoEvent);
-    return computeTimedEvents(measures, tempos, division);
-}
-
-// Midifies the events by adding a start time in milliseconds based on the tempos
-function computeTimedEvents(events, tempos, division) {
-    let currentTempo = parseTempoMetaData([0x07, 0xA1, 0x20]) // Default value of tempo 500.000 
-    let tickToMsFactor = (currentTempo / division) / 1000;
-    let result = [];
-
-    const merged = mergeTrackChunksEventsOld(events, tempos);
-
-    let runningTimeMilliseconds = 0;
-    for (const event of merged) {
-        runningTimeMilliseconds += event.deltaTime * tickToMsFactor;
-        if (event.status === STATUS.META_EVENT && event.metaType === META_EVENT.SET_TEMPO) {
-            currentTempo = parseTempoMetaData(event.metaData);
-            tickToMsFactor = (currentTempo / division) / 1000;
-        } else {
-            result.push({
-                start: runningTimeMilliseconds,
-                ...event
-            });
-        }
-    }
-    return result;
+    assert(false, 'To be implemented')
 }
 
 function splitEvents(playTrack) {
@@ -1187,7 +1119,7 @@ function splitEvents(playTrack) {
     result[STATUS.META_EVENT][META_EVENT.TIME_SIGNATURE] = [];
     result[STATUS.META_EVENT][META_EVENT.KEY_SIGNATURE] = [];
     result[STATUS.META_EVENT][META_EVENT.SEQUENCE_SPECIFIC] = [];
-    result[STATUS.META_EVENT]["other"] = [];
+    result[STATUS.META_EVENT]["unknown"] = [];
     result["sysex"] = {};
     result["sysex"][STATUS.SYS_EXCLUSIVE_START] = [];
     result["sysex"][STATUS.SYS_EXCLUSIVE_END] = [];
@@ -1201,10 +1133,10 @@ function splitEvents(playTrack) {
 
     for (const event of playTrack) {
         if (event.status === STATUS.META_EVENT) {
-            if (result[STATUS.META_EVENT].hasOwnProperty(event.metaType)) {
+            if (result[STATUS.META_EVENT].hasOwnProperty(event.metaType)) { // Split meta events into known and unknown events
                 result[STATUS.META_EVENT][event.metaType].push(event);
             } else {
-                result[STATUS.META_EVENT]["other"].push(event);
+                result[STATUS.META_EVENT]["unknown"].push(event);
             }
             
         } else if (event.status === STATUS.SYS_EXCLUSIVE_START || event.status === STATUS.SYS_EXCLUSIVE_END) {
@@ -1228,7 +1160,7 @@ function combineNoteEvents(noteOnEvents, noteOffEvents) {
         const event = noteEvents[i];
         const note = startedNotes[event.note];
         if (isNoteOffEvent(event)) {
-            if (note === null || note === undefined) {
+            if (isNullOrUndefined(note)) {
                 console.warn('Found a note off event which was not started', event);
                 continue; 
             }
@@ -1236,11 +1168,11 @@ function combineNoteEvents(noteOnEvents, noteOffEvents) {
             note.endMs = event.startMs;
             result.push(note);
             startedNotes[event.note] = null;
-        } else if (note === null || note === undefined) { // Normal noteOn event
+        } else if (isNullOrUndefined(note)) { // Normal noteOn event
             startedNotes[event.note] = event;
         } else {  // Unusual Double noteOn event
             // TODO: Figure out what to do about the same note being played twice before being turned off (It is hard to hear a difference. So maybe it does not matter?)
-            console.warn(`Double note ${event.note} at note event ${i} at time ${event.startMs}`, event)
+            console.warn(`Double note ${event.note} at note event`, event, `at time ${event.startMs} of the note`, note)
             note.duration = event.time - note.time;
             note.endMs = event.startMs;
             if (note.duration === 0) console.warn('0 duration note', note)
@@ -1251,96 +1183,8 @@ function combineNoteEvents(noteOnEvents, noteOffEvents) {
     return result;
 }
 
-// Splits a play track of events into separate lists for notes, controls, and program events.
-// Events are transformed to have a start time in milliseconds
-// Note events have a start and end time instead of two events
-function splitEventsAndConvertToMilliseconds(playTrack, division) {
-    assert((division & 0x80) === 0, `Expected division to be given as ticks per quarter-note, but was in SMPTE format`);
-    // TODO: Maybe split into two functions. One for calculating milliseconds to events and another for splitting. Seriously, this method is starting to do too to much.
-    const noteEvents = [];
-    const controlEvents = [];
-    const programEvents = [];
-    const keySignatures = [];
-    
-    let tempo = parseTempoMetaData([0x07, 0xA1, 0x20]) // Default value of tempo 500.000 
-    let tickToMsFactor = (tempo / division) / 1000;
-
-    const startedNotes = {}; // Notes which are started but not ended.
-    let runningTimeMilliseconds = 0
-    for (let i = 0; i < playTrack.length; i++) {
-        const event = playTrack[i];
-        runningTimeMilliseconds += event.deltaTime * tickToMsFactor;
-        if (event.status === STATUS.META_EVENT) {
-            switch (event.metaType) {
-                case META_EVENT.KEY_SIGNATURE: {
-                    keySignatures.push({
-                        ...event
-                    });
-                } break;
-                case META_EVENT.SET_TEMPO: {
-                    tempo = parseTempoMetaData(event.metaData);
-                    tickToMsFactor = (tempo / division) / 1000;
-                } break;
-                case META_EVENT.TIME_SIGNATURE: { 
-                } break;
-            }
-        }
-        else if (event.type === MIDI_EVENT.NOTE_OFF || (event.type === MIDI_EVENT.NOTE_ON && event.velocity === 0)) {
-            // assert(event.note !== null, `Expected ${event.note} not to be null.`);
-            let note = startedNotes[event.note];
-            if (note === null || note === undefined) continue;
-            note.end = runningTimeMilliseconds;
-            note.deltaTimeEnd = event.deltaTime;
-            noteEvents.push(note);
-            startedNotes[event.note] = null;
-        }
-        // TODO: The deltaTimeStart should be based on the accumulative delta time. Right now it is useless because it is relative to deleted events.
-        else if (event.type === MIDI_EVENT.NOTE_ON) {
-            let note = startedNotes[event.note];
-            // assert(note === null || note === undefined, `Expected ${event.note} to be null on channel ${event.channel}, was ${startedNotes[event.note]}`);
-            if (note === null || note === undefined) {
-                startedNotes[event.note] = {
-                    deltaTimeStart: event.deltaTime,
-                    note: event.note,
-                    start: runningTimeMilliseconds,
-                    velocity: event.velocity,
-                    channel: event.channel
-                }
-            } else { // TODO: Figure out what to do about the same note being played twice before being turned off (It is hard to hear a difference. So maybe it does not matter?)
-                console.warn(`Double note ${event.note} at event ${i} at time ${runningTimeMilliseconds}`)
-                note.end = runningTimeMilliseconds;
-                note.deltaTimeEnd = event.deltaTime;
-                noteEvents.push(note);
-                startedNotes[event.note] = {
-                    deltaTimeStart: event.deltaTime,
-                    note: event.note,
-                    start: runningTimeMilliseconds,
-                    velocity: event.velocity,
-                    channel: event.channel
-                };
-            }
-        } else if (event.type === MIDI_EVENT.CONTROL_CHANGE) {
-            controlEvents.push({
-                deltaTimeStart: event.deltaTime,
-                start: runningTimeMilliseconds,
-                channel: event.channel,
-                control: event.control,
-                value: event.value
-            });
-        } else if (event.type === MIDI_EVENT.PROGRAM_CHANGE) {
-            programEvents.push({
-                deltaTimeStart: event.deltaTime,
-                start: runningTimeMilliseconds,
-                channel: event.channel,
-                program: event.program,
-            });
-        }             
-    }
-    // Add all remaining measures
-    // TODO: What if the time signature changes between measures? (Who the fuck knows. Seems like undefined behavior)
-
-    return [noteEvents, controlEvents, programEvents, keySignatures];
-}
+// TODO: What if the time signature changes between measures? (Who the fuck knows. Seems like undefined behavior)
+// TODO: The deltaTimeStart should be based on the accumulative delta time. Right now it is useless because it is relative to deleted events.
 
 /// ################# ANIMATE MIDI FUNCTIONS #############
 
@@ -1361,11 +1205,11 @@ function animateFallingNotes(noteEvents, timeMeasures, { noteFill, topLineHeight
         previous = t;
 
         ctx.clearRect(0, 0, canvas.width, topLineHeight);
-        const songElapsed = Math.max(elapsed, 0);
+        const songElapsed = clamp(0, elapsed, end);
         drawFallingNotes(ctx, noteEvents, elapsed, { msToPixel, noteFill, topLineHeight });
         // drawTimeMeasures(ctx, timeMeasures);
         drawTimeBar(ctx, songElapsed, end, { width: canvas.width - 200, offsetX: 100, offsetY: topLineHeight + 60, notchHeight: 6, font: "18px Courier New", textColor: 'black', lineColor: 'black' });
-        if (elapsed > end + timeFromTopToBottomMilliseconds) return;
+        if (elapsed > end) return;
         requestAnimationFrame(animate)
     }
     requestAnimationFrame(t => {
@@ -1525,6 +1369,10 @@ function isSorted(values) {
     return result;
 }
 
+function isNullOrUndefined(o) {
+    return o === null || o === undefined;
+}
+
 function isNoteOffEvent(event) {
     return event.type === MIDI_EVENT.NOTE_OFF || (event.type === MIDI_EVENT.NOTE_ON && event.velocity === 0);
 }
@@ -1614,21 +1462,9 @@ function mergeTrackChunksEvents(a, b) {
     const result = [];
     let i = 0, j = 0, prevTime = 0;
     while (i < a.length && j < b.length) {
-        if (a[i].time < b[j].time) {
-            result.push({
-                ...a[i], // Copy
-                deltaTime: a[i].time - prevTime
-            });
-            prevTime = a[i].time;
-            i++;
-        } else if (b[j].time < a[i].time){
-            result.push({
-                ...b[j], // Copy
-                deltaTime: b[j].time - prevTime
-            });
-            prevTime = b[j].time;
-            j++;
-        } else if (a[i].trackNumber < b[j].trackNumber) {
+        if (a[i].time < b[j].time ||  // Order first by time
+            (a[i].time === b[j].time && a[i].trackNumber < b[j].trackNumber) || // Next by track number
+            (a[i].time === b[j].time && a[i].trackNumber === b[j].trackNumber && a[i].eventNumber <= b[j].eventNumber)) { // Finally by event number
             result.push({
                 ...a[i], // Copy
                 deltaTime: a[i].time - prevTime
@@ -1642,74 +1478,24 @@ function mergeTrackChunksEvents(a, b) {
             });
             prevTime = b[j].time;
             j++;
-        }
+        }     
     }
-    if (i >= a.length) { // Rest of b
-        while (j < b.length) {
-            result.push({
-                ...b[j], // Copy
-                deltaTime: b[j].time - prevTime
-            });
-            prevTime = b[j].time;
-            j++;
-        }
-    } else {            // Rest of a
-        while (i < a.length) {
-            result.push({
-                ...a[i], // Copy
-                deltaTime: a[i].time - prevTime
-            });
-            prevTime = a[i].time;
-            i++;
-        }
-        
+    // Rest of whatever remains in the other. Loop will not enter both since either i or j was too big in the above loop
+    while (j < b.length) { 
+        result.push({
+            ...b[j], // Copy
+            deltaTime: b[j].time - prevTime
+        });
+        prevTime = b[j].time;
+        j++;
     }
-    return result; 
-}
-
-// Assumes two lists of track events which contains a deltaTime 
-function mergeTrackChunksEventsOld(a, b) {
-    const result = [];
-    const aAccum = calcAccumulatedDeltaTimes(a);
-    const bAccum = calcAccumulatedDeltaTimes(b);
-
-    let i = 0, j = 0, prevTime = 0;
-    while (i < a.length && j < b.length) {
-        if (aAccum[i] <= bAccum[j]) {
-            result.push({
-                ...a[i], // Copy
-                deltaTime: aAccum[i] - prevTime
-            });
-            prevTime = aAccum[i];
-            i++;
-        } else {
-            result.push({
-                ...b[j], // Copy
-                deltaTime: bAccum[j] - prevTime
-            });
-            prevTime = bAccum[j];
-            j++;
-        }
-    }
-    if (i >= a.length) { // Rest of b
-        while (j < b.length) {
-            result.push({
-                ...b[j], // Copy
-                deltaTime: bAccum[j] - prevTime
-            });
-            prevTime = bAccum[j];
-            j++;
-        }
-    } else {            // Rest of a
-        while (i < a.length) {
-            result.push({
-                ...a[i], // Copy
-                deltaTime: aAccum[i] - prevTime
-            });
-            prevTime = aAccum[i];
-            i++;
-        }
-        
+    while (i < a.length) { 
+        result.push({
+            ...a[i], // Copy
+            deltaTime: a[i].time - prevTime
+        });
+        prevTime = a[i].time;
+        i++;
     }
     return result; 
 }
@@ -1857,90 +1643,16 @@ function testCalcAccumulatedDeltaTimes() {
 }
 
 function testMergeTracks() {
-    const tests = [
-        [   // Test 1
-            [   // Inputs
-                [{deltaTime: 0}, {deltaTime: 0}], // a
-                [{deltaTime: 0}]  // b
-            ],
-            [   // Output
-                {deltaTime: 0}, {deltaTime: 0}, {deltaTime: 0}
-            ] 
-        ], 
-        [   
-            [   // Inputs
-                [{deltaTime: 0}, {deltaTime: 1}], // a
-                [{deltaTime: 0}]  // b
-            ],
-            [   // Output
-                {deltaTime: 0}, {deltaTime: 0}, {deltaTime: 1}
-            ] 
-        ], 
-        [   
-            [   // Inputs
-                [{deltaTime: 5}, {deltaTime: 0}], // a
-                [{deltaTime: 0}]  // b
-            ],
-            [   // Output
-                {deltaTime: 0}, {deltaTime: 5}, {deltaTime: 0}
-            ] 
-        ], 
-        [
-            [   // Inputs
-                [{deltaTime: 25}, {deltaTime: 1}], // a
-                [{deltaTime: 0}]  // b
-            ],
-            [   // Output
-                {deltaTime: 0}, {deltaTime: 25}, {deltaTime: 1}
-            ] 
-        ],
-        [
-            [   // Inputs
-                [{deltaTime: 0}, {deltaTime: 1}], // a
-                [{deltaTime: 25}]  // b
-            ],
-            [   // Output
-                {deltaTime: 0}, {deltaTime: 1}, {deltaTime: 24}
-            ] 
-        ],
-        [
-            [   // Inputs
-                [{deltaTime: 40}, {deltaTime: 30}], // a
-                [{deltaTime: 25}]  // b
-            ],
-            [   // Output
-                {deltaTime: 25}, {deltaTime: 15}, {deltaTime: 30}
-            ] 
-        ],
-        [
-            [   // Inputs
-                [{deltaTime: 10}, {deltaTime: 20}], // a
-                [{deltaTime: 10}]  // b
-            ],
-            [   // Output
-                {deltaTime: 10}, {deltaTime: 0}, {deltaTime: 20}
-            ] 
-        ],
-        [
-            [   // Inputs
-                [{deltaTime: 0}, {deltaTime: 0}, {deltaTime: 20},{deltaTime: 10},{deltaTime: 0},{deltaTime: 40},], // a
-                [{deltaTime: 10}, {deltaTime: 0},{deltaTime: 30},{deltaTime: 0},{deltaTime: 0},{deltaTime: 50},{deltaTime: 10},]  // b
-            ],
-            [   // Output
-                {deltaTime: 0}, {deltaTime: 0}, {deltaTime: 10}, {deltaTime: 0}, {deltaTime: 10}, {deltaTime: 10}, {deltaTime: 0}, {deltaTime: 10}, {deltaTime: 0}, {deltaTime: 0}, {deltaTime: 30}, {deltaTime: 20}, {deltaTime: 10},
-            ] 
-        ],
-    ];
-    for (const test of tests) {
-        let [input, expected] = test;
-        let result = mergeTrackChunksEventsOld(...input);
+    const tests = []; // TODO: Maybe redo tests
+    for (const [input, expected] of tests) {
+        let result = mergeTrackChunksEvents(...input);
 
         if (expected.length !== result.length) {
-            console.log(`Expected ${input} gave result ${expected}, but was ${result}`);
+            console.log(`Expected`, input, `gave result`, expected, `but was`, result);
         } else {
             for (let i = 0; i < result.length; i++) {
-                let e = expected[i].deltaTime;
-                let a = result[i].deltaTime;
+                let e = expected[i].time;
+                let a = result[i].time;
                 if (a !== e) {
                     console.log(`Expected`, input, `gave result ${e}, but was ${a} at index ${i}`);
                     break;
@@ -1952,7 +1664,7 @@ function testMergeTracks() {
     // Test that inputs are not modified, but instead properly copied.
     let inputA = {deltaTime: 5};
     let inputB = {deltaTime: 5};
-    mergeTrackChunksEventsOld([inputA], [inputB]);
+    mergeTrackChunksEvents([inputA], [inputB]);
     
     if (inputA.deltaTime !== 5 || inputB.deltaTime !== 5) {
         console.log("Expected input to mergeTracChunks to be unmodified")
