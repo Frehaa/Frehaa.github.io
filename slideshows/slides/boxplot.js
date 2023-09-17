@@ -92,7 +92,7 @@ class BoxplotFrame {
     mouseMove() {}
     mouseDown() {}
     mouseUp() {}
-    frameStart() {}
-    frameEnd(){}
+    slideStart() {}
+    slideEnd(){}
     keyUp() {}
 }

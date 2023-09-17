@@ -288,10 +288,10 @@ class NetworkFrame {
             this.drawSettings.drawBox = !this.drawSettings.drawBox;
         }
     }
-    frameStart() {
+    slideStart() {
         document.addEventListener('keydown', this.boundedKeyDownCallback);
     }
-    frameEnd(){
+    slideEnd(){
         document.removeEventListener('keydown', this.boundedKeyDownCallback);
     }
     keyUp() {}

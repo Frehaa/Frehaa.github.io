@@ -1,187 +1,12 @@
 "use strict";
 const FLOATING_POINT_ERROR_MARGIN = 0.000001; // TODO: Figure out if there exists some better constant. It probably depends on the precision.
-const ARROW_RIGHT_KEY = "ArrowRight";
-const ARROW_LEFT_KEY = "ArrowLeft";
-const DELETE_KEY = "Delete";
-const HOME_KEY = "Home";
-const END_KEY = "End";
-const PAGE_DOWN_KEY = "PageDown";
-const PAGE_UP_KEY = "PageUp";
-const BAKCSPACE_KEY = "Backspace";
-const Z_KEY = "z";
-const O_KEY = "o";
-const B_KEY = "b";
-const F1_KEY = "F1";
-const F2_KEY = "F2";
-
-const DIRECTION_DOWN = "DOWN";
-const DIRECTION_UP = "UP";
-
-var mousePosition = {x:0, y: 0};
-
-let frames = [];
-let currentFrameIdx = 0;
-let showSlideNumber = false;
-
-function rgba(r, g, b, a) {
-    return { r, g, b, a };
-}
-
-function draw() {
-    let canvas = document.getElementById('canvas');
-    let ctx = canvas.getContext('2d');
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    ctx.save();
-    frames[currentFrameIdx].draw(ctx);
-    ctx.restore();
-
-    if (showSlideNumber) {
-        ctx.strokeText((currentFrameIdx + 1).toString(), canvas.width - 100, canvas.height - 50);
-    }
-
-    requestAnimationFrame(draw);
-}
-
-let rectangleFrame = {
-    r: rectangle(250, 250, 100, 100),
-    isInteractable: true,
-    draw: function(ctx) {
-        if (this.r.drag) {
-            ctx.strokeStyle = '#FF0000';
-        } else if (this.r.isInside(mousePosition)) {
-            ctx.strokeStyle = '#00FF00';
-        } else {
-            ctx.strokeStyle = '#0000FF';
-        }
-        this.r.draw(ctx);
-    }, 
-    mouseMove: function() {
-        if (this.r.drag) {
-            this.r.x = clamp(mousePosition.x - this.r.width/2, 200, 400);
-        }
-    }, 
-    mouseDown: function() {
-        if (this.r.isInside(mousePosition)) {
-            this.r.drag = true;
-            this.r.x = clamp(mousePosition.x - this.r.width/2, 200, 400);
-        } 
-    }, 
-    mouseUp: function() {
-        this.r.drag = false;
-    },
-    frameStart: function() {
-
-    },
-    frameEnd: function(){
-        this.r.drag = false;
-    },
-    keyUp: function() {}
-};
-
-function initializeEventListeners() {
-    let canvas = document.getElementById('canvas');
-    canvas.addEventListener('mousemove', function(e) {
-        mousePosition = {
-            x: (e.pageX - e.target.offsetLeft) * (canvas.width / canvas.clientWidth), 
-            y: (e.pageY - e.target.offsetTop) * (canvas.height / canvas.clientHeight)
-        };
-        let frame = frames[currentFrameIdx];
-        if (frame.isInteractable) frame.mouseMove();
-    });
-
-    canvas.addEventListener('mousedown', function(e) {
-        let frame = frames[currentFrameIdx];
-        if (frame.isInteractable) frame.mouseDown();
-    });
-
-    canvas.addEventListener('mouseup', function(e) {
-        let frame = frames[currentFrameIdx];
-        if (frame.isInteractable) frame.mouseUp();
-    });
-
-    document.addEventListener('keydown', function(e) {
-        let prevFrameIdx = currentFrameIdx;
-        switch (e.key) {
-            case ARROW_RIGHT_KEY: {
-                currentFrameIdx = Math.min(currentFrameIdx + 1, frames.length-1);
-            } break;
-            case ARROW_LEFT_KEY: {
-                currentFrameIdx = Math.max(currentFrameIdx - 1, 0);
-            } break;
-            case HOME_KEY: {
-                currentFrameIdx = 0;
-            } break;
-            case END_KEY: {
-                currentFrameIdx = frames.length - 1;
-            } break;
-            case PAGE_DOWN_KEY: {
-                currentFrameIdx = Math.min(currentFrameIdx + 10, frames.length-1);
-            } break;
-            case PAGE_UP_KEY: {
-                currentFrameIdx = Math.max(currentFrameIdx - 10, 0);
-            } break;
-            case F1_KEY: {
-                console.log(mousePosition)
-                console.log(frames[currentFrameIdx])
-            } break;
-            case F2_KEY: {
-                showSlideNumber = !showSlideNumber;
-            } break;
-           default: return;
-        }
-        if (prevFrameIdx != currentFrameIdx) {
-            frames[prevFrameIdx].frameEnd();
-            frames[currentFrameIdx].frameStart();
-        }
-    });
-
-    // let k_range_input = document.getElementById('range-input-k');
-    // let m_range_input = document.getElementById('range-input-m');
-    // k_range_input.addEventListener('input', function(e) {
-    //     let m = Number(m_range_input.value);
-    //     if (Number(e.target.value) > m) {
-    //         e.target.value = m;
-    //     }
-    // });
-    // m_range_input.addEventListener('input', function(e) {
-    //     let k = Number(k_range_input.value);
-    //     if (Number(e.target.value) < k) {
-    //         e.target.value = k;
-    //     }
-    // });
-}
-
-function fillTextCenter(text, y, ctx) {
-    let canvas = ctx.canvas;
-    let measure = ctx.measureText(text);
-    let x = canvas.width / 2 - measure.width / 2;
-    ctx.fillText(text, x, y);
-}
-
-function createBulletPointSlides(title, bullets, drawSettings) {
-    for (let i = bullets.length-1; i < bullets.length; i++) {
-        frames.push(combineFrames({
-            draw: function(ctx) {
-                ctx.font = drawSettings.titleFont;
-                fillTextCenter(title, drawSettings.titleStart, ctx);
-                ctx.font = drawSettings.bulletFont;
-                for (let j = 0; j <= i; j++) {
-                    ctx.fillText(drawSettings.bullet + ' ' + bullets[j],
-                                drawSettings.bulletStartLeft, 
-                                drawSettings.bulletStartTop +
-                                    drawSettings.bulletOffset * j
-                    );
-                }
-            }
-        }));    
-    }
-}
 
 function initialize() {
-    initializeEventListeners();
-    let canvas = document.getElementById('canvas');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const state = initializeSlideshowState();
+    const slides = state.slides;
+    initializeSlideshowEventListeners(canvas, state);
     let w = canvas.width;
     let h = canvas.height;
     let generalDrawSettings = {
@@ -218,7 +43,7 @@ function initialize() {
         },
         drawWireOverlay: false
     };
-    let wikiNetworkFrame = new NetworkFrame(wikiNetwork, wikiNetworkDrawSettings, false);
+    let wikiNetworkSlide = new NetworkFrame(wikiNetwork, wikiNetworkDrawSettings, false);
     bitonicSort(0, 16, DESCENDING, wikiNetwork, 0.1);
 
     let bulletPointSlideDrawSettings = {
@@ -231,21 +56,23 @@ function initialize() {
         bullet: '•'
     };
 
-    frames.push(combineFrames(wikiNetworkFrame, {
+    slides.push(combineSlides(wikiNetworkSlide, {
         draw: function(ctx) {
             ctx.font = bulletPointSlideDrawSettings.titleFont;
             let text = "Sorting Networks and Bitonic Merge Sort";
-            fillTextCenter(text, h * 0.1, ctx);
+            fillTextCanvasCenter(ctx, text, h * 0.1);
         }
     }));
 
     // BIT OF PRACTICAL INFORMATION
-    createBulletPointSlides('Practical Information', [
-        // 'PhD student',
-        'This will be recorded',
-        'I hope for some light participation',
-        'This is not about Priority Queues!'
-    ], bulletPointSlideDrawSettings);
+    slides.push.apply(slides, 
+        createBulletPointSlides('Practical Information', [
+            // 'PhD student',
+            'This will be recorded',
+            'I hope for some light participation',
+            'This is not about Priority Queues!'
+        ], bulletPointSlideDrawSettings)
+    );
   
     let tinyExampleNetwork = new Network(3);
     tinyExampleNetwork.values[0] = 2
@@ -264,13 +91,6 @@ function initialize() {
         tipWidth: 15, 
         drawBox: false,        
         wireOverlayColor: function(value) {
-            // if (value == 1) {
-            //     return 'rgba(0, 255, 0, 0.5)';
-            // } else if (value == 2) {
-            //     return 'rgba(0, 0, 255, 0.5)';
-            // } else if (value == 3){
-            //     return 'rgba(255, 0, 0, 0.5)';
-            // }
             if (value == 1) {
                 return generalDrawSettings.green;
             } else if (value == 2) {
@@ -280,40 +100,33 @@ function initialize() {
             }
         }
     }
-    let tinyExampleNetworkFrame = new NetworkFrame(tinyExampleNetwork, tinyExampleNetworkDrawSettings, true);
+    let tinyExampleNetworkSlide = new NetworkFrame(tinyExampleNetwork, tinyExampleNetworkDrawSettings, true);
     let tinyExampleTitle = "Sorting Networks - Wires, Arrows & Sorting";
-    // frames.push(combineFrames(tinyExampleNetworkFrame, {
-    //     draw: function(ctx) {
-    //         ctx.font = bulletPointSlideDrawSettings.titleFont;
-    //         fillTextCenter(tinyExampleTitle, bulletPointSlideDrawSettings.titleStart, ctx);
-    //     },
-    //     frameStart: function() {
-    //         tinyExampleNetworkFrame.drawSettings.drawBox = false;
-    //     }
-    // }));
 
     // I show them how it works 1
-    frames.push(combineFrames(tinyExampleNetworkFrame, {
+    slides.push(combineSlides(tinyExampleNetworkSlide, {
         draw: function(ctx) {
             ctx.font = bulletPointSlideDrawSettings.titleFont;
-            fillTextCenter(tinyExampleTitle, bulletPointSlideDrawSettings.titleStart, ctx);
+            fillTextCanvasCenter(ctx, tinyExampleTitle, bulletPointSlideDrawSettings.titleStart);
         }, 
-        frameStart: function() {
-            tinyExampleNetworkFrame.drawSettings.drawBox = true;
-            tinyExampleNetworkFrame.drawSettings.drawWireOverlay = false;
+        slideStart: function() {
+            tinyExampleNetworkSlide.drawSettings.drawBox = true;
+            tinyExampleNetworkSlide.drawSettings.drawWireOverlay = false;
         }
     }));
 
     /// -------------- SLIDES ON WHY SORTING NETWORKS ---------------------
-    createBulletPointSlides('Why Sorting Networks?', [
-        'Data Oblivousness / Privacy',
-        'Circuits (Switching Networks, FPGA)',
-        'Parallelism / GPU Sorting',
-    ], bulletPointSlideDrawSettings);
+    slides.push.apply(slides, 
+        createBulletPointSlides('Why Sorting Networks?', [
+            'Data Oblivousness / Privacy',
+            'Circuits (Switching Networks, FPGA)',
+            'Parallelism / GPU Sorting',
+        ], bulletPointSlideDrawSettings)
+    );
 
     // Let them do it
     let selfExampleNetwork = new Network(5);
-    let selfExampleNetworkFrame = new NetworkFrame(selfExampleNetwork, {
+    let selfExampleNetworkSlide = new NetworkFrame(selfExampleNetwork, {
         marginX: h / 20,
         marginY: h / 20,
         squareLength: h / 7, 
@@ -346,41 +159,25 @@ function initialize() {
             
         }
     }, true);
-    frames.push(selfExampleNetworkFrame);
+    slides.push(selfExampleNetworkSlide);
 
     // Bubble sort
     let bubbleExampleNetwork = new Network(6);
-    let bubbleExampleNetworkFrame = new NetworkFrame(bubbleExampleNetwork, {
-        ...selfExampleNetworkFrame.drawSettings,
+    let bubbleExampleNetworkSlide = new NetworkFrame(bubbleExampleNetwork, {
+        ...selfExampleNetworkSlide.drawSettings,
         squareOffset: h * 0.005,
         drawBox: false
     }, true);
-    frames.push(bubbleExampleNetworkFrame);
+    slides.push(bubbleExampleNetworkSlide);
 
-    createBulletPointSlides('Mini Recap', [
-        'Sorting Networks',
-        'Wires',
-        'Compare-and-Swaps',
-        'Span & Work'
-    ], bulletPointSlideDrawSettings);
-
-    // let bitonicDrawSettings = {
-    //         marginX: 50, 
-    //         marginY: 50,
-    //         width: 1600,
-    //         height: 50,
-    //         innerColor: 'rgba(255, 0, 0, 0.7)', // `#FF0000`,
-    //         outColor: 'rgba(0, 255, 0, 0.7)', // `#00FF00`,
-    //         borderColor: `#000000`,
-    //         inOutSeperatorColor: 'rgba(255, 0, 0, 0.2)', // `#777777`,
-    //         borderColor: '#000000',
-    //         lineWidth: 3,
-    //         offset: 100,
-    // };
-    // let bitonicSliderFrame = new BitonicSliderFrame(bitonicDrawSettings);
-    // frames.push(bitonicSliderFrame);
-
-    // ctx.scale(2, 2);
+    slides.push.apply(slides, 
+        createBulletPointSlides('Mini Recap', [
+            'Sorting Networks',
+            'Wires',
+            'Compare-and-Swaps',
+            'Span & Work'
+        ], bulletPointSlideDrawSettings)
+    );
 
     let network16 = new Network(16);
     let defaultNetworkDrawSettings = {
@@ -406,47 +203,45 @@ function initialize() {
         },
         drawWireOverlay: true
     };
-    let networkFrame = new NetworkFrame(network16, defaultNetworkDrawSettings, true);
+    let networkSlide = new NetworkFrame(network16, defaultNetworkDrawSettings, true);
 
-    let greenOverlayFrame = new OverlayFrame({
-        position: {x: w / 2, y: networkFrame.drawSettings.marginY},
+    let greenOverlaySlide = new OverlayFrame({
+        position: {x: w / 2, y: networkSlide.drawSettings.marginY},
         width: w * 0.45,
-        height: calcHeightFromWires(networkFrame.drawSettings, 8) -
-                networkFrame.drawSettings.squareOffset,
+        height: calcHeightFromWires(networkSlide.drawSettings, 8) -
+                networkSlide.drawSettings.squareOffset,
         strokeColor: generalDrawSettings.green,
         fillColor: generalDrawSettings.green
     });
-    let redOverlayFrame = new OverlayFrame({
-        position: {x: w / 2, y: networkFrame.drawSettings.marginY + calcHeightFromWires(networkFrame.drawSettings, 8.5) - 
-                networkFrame.drawSettings.squareOffset},
+    let redOverlaySlide = new OverlayFrame({
+        position: {x: w / 2, y: networkSlide.drawSettings.marginY + calcHeightFromWires(networkSlide.drawSettings, 8.5) - 
+                networkSlide.drawSettings.squareOffset},
         width: w * 0.45,
-        height: calcHeightFromWires(networkFrame.drawSettings, 8) - 
-                networkFrame.drawSettings.squareOffset,
+        height: calcHeightFromWires(networkSlide.drawSettings, 8) - 
+                networkSlide.drawSettings.squareOffset,
         strokeColor: generalDrawSettings.red,
         fillColor: generalDrawSettings.red
     });
 
     let nullSequence = [ null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null ];
     function drawCenterDashLine(ctx) {
-        let y = networkFrame.drawSettings.marginY + 
-                calcHeightFromWires(networkFrame.drawSettings, 8) - 
-                networkFrame.drawSettings.squareOffset / 2 ;
+        let y = networkSlide.drawSettings.marginY + 
+                calcHeightFromWires(networkSlide.drawSettings, 8) - 
+                networkSlide.drawSettings.squareOffset / 2 ;
         ctx.lineWidth = 3
-        drawDashLine(networkFrame.drawSettings.marginX, y, 
-                        w - networkFrame.drawSettings.marginX, y, [10, 10], ctx);
+        drawDashLine(networkSlide.drawSettings.marginX, y, 
+                        w - networkSlide.drawSettings.marginX, y, [10, 10], ctx);
 
     }
 
-    let resetValuesFrame = combineFrames(networkFrame, {
+    let resetValuesSlide = combineSlides(networkSlide, {
         draw: function() {},
-        frameStart: function() {
-            networkFrame.network.values = nullSequence;
-            networkFrame.network.compareAndSwaps = new LinkedList();
+        slideStart: function() {
+            networkSlide.network.values = nullSequence;
+            networkSlide.network.compareAndSwaps = new LinkedList();
         }
     })
-    frames.push(resetValuesFrame);
-    // frames.push(combineFrames(greenOverlayFrame, resetValuesFrame));
-    // frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, resetValuesFrame));
+    slides.push(resetValuesSlide);
 
     // Insert merge box overlays
     let mergeBoxOverlays = [];
@@ -470,109 +265,98 @@ function initialize() {
         }
         mergeBoxOverlayX += defaultNetworkDrawSettings.wireLength * mergeBoxWidths[i] + defaultNetworkDrawSettings.wireLength / 12;
 
-        frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, networkFrame, ...mergeBoxOverlays));
+        slides.push(combineSlides(greenOverlaySlide, redOverlaySlide, networkSlide, ...mergeBoxOverlays));
     }
 
-    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, networkFrame, {
+    slides.push(combineSlides(greenOverlaySlide, redOverlaySlide, networkSlide, {
         draw: function() {},
-        frameStart: function() {
-            networkFrame.network.values = nullSequence;
-            // Dirty trick to make sure the network is initialized
-            // if (network16.compareAndSwaps.size > 0) return 
-            // for (let i = 0; i < network16.size / 2; i++) {
-            //     network16.addCompareAndSwap(0.5 + 0.01 * i, i, i + 8)    
-            // }
+        slideStart: function() {
+            networkSlide.network.values = nullSequence;
         }
     }));
 
-    // Frames which do not sort correctly
+    // Slides which do not sort correctly
     let failingSequence = [ 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1 ];
     for (let i = 0; i < failingSequence.length/2; i++) {
-        frames.push(combineFrames(networkFrame, {
+        slides.push(combineSlides(networkSlide, {
             draw: drawCenterDashLine,
-            frameStart: function() {
-                networkFrame.network.values = nullSequence.slice();
+            slideStart: function() {
+                networkSlide.network.values = nullSequence.slice();
                 for (let j = 0; j <= i; j++) {
-                    networkFrame.network.values[j] = failingSequence[j];
-                    networkFrame.network.values[j + 8] = failingSequence[j + 8];
+                    networkSlide.network.values[j] = failingSequence[j];
+                    networkSlide.network.values[j + 8] = failingSequence[j + 8];
                 }
             }
         }));
     }
 
-    // Example frames which do work
+    // Example slides which do work
     // Already sorted 1 
     let sortedSequence1 = failingSequence.slice().sort((a, b) => a > b);
-    frames.push(combineFrames(networkFrame, {
+    slides.push(combineSlides(networkSlide, {
         draw: drawCenterDashLine, 
-        frameStart: function() {
-            networkFrame.network.values = sortedSequence1;
+        slideStart: function() {
+            networkSlide.network.values = sortedSequence1;
         }
     }));
 
     // Already sorted 2 
     let sortedSequence2 = failingSequence.slice().sort((a, b) => a < b);
-    frames.push(combineFrames(networkFrame, {
+    slides.push(combineSlides(networkSlide, {
         draw: drawCenterDashLine,
-        frameStart: function() {
-            networkFrame.network.values = sortedSequence2;
+        slideStart: function() {
+            networkSlide.network.values = sortedSequence2;
         }
     }));
 
     // Odd-even
     // let oddEvenSequence = [0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0];
-    // frames.push(combineFrames(networkFrame, {
-    //     draw: drawCenterDashLine,
-    //     frameStart: function() {
-    //         networkFrame.network.values = oddEvenSequence;
-    //     }
-    // }));
 
     // Bitonic 1
     let bitonicSequence1 = [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1];
-    frames.push(combineFrames(networkFrame, {
+    slides.push(combineSlides(networkSlide, {
         draw: drawCenterDashLine,
-        frameStart: function() {
-            networkFrame.network.values = bitonicSequence1;
+        slideStart: function() {
+            networkSlide.network.values = bitonicSequence1;
         }
     }));
 
     // Bitonic 2
     let bitonicSequence2 = [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0];
-    let bitonic2Frame = combineFrames(networkFrame, {
+    let bitonic2Slide = combineSlides(networkSlide, {
         draw: drawCenterDashLine,
-        frameStart: function() {
-            networkFrame.network.values = bitonicSequence2;
+        slideStart: function() {
+            networkSlide.network.values = bitonicSequence2;
         }
     });
-    frames.push(bitonic2Frame);
+    slides.push(bitonic2Slide);
 
     function calcHeightFromWires(drawSettings, count) {
         return count * (drawSettings.squareLength + drawSettings.squareOffset);
     }
 
-    frames.push(combineFrames(bitonic2Frame, {
+    slides.push(combineSlides(bitonic2Slide, {
         draw: function(ctx) {
-            let x = networkFrame.drawSettings.marginX +
-                                networkFrame.drawSettings.squareLength +
-                                networkFrame.drawSettings.squareOffset;
+            let x = networkSlide.drawSettings.marginX +
+                                networkSlide.drawSettings.squareLength +
+                                networkSlide.drawSettings.squareOffset;
             let width= defaultNetworkDrawSettings.wireLength / 2 - defaultNetworkDrawSettings.squareOffset;
-            let height= calcHeightFromWires(networkFrame.drawSettings, 8) - networkFrame.drawSettings.squareOffset;
+            let height= calcHeightFromWires(networkSlide.drawSettings, 8) - networkSlide.drawSettings.squareOffset;
             ctx.lineWidth = 5;
             // ctx.strokeStyle = generalDrawSettings.blue;
             ctx.strokeStyle = '#000000' //generalDrawSettings.blue;
-            ctx.strokeRect(x, networkFrame.drawSettings.marginY, width, height);
+            ctx.strokeRect(x, networkSlide.drawSettings.marginY, width, height);
         }
     }));
 
-    frames.push(combineFrames(bitonic2Frame, {
+    slides.push(combineSlides(bitonic2Slide, {
         draw: function(ctx) {
-            let x = networkFrame.drawSettings.marginX +
-                                networkFrame.drawSettings.squareLength +
-                                networkFrame.drawSettings.squareOffset;
-            let y = networkFrame.drawSettings.marginY + calcHeightFromWires(networkFrame.drawSettings, 8);
+            let x = networkSlide.drawSettings.marginX +
+                                networkSlide.drawSettings.squareLength +
+                                networkSlide.drawSettings.squareOffset;
+            let y = networkSlide.drawSettings.marginY + calcHeightFromWires(networkSlide.drawSettings, 8);
             let width= defaultNetworkDrawSettings.wireLength / 2 - defaultNetworkDrawSettings.squareOffset;
-            let height= calcHeightFromWires(networkFrame.drawSettings, 8) - networkFrame.drawSettings.squareOffset;
+            let height= calcHeightFromWires(networkSlide.drawSettings, 8) - networkSlide.drawSettings.squareOffset;
             ctx.lineWidth = 5;
             ctx.strokeStyle = '#000000' //generalDrawSettings.blue;
             ctx.strokeRect(x, y, width, height);
@@ -608,10 +392,10 @@ function initialize() {
     });
     sortBoxOverlay2 = addTextOverlayArrow(sortBoxOverlay2, DIRECTION_UP);
 
-    frames.push(combineFrames(bitonic2Frame, sortBoxOverlay1));
-    frames.push(combineFrames(frames[frames.length-1], sortBoxOverlay2))
+    slides.push(combineSlides(bitonic2Slide, sortBoxOverlay1));
+    slides.push(combineSlides(slides[slides.length-1], sortBoxOverlay2))
 
-    // -------------- Beginning of boxplot sorting frames -----------------------
+    // -------------- Beginning of boxplot sorting slides -----------------------
     function drawCasBox(i, step, values, drawSettings, ctx) {
         let max = Math.max(...values);
         let leftX = drawSettings.marginX;
@@ -640,19 +424,19 @@ function initialize() {
         height: 800,
         width: w * 0.7,
         boxOffset: 15,
-        startColor: generalDrawSettings.green, //rgba(0, 1, 0, 0.5),
-        endColor: generalDrawSettings.red, //rgba(1, 0, 0, 0.5),
+        startColor: generalDrawSettings.green, 
+        endColor: generalDrawSettings.red, 
         drawHorizontal: false
     };
 
     let values = [1, 2, 3, 7, 9, 12, 13, 15, 16, 14, 11, 10, 8, 6, 5, 4]
     // values = [16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
 
-    values = addCasFrames(0, values.length / 2, boxPlotDrawSettings, values)
+    values = addCasSlides(0, values.length / 2, boxPlotDrawSettings, values)
 
     // Boxed 4 biggest on left
-    let boxplotFrame = new BoxplotFrame(values, boxPlotDrawSettings);
-    let c = combineFrames(boxplotFrame, {
+    let boxplotSlide = new BoxplotFrame(values, boxPlotDrawSettings);
+    let c = combineSlides(boxplotSlide, {
         vals: values.slice(),
         draw: function(ctx) {
             let values = this.vals;
@@ -675,14 +459,14 @@ function initialize() {
             let dashX = w / 2 - offset / 2;
             drawDashLine(dashX, 30, dashX, 860, [10, 10], ctx);
     }});
-    frames.push(c);
+    slides.push(c);
 
 
-    function addCasFrames(start, step, drawSettings, values) {
-        frames.push(new BoxplotFrame(values, drawSettings));
+    function addCasSlides(start, step, drawSettings, values) {
+        slides.push(new BoxplotFrame(values, drawSettings));
         for (let i = start; i < start + step; ++i) {
-            let frame = new BoxplotFrame(values, drawSettings);
-            let c = combineFrames(frame, {
+            let slide = new BoxplotFrame(values, drawSettings);
+            let c = combineSlides(slide, {
                 vals: values.slice(),
                 step,
                 draw: function(ctx) {
@@ -693,7 +477,7 @@ function initialize() {
                     let dashX = drawSettings.marginX - drawSettings.boxOffset / 2 + (drawSettings.width * (start + this.step) / values.length);
                     drawDashLine(dashX, 30, dashX, 860, [10, 10], ctx);
             }});
-            frames.push(c);
+            slides.push(c);
 
             values = values.slice();
             if (values[i] > values[i + step]) {
@@ -702,8 +486,8 @@ function initialize() {
                 values[i + step] = tmp;
             }
 
-            frame = new BoxplotFrame(values, drawSettings);
-            c = combineFrames(frame, {
+            slide = new BoxplotFrame(values, drawSettings);
+            c = combineSlides(slide, {
                 vals: values.slice(),
                 step,
                 draw: function(ctx) {
@@ -714,17 +498,17 @@ function initialize() {
                     let dashX = drawSettings.marginX - drawSettings.boxOffset / 2 + (drawSettings.width * (start + this.step) / values.length);
                     drawDashLine(dashX, 30, dashX, 860, [10, 10], ctx);
             }});
-            frames.push(c);
+            slides.push(c);
         }
         return values;
     }
 
     values = values.slice();
-    function addCasFramesRec(start, n, drawSettings, values) {
+    function addCasSlidesRec(start, n, drawSettings, values) {
         drawSettings = {
             ...drawSettings,
             color: function(i, values, ctx) {
-                let c = generalDrawSettings.grey; //rgba(0.2, 0.2, 0.2, 0.5);
+                let c = generalDrawSettings.grey;
                 if (i < start + n && i >= start) { // The range we are sorting
                     if (values[i] <= start + n / 2) { // The lower half of the range
                         c = generalDrawSettings.green;
@@ -732,49 +516,41 @@ function initialize() {
                         c = generalDrawSettings.red;
                     }
                 }             
-                // let {r,g,b,a} = c;
-                ctx.fillStyle = c; //`rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
+                ctx.fillStyle = c; 
             },
         }
 
         if (n != 16) { // Special case, we ignore 16 since we have already added it
-            values = addCasFrames(start, n / 2, drawSettings, values);
+            values = addCasSlides(start, n / 2, drawSettings, values);
         }
 
         if (n > 2) {
-            values = addCasFramesRec(start, n / 2, drawSettings, values);
-            values = addCasFramesRec(start + n / 2, n / 2, drawSettings, values);
+            values = addCasSlidesRec(start, n / 2, drawSettings, values);
+            values = addCasSlidesRec(start + n / 2, n / 2, drawSettings, values);
 
         }
         return values;
     }
 
-    values = addCasFramesRec(0, 16, boxPlotDrawSettings, values)
-    frames.push(new BoxplotFrame(values, {
+    values = addCasSlidesRec(0, 16, boxPlotDrawSettings, values)
+    slides.push(new BoxplotFrame(values, {
         ...boxPlotDrawSettings,
         color: function(i, values, ctx) {
-            let {r,g,b,a} = rgba(0, 1, 0, 0.5);
-            ctx.fillStyle = generalDrawSettings.green; //`rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`; 
+            ctx.fillStyle = generalDrawSettings.green; 
         }
     }));
 
 
-    let empty16NetworkFrame = new NetworkFrame(
+    let empty16NetworkSlides = new NetworkFrame(
         new Network(16),
         defaultNetworkDrawSettings,
         false
     );
 
-    // frames.push(empty16NetworkFrame);
-    // frames.push(combineFrames(greenOverlayFrame, empty16NetworkFrame));
-    // frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, empty16NetworkFrame));
-    // frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, networkFrame));
-    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, empty16NetworkFrame, ...mergeBoxOverlays.slice(0, 1)));
-    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, empty16NetworkFrame, ...mergeBoxOverlays.slice(0, 3)));
-    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, empty16NetworkFrame, ...mergeBoxOverlays.slice(0, 7)));
-    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, empty16NetworkFrame, ...mergeBoxOverlays.slice(0, 15)));
-    // frames.push(combineFrames(empty16NetworkFrame, greenOverlayFrame, redOverlayFrame, sortBoxOverlay1));
-    // frames.push(combineFrames(empty16NetworkFrame, greenOverlayFrame, redOverlayFrame, sortBoxOverlay1, sortBoxOverlay2));
+    slides.push(combineSlides(greenOverlaySlide, redOverlaySlide, empty16NetworkSlides, ...mergeBoxOverlays.slice(0, 1)));
+    slides.push(combineSlides(greenOverlaySlide, redOverlaySlide, empty16NetworkSlides, ...mergeBoxOverlays.slice(0, 3)));
+    slides.push(combineSlides(greenOverlaySlide, redOverlaySlide, empty16NetworkSlides, ...mergeBoxOverlays.slice(0, 7)));
+    slides.push(combineSlides(greenOverlaySlide, redOverlaySlide, empty16NetworkSlides, ...mergeBoxOverlays.slice(0, 15)));
 
     let bitonicMergeNetwork = new NetworkFrame(new Network(16), {
         ...defaultNetworkDrawSettings,
@@ -804,12 +580,12 @@ function initialize() {
         bitonicMergeNetwork.network.addCompareAndSwap(start, i, i + 1)    
     }
 
-    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, bitonicMergeNetwork, ...mergeBoxOverlays.slice(1, 15)));
-    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, bitonicMergeNetwork, ...mergeBoxOverlays.slice(3, 15)));
-    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, bitonicMergeNetwork, ...mergeBoxOverlays.slice(7, 15)));
-    frames.push(combineFrames(greenOverlayFrame, redOverlayFrame, bitonicMergeNetwork));
+    slides.push(combineSlides(greenOverlaySlide, redOverlaySlide, bitonicMergeNetwork, ...mergeBoxOverlays.slice(1, 15)));
+    slides.push(combineSlides(greenOverlaySlide, redOverlaySlide, bitonicMergeNetwork, ...mergeBoxOverlays.slice(3, 15)));
+    slides.push(combineSlides(greenOverlaySlide, redOverlaySlide, bitonicMergeNetwork, ...mergeBoxOverlays.slice(7, 15)));
+    slides.push(combineSlides(greenOverlaySlide, redOverlaySlide, bitonicMergeNetwork));
 
-    frames.push(combineFrames(bitonicMergeNetwork, sortBoxOverlay1, sortBoxOverlay2));
+    slides.push(combineSlides(bitonicMergeNetwork, sortBoxOverlay1, sortBoxOverlay2));
 
     let recOverlay = [];
     for (let i = 0; i < 4; i++) {
@@ -829,7 +605,7 @@ function initialize() {
     }
     function addTextOverlayArrow(overlay, direction) {
         overlay.text += "  ";
-        return combineFrames(overlay, {
+        return combineSlides(overlay, {
             draw: function(ctx) {
                 drawTextOverlayArrow(overlay, direction, ctx);
             }
@@ -853,7 +629,7 @@ function initialize() {
         recOverlay.push(addTextOverlayArrow(mergeBoxOverlay, i % 2? DIRECTION_UP : DIRECTION_DOWN));
     }
 
-    frames.push(combineFrames(bitonicMergeNetwork, ...recOverlay));
+    slides.push(combineSlides(bitonicMergeNetwork, ...recOverlay));
 
     let bitonicMergeNetwork2 = new NetworkFrame(new Network(16), defaultNetworkDrawSettings, false);
 
@@ -901,10 +677,10 @@ function initialize() {
     bitonicSort(12, 4, ASCENDING, bitonicMergeNetwork2.network, 0.05);
 
 
-    frames.push(combineFrames(bitonicMergeNetwork2, ...recOverlay.slice(0, 4)));
-    frames.push(bitonicMergeNetwork2);
+    slides.push(combineSlides(bitonicMergeNetwork2, ...recOverlay.slice(0, 4)));
+    slides.push(bitonicMergeNetwork2);
 
-    //// -----------------  CODE SLIDES  -----------------------
+    // -----------------  CODE SLIDES  -----------------------
     let bitonicMergeNetwork3 = new NetworkFrame(new Network(8), {
         ...defaultNetworkDrawSettings,
         wireLength: defaultNetworkDrawSettings.wireLength / 2,
@@ -933,12 +709,12 @@ function initialize() {
     });
     let indicies = [0, 1, 2, 4, 5, 6];
     indicies.forEach(idx => {
-        frames.push(combineFrames(bitonicMergeNetwork3, ...recOverlay.slice(0, 2), recOverlay[4], ...codeDrawCalls.slice(0, idx)));
+        slides.push(combineSlides(bitonicMergeNetwork3, ...recOverlay.slice(0, 2), recOverlay[4], ...codeDrawCalls.slice(0, idx)));
     });
 
     indicies = [6, 7, 9];
     indicies.forEach(idx => {
-        frames.push(combineFrames(bitonicMergeNetwork3, ...recOverlay.slice(0, 2), ...codeDrawCalls.slice(0, idx)));
+        slides.push(combineSlides(bitonicMergeNetwork3, ...recOverlay.slice(0, 2), ...codeDrawCalls.slice(0, idx)));
     });
 
     function drawTextOverlayArrow(overlay, direction, ctx) {
@@ -962,11 +738,11 @@ function initialize() {
 
 
     let smallMergeOverlays = [
-        combineFrames(new TextBoxOverlay('MERGE  ', {
+        combineSlides(new TextBoxOverlay('MERGE  ', {
             position: {
-                x: recOverlay[4].frames[0].left() + recOverlay[4].frames[0].drawSettings.width * 0.3,
-                y: recOverlay[4].frames[0].top()},
-            width: recOverlay[4].frames[0].drawSettings.width * 0.7 , 
+                x: recOverlay[4].slides[0].left() + recOverlay[4].slides[0].drawSettings.width * 0.3,
+                y: recOverlay[4].slides[0].top()},
+            width: recOverlay[4].slides[0].drawSettings.width * 0.7 , 
             height: calcHeightFromWires(defaultNetworkDrawSettings, 4) - defaultNetworkDrawSettings.squareOffset,
             fontSize: 60,
             font: "Arial",
@@ -974,15 +750,15 @@ function initialize() {
             drawVertical: false
         }), {
             draw: function(ctx) {
-                let overlay = smallMergeOverlays[0].frames[0];
+                let overlay = smallMergeOverlays[0].slides[0];
                 drawTextOverlayArrow(overlay, DIRECTION_DOWN, ctx);
             }
         }),
-        combineFrames(new TextBoxOverlay('MERGE  ', {
+        combineSlides(new TextBoxOverlay('MERGE  ', {
             position: {
-                x: recOverlay[4].frames[0].left() + recOverlay[4].frames[0].drawSettings.width * 0.3,
-                y: recOverlay[4].frames[0].top() + calcHeightFromWires(defaultNetworkDrawSettings, 4) },
-            width: recOverlay[4].frames[0].drawSettings.width * 0.7 , 
+                x: recOverlay[4].slides[0].left() + recOverlay[4].slides[0].drawSettings.width * 0.3,
+                y: recOverlay[4].slides[0].top() + calcHeightFromWires(defaultNetworkDrawSettings, 4) },
+            width: recOverlay[4].slides[0].drawSettings.width * 0.7 , 
             height: calcHeightFromWires(defaultNetworkDrawSettings, 4) - defaultNetworkDrawSettings.squareOffset,
             fontSize: 60,
             font: "Arial",
@@ -990,16 +766,16 @@ function initialize() {
             drawVertical: false
         }), {
             draw: function(ctx) {
-                let overlay = smallMergeOverlays[1].frames[0];
+                let overlay = smallMergeOverlays[1].slides[0];
                 drawTextOverlayArrow(overlay, DIRECTION_DOWN, ctx);
             }
         }),        
     ]
 
     for (let i = 9; i <= textPositionTuples.length-2; i++) { // Add small merge overlay
-        frames.push(combineFrames(bitonicMergeNetwork3, ...recOverlay.slice(0, 2), ...smallMergeOverlays,  ...codeDrawCalls.slice(0, i)))
+        slides.push(combineSlides(bitonicMergeNetwork3, ...recOverlay.slice(0, 2), ...smallMergeOverlays,  ...codeDrawCalls.slice(0, i)))
     }
-    frames.push(combineFrames(bitonicMergeNetwork3, ...recOverlay.slice(0, 2), ...smallMergeOverlays,  ...codeDrawCalls.slice(0, textPositionTuples.length)))
+    slides.push(combineSlides(bitonicMergeNetwork3, ...recOverlay.slice(0, 2), ...smallMergeOverlays,  ...codeDrawCalls.slice(0, textPositionTuples.length)))
 
     bitonicSort(0, 8, DESCENDING, bitonicMergeNetwork3.network, 0.011)
     for (const cas of bitonicMergeNetwork3.network.getCompareAndSwaps()) {
@@ -1082,16 +858,16 @@ function initialize() {
             })
         );
     }
-    let analysisSpanTitleFrame = {
+    let analysisSpanTitleSlides = {
         draw: function(ctx) {
             ctx.font = bulletPointSlideDrawSettings.titleFont;
             let text = "Analysis: Span";
-            fillTextCenter(text, h * 0.1, ctx);
+            fillTextCanvasCenter(ctx, text, h * 0.1);
         }
     };
-    frames.push(combineFrames(wikiNetworkFrame, analysisSpanTitleFrame));
+    slides.push(combineSlides(wikiNetworkSlide, analysisSpanTitleSlides));
     for (let i = 1; i <= 4; i++) {
-        frames.push(combineFrames(wikiNetworkFrame, ...bigMergeBoxes.slice(0, 2**i - 1), analysisSpanTitleFrame));
+        slides.push(combineSlides(wikiNetworkSlide, ...bigMergeBoxes.slice(0, 2**i - 1), analysisSpanTitleSlides));
     }
 
     let mergeBoxArrows = {
@@ -1131,9 +907,9 @@ function initialize() {
         }
     }
 
-    frames.push(combineFrames(...bigMergeBoxes.slice(0, 2**4 - 1), mergeBoxArrows, analysisSpanTitleFrame));
+    slides.push(combineSlides(...bigMergeBoxes.slice(0, 2**4 - 1), mergeBoxArrows, analysisSpanTitleSlides));
 
-    frames.push(combineFrames(wikiNetworkFrame, {
+    slides.push(combineSlides(wikiNetworkSlide, {
         draw: function(ctx) {
          //    
          ctx.clearRect(0, 0, bigMergeBoxes[0].left(), h);
@@ -1148,7 +924,7 @@ function initialize() {
             ctx.strokeStyle = 'rgba(0, 0, 0, 1)';
             ctx.strokeRect(x, y, width, height);
         }
-    }, analysisSpanTitleFrame));
+    }, analysisSpanTitleSlides));
 
     let wikiMergeBoxOverlays = [];
     let wikiMergeBoxWidths = [0.09, 0.06, 0.035, 0.025];
@@ -1172,7 +948,7 @@ function initialize() {
         wikiMergeBoxOverlayX += wikiNetworkDrawSettings.wireLength * wikiMergeBoxWidths[i] + wikiNetworkDrawSettings.wireLength / 30;
     }
 
-    frames.push(combineFrames(wikiNetworkFrame, {
+    slides.push(combineSlides(wikiNetworkSlide, {
         draw: function(ctx) {
             ctx.clearRect(0, 0, bigMergeBoxes[0].left(), h);
         }
@@ -1186,7 +962,7 @@ function initialize() {
             ctx.strokeStyle = 'rgba(0, 0, 0, 1)';
             ctx.strokeRect(x, y, width, height);
         }
-    }, ...wikiMergeBoxOverlays, analysisSpanTitleFrame));
+    }, ...wikiMergeBoxOverlays, analysisSpanTitleSlides));
 
     let innerMergeBoxArrows = {
         draw: function(ctx) {
@@ -1222,7 +998,7 @@ function initialize() {
         }
     }
 
-    frames.push(combineFrames( {
+    slides.push(combineSlides( {
         draw: function(ctx) {
             ctx.clearRect(0, 0, bigMergeBoxes[0].left(), h);
         }
@@ -1236,9 +1012,9 @@ function initialize() {
             ctx.strokeStyle = 'rgba(0, 0, 0, 1)';
             ctx.strokeRect(x, y, width, height);
         }
-    }, ...wikiMergeBoxOverlays, innerMergeBoxArrows, analysisSpanTitleFrame));
+    }, ...wikiMergeBoxOverlays, innerMergeBoxArrows, analysisSpanTitleSlides));
 
-    frames.push(combineFrames(wikiNetworkFrame, {
+    slides.push(combineSlides(wikiNetworkSlide, {
         draw: function(ctx) {
             ctx.clearRect(0, 0, bigMergeBoxes[0].left(), h);
             ctx.strokeStyle = generalDrawSettings.blue;
@@ -1261,23 +1037,25 @@ function initialize() {
             ctx.strokeStyle = 'rgba(0, 0, 0, 1)';
             ctx.strokeRect(x, y, width, height);
         }
-    },  analysisSpanTitleFrame));
+    },  analysisSpanTitleSlides));
 
-    createBulletPointSlides("Analysis: Span", [
-        'Network has span of log(n) merges',
-        'Merges have span of O(log(n)) splits',
-        'Splits have span of 1 compare',
-        'Network Span ∈ O(log(n)⋅log(n))',
-    ], bulletPointSlideDrawSettings);
+    slides.push.apply(slides, 
+        createBulletPointSlides("Analysis: Span", [
+            'Network has span of log(n) merges',
+            'Merges have span of O(log(n)) splits',
+            'Splits have span of 1 compare',
+            'Network Span ∈ O(log(n)⋅log(n))',
+        ], bulletPointSlideDrawSettings)
+    );
 
-    let analysisWorkTitleFrame = {
+    let analysisWorkTitleSlides = {
         draw: function(ctx) {
             ctx.font = bulletPointSlideDrawSettings.titleFont;
             let text = "Analysis: Work";
-            fillTextCenter(text, h * 0.1, ctx);
+            fillTextCanvasCenter(ctx, text, h * 0.1);
         }
     };
-    frames.push(combineFrames(wikiNetworkFrame, analysisWorkTitleFrame));
+    slides.push(combineSlides(wikiNetworkSlide, analysisWorkTitleSlides));
 
     function createCasBox(cass, drawSettings, col, n, ctx) {
         // Find the min and max position in desired range
@@ -1306,7 +1084,7 @@ function initialize() {
     }
 
 
-    frames.push(combineFrames(wikiNetworkFrame, analysisWorkTitleFrame, {
+    slides.push(combineSlides(wikiNetworkSlide, analysisWorkTitleSlides, {
         draw: function(ctx) {
             ctx.strokeStyle = generalDrawSettings.blue
             ctx.lineWidth = 5
@@ -1323,20 +1101,23 @@ function initialize() {
         }
     }));
 
-    createBulletPointSlides("Analysis: Work", [
-        'Network split columns ∈ O(log(n)⋅log(n))',
-        'Splits have 1/2n ∈ O(n) compares',
-        'Network Work ∈ O(n⋅log(n)⋅log(n))',
-    ], bulletPointSlideDrawSettings);
+    slides.push.apply(slides, 
+        createBulletPointSlides("Analysis: Work", [
+            'Network split columns ∈ O(log(n)⋅log(n))',
+            'Splits have 1/2n ∈ O(n) compares',
+            'Network Work ∈ O(n⋅log(n)⋅log(n))',
+        ], bulletPointSlideDrawSettings)
+    );
 
-    createBulletPointSlides('Recap', [
-        'Sorting Networks',
-        'Bitonic Merge Sort',
-        'Span: O(log(n)⋅log(n))',
-        'Work: O(n⋅log(n)⋅log(n))',
-    ], bulletPointSlideDrawSettings);
+    slides.push.apply(slides, 
+        createBulletPointSlides('Recap', [
+            'Sorting Networks',
+            'Bitonic Merge Sort',
+            'Span: O(log(n)⋅log(n))',
+            'Work: O(n⋅log(n)⋅log(n))',
+        ], bulletPointSlideDrawSettings)
+    );
 
     /// -------------- END OF SLIDES ----------------------
-    frames[currentFrameIdx].frameStart();
-    requestAnimationFrame(draw);
+    state.startSlideShow(ctx);
 }

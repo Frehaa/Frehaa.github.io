@@ -55,7 +55,7 @@ class TextBoxOverlay {
     mouseMove() {}
     mouseDown() {}
     mouseUp() {}
-    frameStart() {}
-    frameEnd(){}
+    slideStart() {}
+    slideEnd(){}
     keyUp() {}
 }
