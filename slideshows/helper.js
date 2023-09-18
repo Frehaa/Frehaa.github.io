@@ -20,7 +20,7 @@ function initializeSlideshowState() {
         mousePosition: {x:0, y: 0},
         slides: [],
         currentSlideIndex: 0,
-        showSlideNumber: false,
+        showSlideNumber: true,
         currentSlide: function() {
             return this.slides[this.currentSlideIndex];
         },
@@ -110,7 +110,7 @@ function createDrawSlide(draw) {
 function initializeSlideshowEventListeners(canvas, state) {
     const slides = state.slides;
     canvas.addEventListener('mousemove', function(e) {
-        mousePosition = {
+        state.mousePosition = {
             x: (e.pageX - e.target.offsetLeft) * (canvas.width / canvas.clientWidth), 
             y: (e.pageY - e.target.offsetTop) * (canvas.height / canvas.clientHeight)
         };
