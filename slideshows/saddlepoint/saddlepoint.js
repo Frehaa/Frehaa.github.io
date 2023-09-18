@@ -48,16 +48,7 @@ function drawMatrix(ctx, matrix, threshold, drawSettings) {
     for (let i = 0; i < matrix.rows * matrix.columns; ++i) {
         const x = i % matrix.columns;
         const y = Math.floor(i / matrix.columns);
-        const value = matrix.data[i];
-        if (value > threshold) {
-            ctx.fillStyle = 'red';
-        } else if (value < threshold) {
-            ctx.fillStyle = 'green'
-        } else {
-            ctx.fillStyle = 'yellow'
-        }
-
-        drawValue(ctx, x, y, matrix, drawSettings);
+        drawValue(ctx, x, y, matrix, threshold, drawSettings);
     }
 }   
 
@@ -81,19 +72,33 @@ function makePositionStrictSaddlepoint(matrix, x, y) {
     }
 }
 
-function drawValue(ctx, x, y, matrix, drawSettings) {
+function drawValue(ctx, x, y, matrix, threshold, drawSettings) {
     const {leftX, topY, cellWidth, valueWidthRatio} = drawSettings;
     const centerX = leftX + cellWidth / 2 + x * cellWidth;
     const centerY = topY + cellWidth / 2 + y * cellWidth;
+
+    const value = matrix.getValue(x, y);
+    if (!drawSettings.colorBasedOnThreshold) {
+        ctx.fillStyle = 'grey';
+    }
+    else if (value > threshold) {
+        ctx.fillStyle = 'red';
+    } else if (value < threshold) {
+        ctx.fillStyle = 'green'
+    } else {
+        ctx.fillStyle = 'yellow'
+    }
+
     ctx.beginPath();
     ctx.arc(centerX, centerY, cellWidth * valueWidthRatio/2 , 0, 2 * Math.PI);
     ctx.fill();
 
-    ctx.fillStyle = 'black';
-    ctx.font = "20px sans-serif";
-    let value = matrix.getValue(x, y);
-    value = value.toString().slice(0, 6)
-    //ctx.fillText(value, centerX - cellWidth * valueWidthRatio/2, centerY);    
+    if (drawSettings.writeValue) {
+        ctx.fillStyle = 'black';
+        ctx.font = "20px sans-serif";
+        value = value.toString().slice(0, 6)
+        ctx.fillText(value, centerX - cellWidth * valueWidthRatio/2, centerY);
+    }
 }
 
 function drawThresholdPicker(ctx, state) {
@@ -135,32 +140,27 @@ function createWalkSlides(matrix, threshold, matrixDrawSettings) {
     const result = [];
     for (let i = 0; i < path.length; ++i) {
         result.push(createDrawSlide(ctx => {
-            drawMatrix(ctx, matrix, threshold, matrixDrawSettings);
-            ctx.fillStyle = 'black';
-            
-            let [centerX, centerY] = matrixIndicesToCanvasCoords(0, 0, matrixDrawSettings);
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, cellWidth * valueWidthRatio/5, 0, 2 * Math.PI);
-            ctx.fill();
-
-            
+            drawMatrix(ctx, matrix, threshold, matrixDrawSettings)
+            drawValue(ctx, 0, 0, matrix, threshold, {...matrixDrawSettings, colorBasedOnThreshold: true});
             for (let j = 1; j <= i; ++j) {
                 const x = path[j][0];
                 const y = path[j][1];
                 const previousX = path[j-1][0];
                 const previousY = path[j-1][1];
-                if (x != previousX) {
-                    let [centerX, centerY] = matrixIndicesToCanvasCoords(previousX, previousY, matrixDrawSettings);
-                    drawHorizontalArrow(centerX, centerY, cellWidth *0.8, 10, 10, ctx);
-                } else {
-                    let [centerX, centerY] = matrixIndicesToCanvasCoords(previousX, previousY, matrixDrawSettings);
-                    drawVerticalArrow(centerX, centerY, cellWidth *0.8, 10, 10, ctx);
+                if (j < path.length - 1) {
+                    drawValue(ctx, x, y, matrix, threshold, {...matrixDrawSettings, colorBasedOnThreshold: true});
                 }
-                if (j == path.length-1) continue;
-                let [centerX, centerY] = matrixIndicesToCanvasCoords(x, y, matrixDrawSettings);
-                ctx.beginPath();
-                ctx.arc(centerX, centerY, cellWidth * valueWidthRatio/5, 0, 2 * Math.PI);
-                ctx.fill();
+                
+                ctx.save();
+                ctx.fillStyle = 'black';    
+                let [centerX, centerY] = matrixIndicesToCanvasCoords(previousX, previousY, matrixDrawSettings);
+                if (x != previousX) {
+                    drawHorizontalArrow(centerX, centerY, cellWidth *0.9, cellWidth * 0.15, cellWidth * 0.15, ctx);
+                } else {
+                    drawVerticalArrow(centerX, centerY, cellWidth *0.9, cellWidth * 0.15, cellWidth * 0.15, ctx);
+                }
+                ctx.restore();
+                
             }
         }));
     }
@@ -185,8 +185,8 @@ function initialize() {
     initializeSlideshowEventListeners(canvas, state);
 
     const matrix = {
-        columns: 10,
-        rows: 10, 
+        columns: 200,
+        rows: 200, 
         data: [],
         getValue: function(x, y) {
             return this.data[x + y * this.columns];
@@ -195,11 +195,12 @@ function initialize() {
     const matrixDrawSettings = {
         leftX: 10,
         topY: 10,
-        cellWidth: 75,
-        valueWidthRatio: 0.8
+        cellWidth: 5,
+        valueWidthRatio: 0.7,
+        colorBasedOnThreshold: true
     };
-    const thresholdX = 7;
-    const thresholdY = 4
+    const thresholdX = Math.floor(matrix.columns * 0.71);
+    const thresholdY = Math.floor(matrix.rows * 0.47);
     matrix.data = randomList(matrix.rows * matrix.columns); 
     makePositionStrictSaddlepoint(matrix, thresholdX, thresholdY); // Assumes random entries between 0 and 1
     console.log(matrix.data)
@@ -226,8 +227,7 @@ function initialize() {
         console.log(matrixX, matrixY, thresholdState.threshold);
     }
 
-    
-    state.slides.push(...createWalkSlides(matrix, thresholdState.threshold, matrixDrawSettings));
+    state.slides.push(...createWalkSlides(matrix, thresholdState.threshold, {...matrixDrawSettings, colorBasedOnThreshold: false}));
 
     state.startSlideShow(ctx);
 
