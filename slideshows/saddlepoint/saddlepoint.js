@@ -143,7 +143,7 @@ function drawMatrixCircleByThreshold(ctx, x, y, matrix, threshold, drawSettings)
 // ######## SLIDES ######
 
 // TODO: Add dog image to walk
-function createWalkSlides(matrix, threshold, matrixDrawSettings) {
+function createWalkSlides(matrix, threshold, matrixDrawSettings, dogImage) {
     const {leftX, topY, cellWidth, valueWidthRatio} = matrixDrawSettings;
 
     // Create path based on matrix and threshold
@@ -186,8 +186,13 @@ function createWalkSlides(matrix, threshold, matrixDrawSettings) {
                     // drawVerticalArrow(centerX, centerY, cellWidth *0.9, cellWidth * 0.15, cellWidth * 0.15, ctx);
                 }
                 ctx.restore();
-                
             }
+            const x = path[i][0];
+            const y = path[i][1];
+            const [centerX, centerY] = matrixIndicesToCanvasCoords(x, y, matrixDrawSettings);
+
+            const imageSize = cellWidth * 0.8;
+            ctx.drawImage(dogImage, centerX - imageSize / 1.2 , centerY - imageSize / 3, imageSize, imageSize);
         }));
     }
 
@@ -251,7 +256,7 @@ function initialize() {
     const defaultMatrixDrawSettings = {
         leftX: 10,
         topY: 10,
-        cellWidth: 75,
+        cellWidth: 100,
     };
     const matrixDrawSettingsDrawNumberedOnly = {
         ...defaultMatrixDrawSettings, 
@@ -298,6 +303,14 @@ function initialize() {
         drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawColoredCircledValue);
     }));
 
+    const dogImage = new Image();
+    dogImage.src = "dog_shibainu_brown.png";
+    dogImage.onload = function() {
+        console.log('dog')
+        ctx.drawImage(dogImage, 10, 10)
+    }
+
+
     // Make slide 3 interactive to allow changing current threshold
     state.slides[2].isInteractable = true
     state.slides[2].mouseDown = function() {
@@ -312,7 +325,7 @@ function initialize() {
     // const walkData = randomList(matrix.columns * matrix.rows);
     // console.log(walkData)
     const walkMatrix = {...matrix, data: goodWalkMatrixData}
-    state.slides.push(...createWalkSlides(walkMatrix, goodWalkMatrixData[99], matrixDrawSettingsDrawCircleOnly));
+    state.slides.push(...createWalkSlides(walkMatrix, goodWalkMatrixData[99], matrixDrawSettingsDrawCircleOnly, dogImage));
 
     // state.currentSlideIndex = 3;
     state.startSlideShow(ctx);
