@@ -77,9 +77,10 @@ function makePositionStrictSaddlepoint(matrix, x, y) {
 // ########### DRAWING FUNCTIONS ########
 
 function drawMatrix(ctx, matrix, threshold, drawSettings) {
-    const {leftX, topY, cellWidth, valueWidthRatio} = drawSettings;
+    const {leftX, topY, cellWidth, valueWidthRatio, lineWidth} = drawSettings;
     const width = matrix.columns * cellWidth;
     const height = matrix.rows * cellWidth;
+    ctx.lineWidth = lineWidth
     ctx.beginPath()
     ctx.moveTo(leftX, topY)
     ctx.lineTo(leftX + width, topY)
@@ -144,7 +145,7 @@ function drawMatrixCircleByThreshold(ctx, x, y, matrix, threshold, drawSettings)
 
 // TODO: Add dog image to walk
 function createWalkSlides(matrix, threshold, matrixDrawSettings, dogImage) {
-    const {leftX, topY, cellWidth, valueWidthRatio} = matrixDrawSettings;
+    const {leftX, topY, cellWidth, valueWidthRatio, lineWidth} = matrixDrawSettings;
 
     // Create path based on matrix and threshold
     const path = [];
@@ -209,8 +210,8 @@ function createWalkSlides(matrix, threshold, matrixDrawSettings, dogImage) {
 // WHY IS THIS COOL: Game theory zero-sum game pure strategy
 // MORE PROBLEM EXPLAINING: Note that a matrix might not have any saddlepoints, strict or not, but we still want to be able to tell whether one exists, in as few probes as possible. In particular, for an $n$ by $n$ matrix, i.e. one which has $n^2$ number of values, we are researching whether it is possible to tell whether the matrix has a strict saddlepoint in O(n) operations, so only looking at a tiny part of the all the values, or if there is some lower bound on the problem
 // HISTORY: To give a brief history of the problem. 
-// 1. Knut gave some O(n^2) algorithms for finding non-strict saddlepoints in (19??)
-// 2. Somebody else gave O(n^2-?) for the strict saddlepoint (and conjectured optimality>) and proved that non-strict had a lower bound of O(n^2) in (19??)
+// 1. Knut gave some O(n^2) algorithms for finding non-strict saddlepoints in (1968)
+// 2. Somebody else gave O(n^1.59) for the strict saddlepoint (and conjectured optimality>) and proved that non-strict had a lower bound of O(n^2) in (19??)
 // 3. 2 more gave (n log n) in (19??)
 // 4. Dagstuhl (2023) wanted to find an (n log n) lower bound
 // 5. PRESENT O(n log* n) deterministic + O(n) random (This is the part where we brag). "Together with co-authers from Dagstuhl, we broke the n log n barrier and managed to find an n log* n deterministic algorithm which we submitted last month. And now, we are in the proccess of finalizing details for an O(n) randomized algorithm"
@@ -237,7 +238,9 @@ function createWalkSlides(matrix, threshold, matrixDrawSettings, dogImage) {
 function initialize() {
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-    ctx.lineWidth = 2;
+    ctx.textBaseline = 'middle'
+
+    console.log(ctx.textBaseline)
 
     const state = initializeSlideshowState()
     initializeSlideshowEventListeners(canvas, state);
@@ -254,9 +257,10 @@ function initialize() {
         }
     };
     const defaultMatrixDrawSettings = {
-        leftX: 10,
-        topY: 10,
+        leftX: 40,
+        topY: 50,
         cellWidth: 100,
+        lineWidth: 2
     };
     const matrixDrawSettingsDrawNumberedOnly = {
         ...defaultMatrixDrawSettings, 
@@ -286,46 +290,215 @@ function initialize() {
         threshold: threshold
     }
 
+
+
+    // state.slides.push(...createBulletPointSlides("Saddlepoints in matrices", [
+    // ], 
+    // {        
+    //     titleFont: 
+    //     titleStart: 100,
+    //     bulletFont: "64px sans-serif",
+    //     bullet: " ",
+    //     bulletStartLeft: 600,
+    //     bulletStartTop: 220,
+    //     bulletOffset: 80,
+    //     bulletByBullet: false
+    // }));
+
     // Number slide
     state.slides.push(createDrawSlide(ctx => {
         drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawNumberedOnly);
+        ctx.textAlign = 'left'
+        ctx.font = "70px sans-serif";
+        ctx.fillText("Saddlepoints in matrices", 1100, 80);
+        ctx.font = "48px sans-serif";
+        ctx.fillText("Me: Frederik Haagensen", 1100, 200);
+        ctx.fillText("Supervisor: Riko Jacob", 1100, 275);
+        ctx.fillText("Representing: Algorithms group", 1100, 350);
     }));
+    
 
     // Number slide with circled saddlepoint
     state.slides.push(createDrawSlide(ctx => {
         ctx.fillStyle = 'yellow'
         drawMatrixCircle(ctx, thresholdX, thresholdY, defaultMatrixDrawSettings)
         drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawNumberedOnly);
+
+        ctx.textAlign = 'left'
+        ctx.font = "70px sans-serif";
+        ctx.fillText("What is a saddlepoint?", 1100, 80);
+        ctx.font = "48px sans-serif";
+        ctx.fillText("- Maximum value in its row", 1100, 200);
+        ctx.fillText("- Minimum value in its column", 1100, 275);
+        ctx.fillText("- Does not necessarily exist", 1100, 350);
+        ctx.fillText("- We are interested in the strict case", 1100, 425);
     }));
 
-    // Number slide all values circled
     state.slides.push(createDrawSlide(ctx => {
         drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawColoredCircledValue);
+
+        ctx.textAlign = 'left'
+        ctx.font = "70px sans-serif";
+        ctx.fillText("What is a saddlepoint?", 1100, 80);
+        ctx.font = "40px sans-serif";
+        ctx.fillText("(colored edition)", 1300, 135);
+
+        ctx.font = "48px sans-serif";
+        ctx.fillText("- Sorounded by green in row", 1100, 200);
+        ctx.fillText("- Sorounded by red in column", 1100, 275);
+
+        ctx.fillStyle = 'green';
+        ctx.beginPath();
+        ctx.arc(1150, greenCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.fillStyle = 'black';
+        ctx.fillText("= value is smaller than yellow", 1200, greenCircleLegendHeight);
+
+        ctx.fillStyle = 'red';
+        ctx.beginPath();
+        ctx.arc(1150, redCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.fillStyle = 'black';
+        ctx.fillText("= value is larger than yellow", 1200, redCircleLegendHeight);
+
     }));
 
-    const dogImage = new Image();
-    dogImage.src = "dog_shibainu_brown.png";
-    dogImage.onload = function() {
-        console.log('dog')
-        ctx.drawImage(dogImage, 10, 10)
-    }
+    state.slides.push(createDrawSlide(ctx => {
+        drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawColoredCircledValue);
 
+        ctx.textAlign = 'left'
+        ctx.font = "70px sans-serif";
+        ctx.fillText("Why is a saddlepoint?", 1100, 80);
 
-    // Make slide 3 interactive to allow changing current threshold
-    state.slides[2].isInteractable = true
-    state.slides[2].mouseDown = function() {
+        ctx.font = "48px sans-serif";
+        ctx.fillText("- Pure strategy equilibrium", 1100, 200);
+        ctx.fillText("  in a zero-sum two player game", 1100, 250);
+        ctx.fillText("- In simple terms, a solution for chess", 1100, 325);
+        ctx.fillText("  (though not a strict saddlepoint)", 1100, 375);
+    }));
+
+    state.slides.push(...createBulletPointSlides("When is a saddlepoint?", [
+        "Knuth had O(n^2) algorithm for non-strict saddlepoint in 1968",
+        "Llewellyn, Tovey, and Trick gave O(n^1.59) algorithm and conjectured optimality in 1988",
+        "Bienstock, Chung, Fredman, Schäffer, Shor, and Suri O(n log n) in 1991",
+        "Byrne and Vaserstei at the same time with similar results",
+        "Dagstuhl 2023: Can an n log n lower bound be proven?", 
+        "Now: O(n log*n) deterministic & O(n) randomized sampling",
+    ], {
+        titleFont: "50px sans-serif",
+        titleStart: 50,
+        bulletFont: "32px sans-serif",
+        bullet: "-",
+        bulletStartLeft: 100,
+        bulletStartTop: 120,
+        bulletOffset: 60,
+        bulletByBullet: false
+    }));
+
+    // Interactive number slide all values circled
+    let slide = createDrawSlide(ctx => {
+        drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawColoredCircledValue);
+
+        ctx.textAlign = 'left'
+        ctx.font = "70px sans-serif";
+        ctx.fillText("How is a saddlepoint?", 1100, 80);
+
+        ctx.font = "48px sans-serif";
+        ctx.fillText("- Guess a value for saddlepoint", 1100, 200);
+        ctx.fillText("- Sorounded by red in column", 1100, 275);
+
+        ctx.fillStyle = 'green';
+        ctx.beginPath();
+        ctx.arc(1150, greenCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.fillStyle = 'black';
+        ctx.fillText("= value is smaller than guess", 1200, greenCircleLegendHeight);
+
+        ctx.fillStyle = 'red';
+        ctx.beginPath();
+        ctx.arc(1150, redCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.fillStyle = 'black';
+        ctx.fillText("= value is larger than guess", 1200, redCircleLegendHeight);
+
+    });
+    slide.isInteractable = true;
+    slide.mouseDown = function() { // Update threshold (guess) based on the cell clicked on
         const [matrixX, matrixY] = canvasCoordsToMatrixIndices(state.mousePosition.x, state.mousePosition.y, defaultMatrixDrawSettings);
         if (matrixX < 0 || matrixX >= matrix.columns) return;
         if (matrixY < 0 || matrixY >= matrix.rows) return;
         
         thresholdState.threshold = matrix.getValue(matrixX, matrixY);
     }
+    state.slides.push(slide);
 
     // Create slides for walk
-    // const walkData = randomList(matrix.columns * matrix.rows);
-    // console.log(walkData)
+    const dogImage = new Image();
+    dogImage.src = "dog_shibainu_brown.png"; // Relative path
     const walkMatrix = {...matrix, data: goodWalkMatrixData}
-    state.slides.push(...createWalkSlides(walkMatrix, goodWalkMatrixData[99], matrixDrawSettingsDrawCircleOnly, dogImage));
+
+    const greenCircleLegendHeight = 600;
+    const redCircleLegendHeight = 700;
+
+    const walkSlides = createWalkSlides(walkMatrix, goodWalkMatrixData[99], matrixDrawSettingsDrawCircleOnly, dogImage);
+    state.slides.push(...walkSlides.map(slide => {
+        return createDrawSlide(ctx => {
+            slide.draw(ctx);
+
+            ctx.fillStyle = 'black';
+            ctx.textAlign = 'left'
+            ctx.font = "70px sans-serif";
+            ctx.fillText("How is a saddlepoint?", 1100, 80);
+
+            ctx.font = "48px sans-serif";
+            ctx.fillText("- Go for a walk", 1100, 200);
+            ctx.fillText("- Walk right on green value", 1100, 275);
+            ctx.fillText("- Walk down on red value", 1100, 350);
+            ctx.fillText("- Either visit all columns or all rows", 1100, 425);
+
+
+            ctx.font = "48px sans-serif";
+            ctx.fillStyle = 'green';
+            ctx.beginPath();
+            ctx.arc(1150, greenCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillStyle = 'black';
+            ctx.fillText("= value is smaller than guess", 1200, greenCircleLegendHeight);
+
+            ctx.fillStyle = 'red';
+            ctx.beginPath();
+            ctx.arc(1150, redCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillStyle = 'black';
+            ctx.fillText("= value is larger than guess", 1200, redCircleLegendHeight);
+        })
+    }));
+
+    const bigMatrix = {
+        columns: 200,
+        rows: 200, 
+        data: [],
+        getValue: function(x, y) {
+            return this.data[x + y * this.columns];
+        }, 
+        setValue: function(x, y, v) {
+            this.data[x + y * this.columns] = v;
+        }
+    }
+    bigMatrix.data = randomList(bigMatrix.columns * bigMatrix.rows);
+
+    const bigMatrixDrawSettings = {
+        ...defaultMatrixDrawSettings,
+        cellWidth: 5,
+        drawMatrixValue: function() {}, // Leave values empty seems to work well for the big thing
+        lineWidth: 0 
+    };
+
+    state.slides.push(createDrawSlide(ctx => {
+        drawMatrix(ctx, bigMatrix, 0.5, bigMatrixDrawSettings);
+    }));
+
+    state.slides.push(...createWalkSlides(bigMatrix, 0.5, bigMatrixDrawSettings, dogImage));
 
     // state.currentSlideIndex = 3;
     state.startSlideShow(ctx);

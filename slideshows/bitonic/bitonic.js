@@ -53,7 +53,8 @@ function initialize() {
         bulletStartLeft: w * 0.1,
         bulletStartTop: h * 0.25,
         bulletOffset: 120,
-        bullet: '•'
+        bullet: '•',
+        bulletByBullet: false
     };
 
     slides.push(combineSlides(wikiNetworkSlide, {

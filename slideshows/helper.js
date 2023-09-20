@@ -174,7 +174,7 @@ function fillTextCanvasCenter(ctx, text, y) {
 
 function createBulletPointSlides(title, bullets, drawSettings) {
     let slides = [];
-    for (let i = bullets.length-1; i < bullets.length; i++) {
+    for (let i = 0; i < bullets.length; i++) {
         slides.push(createDrawSlide(ctx => {
             ctx.font = drawSettings.titleFont;
             fillTextCanvasCenter(ctx, title, drawSettings.titleStart);
@@ -188,6 +188,12 @@ function createBulletPointSlides(title, bullets, drawSettings) {
             }
         }));
     }
-    return slides;
+
+    if (drawSettings.bulletByBullet) {
+        return slides;
+    } else {
+        return [slides[slides.length-1]];
+    }
+
 }
 
