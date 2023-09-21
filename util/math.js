@@ -13,7 +13,8 @@ function lerp(v0/*:number\*/, v1/*:number\*/, t/*:number\*/) {
   return v0 + t * (v1 - v0);
 }
 
-// Fisher-yates shuffle (Based on stack overflow answer)
+// Fisher-yates shuffle (Based on stack overflow answer) 
+// Shuffles in place
 function shuffle(array/*: any[]*/) {
   let currentIndex = array.length
 

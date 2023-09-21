@@ -1,4 +1,7 @@
 "use strict";
+
+const blue = `rgba(50, 100, 255, 1)`;
+
 // ######### HELPER FUNCTIONS ######
 function randomList(size) {
     const result = [];
@@ -6,6 +9,10 @@ function randomList(size) {
         result.push(Math.random());
     }
     return result;
+}
+
+function randomInt(max) { // Exclusive max
+    return Math.floor(Math.random() * max)
 }
 
 function numberList(size) {
@@ -118,10 +125,14 @@ function drawMatrixCircle(ctx, x, y, drawSettings) {
     ctx.fill();
 }
 
+function drawMatrixSquare(ctx, x, y, drawSettings) {
+    const [centerX, centerY] = matrixIndicesToCanvasCoords(x, y, drawSettings);
+    ctx.fillRect(centerX - drawSettings.cellWidth / 2, centerY - drawSettings.cellWidth / 2, drawSettings.cellWidth, drawSettings.cellWidth);
+}
+
 function writeMatrixValue(ctx, x, y, matrix, drawSettings) {
     const [centerX, centerY] = matrixIndicesToCanvasCoords(x, y, drawSettings);
     ctx.fillStyle = 'black';
-    // TODO: Font size dependent on cellwidth
     ctx.font = "32px sans-serif";
     ctx.textAlign = "center"
     ctx.textBaseline = "middle"
@@ -136,14 +147,105 @@ function drawMatrixCircleByThreshold(ctx, x, y, matrix, threshold, drawSettings)
     } else if (value < threshold) {
         ctx.fillStyle = 'green'
     } else {
-        ctx.fillStyle = 'yellow'
+        ctx.fillStyle = blue
     }
     drawMatrixCircle(ctx, x, y, drawSettings);
 }
 
 // ######## SLIDES ######
+function createSampleSlides(matrix, matrixDrawSettings) {
+    const {leftX, topY, cellWidth, valueWidthRatio, lineWidth} = matrixDrawSettings;
 
-// TODO: Add dog image to walk
+    const result = [];
+    const removedRows = [];
+    const rowsToSample = numberList(matrix.rows).map(v => v-1);
+    let currentRemovedCount = 0;
+    const allSamples = [];
+
+    while (rowsToSample.length > 2 * (matrix.rows / Math.log2(matrix.rows))) {
+        const samples = rowsToSample.map(row => [row, randomInt(matrix.columns)]);
+        allSamples.push(...samples);
+
+        const currentSampleCount = allSamples.length;
+        const removedCountFirst = currentRemovedCount;
+        const sampleSlide = createDrawSlide(ctx => {
+            drawMatrix(ctx, matrix, 0, matrixDrawSettings);
+            ctx.fillStyle = 'green'
+            allSamples.slice(0, currentSampleCount).forEach(sample => {
+                drawMatrixCircle(ctx, sample[1], sample[0], matrixDrawSettings);
+            });
+            ctx.fillStyle = 'grey'
+            removedRows.slice(0, removedCountFirst).forEach(row => {
+                for (let j = 0; j < matrix.columns; j++) {
+                    drawMatrixSquare(ctx, j, row, matrixDrawSettings);
+                }
+            });
+        })
+        result.push(sampleSlide);
+
+        const rowsToRemove = Math.ceil(samples.length * 0.2);
+        shuffle(rowsToSample)
+        for (let i = 0; i < rowsToRemove; ++i) {
+            removedRows.push(rowsToSample.pop());
+            currentRemovedCount++
+        }
+
+        const removedCountSecond = currentRemovedCount;
+        result.push(createDrawSlide(ctx => {
+            sampleSlide.draw(ctx);
+
+            ctx.fillStyle = 'grey'
+            removedRows.slice(0, removedCountSecond).forEach(row => {
+                for (let j = 0; j < matrix.columns; j++) {
+                    drawMatrixSquare(ctx, j, row, matrixDrawSettings);
+                }
+            });
+
+        }));
+    }
+
+    for (let i = 0; i < Math.log2(matrix.rows); ++i) {
+        const samples = rowsToSample.map(row => [row, randomInt(matrix.columns)]);
+        allSamples.push(...samples);
+    }
+    result.push(createDrawSlide(ctx => {
+        drawMatrix(ctx, matrix, 0, matrixDrawSettings);
+        ctx.fillStyle = 'green'
+        allSamples.forEach(sample => {
+            drawMatrixCircle(ctx, sample[1], sample[0], matrixDrawSettings);
+        });
+        ctx.fillStyle = 'grey'
+        removedRows.forEach(row => {
+            for (let j = 0; j < matrix.columns; j++) {
+                drawMatrixSquare(ctx, j, row, matrixDrawSettings);
+            }
+        });
+    }));
+
+    const bestRow = rowsToSample[0];
+    result.push(createDrawSlide(ctx => {
+        drawMatrix(ctx, matrix, 0, matrixDrawSettings);
+        ctx.fillStyle = 'green'
+        allSamples.forEach(sample => {
+            drawMatrixCircle(ctx, sample[1], sample[0], matrixDrawSettings);
+        });
+        ctx.fillStyle = 'grey'
+        removedRows.forEach(row => {
+            for (let j = 0; j < matrix.columns; j++) {
+                drawMatrixSquare(ctx, j, row, matrixDrawSettings);
+            }
+        });
+
+        ctx.fillStyle = 'green'
+        for (let j = 0; j < matrix.columns; j++) {
+            drawMatrixSquare(ctx, j, bestRow, matrixDrawSettings);
+        }
+
+        
+    }));
+    return result;
+}
+
 function createWalkSlides(matrix, threshold, matrixDrawSettings, dogImage) {
     const {leftX, topY, cellWidth, valueWidthRatio, lineWidth} = matrixDrawSettings;
 
@@ -178,15 +280,17 @@ function createWalkSlides(matrix, threshold, matrixDrawSettings, dogImage) {
                     drawMatrixCircleByThreshold(ctx, x, y, matrix, threshold, matrixDrawSettings);
                 }
                 
-                ctx.save();
-                ctx.fillStyle = 'black';    
-                let [centerX, centerY] = matrixIndicesToCanvasCoords(previousX, previousY, matrixDrawSettings);
-                if (x != previousX) {
-                    // drawHorizontalArrow(centerX, centerY, cellWidth *0.9, cellWidth * 0.15, cellWidth * 0.15, ctx);
-                } else {
-                    // drawVerticalArrow(centerX, centerY, cellWidth *0.9, cellWidth * 0.15, cellWidth * 0.15, ctx);
-                }
-                ctx.restore();
+                // ctx.save();
+                // ctx.fillStyle = 'black';    
+                // let [centerX, centerY] = matrixIndicesToCanvasCoords(previousX, previousY, matrixDrawSettings);
+                // ctx.lineWidth = cellWidth * 0.1
+                // ctx.strokeStyle = 'purple'
+                // if (x != previousX) {
+                    // drawVerticalArrow(centerX, topY, cellWidth * matrix.rows, 0, 0, ctx);
+                // } else {
+                    // drawHorizontalArrow(leftX, centerY, cellWidth * matrix.columns, 0, 0, ctx);
+                // }
+                // ctx.restore();
             }
             const x = path[i][0];
             const y = path[i][1];
@@ -233,7 +337,19 @@ function createWalkSlides(matrix, threshold, matrixDrawSettings, dogImage) {
 // 11. General idea (sample once in everything. Do not sample again from places with big values. Rince repeat. When few rows, sample a lot)
 // 12. Key insight lemma
 
-// TODO: Draw matrix with numbers
+function createMatrix(rows, columns, dataInitializer) {
+    return {
+        columns,
+        rows,
+        data: dataInitializer(rows, columns),
+        getValue: function(x, y) {
+            return this.data[x + y * this.columns];
+        }, 
+        setValue: function(x, y, v) {
+            this.data[x + y * this.columns] = v;
+        }
+    };
+}
 
 function initialize() {
     const canvas = document.getElementById('canvas');
@@ -245,17 +361,8 @@ function initialize() {
     const state = initializeSlideshowState()
     initializeSlideshowEventListeners(canvas, state);
 
-    const matrix = {
-        columns: 10,
-        rows: 10, 
-        data: [],
-        getValue: function(x, y) {
-            return this.data[x + y * this.columns];
-        }, 
-        setValue: function(x, y, v) {
-            this.data[x + y * this.columns] = v;
-        }
-    };
+    const matrix = createMatrix(10, 10, () => goodNumberedMatrixData);
+
     const defaultMatrixDrawSettings = {
         leftX: 40,
         topY: 50,
@@ -284,7 +391,6 @@ function initialize() {
     const thresholdX = Math.floor(matrix.columns * 0.71);
     const thresholdY = Math.floor(matrix.rows * 0.47);
 
-    matrix.data = goodNumberedMatrixData;
     let threshold = matrix.getValue(thresholdX, thresholdY);
     const thresholdState = {
         threshold: threshold
@@ -320,7 +426,7 @@ function initialize() {
 
     // Number slide with circled saddlepoint
     state.slides.push(createDrawSlide(ctx => {
-        ctx.fillStyle = 'yellow'
+        ctx.fillStyle = blue
         drawMatrixCircle(ctx, thresholdX, thresholdY, defaultMatrixDrawSettings)
         drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawNumberedOnly);
 
@@ -344,22 +450,30 @@ function initialize() {
         ctx.fillText("(colored edition)", 1300, 135);
 
         ctx.font = "48px sans-serif";
-        ctx.fillText("- Sorounded by green in row", 1100, 200);
-        ctx.fillText("- Sorounded by red in column", 1100, 275);
+        ctx.fillText("- Surrounded by green in row", 1100, 200);
+        ctx.fillText("- Surrounded by red in column", 1100, 275);
 
         ctx.fillStyle = 'green';
         ctx.beginPath();
         ctx.arc(1150, greenCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
         ctx.fill();
+        ctx.fillStyle = blue;
+        ctx.beginPath();
+        ctx.arc(1280, greenCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
+        ctx.fill();
         ctx.fillStyle = 'black';
-        ctx.fillText("= value is smaller than yellow", 1200, greenCircleLegendHeight);
+        ctx.fillText("<", 1200, greenCircleLegendHeight);
 
         ctx.fillStyle = 'red';
         ctx.beginPath();
         ctx.arc(1150, redCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
         ctx.fill();
+        ctx.fillStyle = blue;
+        ctx.beginPath();
+        ctx.arc(1280, redCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
+        ctx.fill();
         ctx.fillStyle = 'black';
-        ctx.fillText("= value is larger than yellow", 1200, redCircleLegendHeight);
+        ctx.fillText(">", 1200, redCircleLegendHeight);
 
     }));
 
@@ -378,20 +492,19 @@ function initialize() {
     }));
 
     state.slides.push(...createBulletPointSlides("When is a saddlepoint?", [
-        "Knuth had O(n^2) algorithm for non-strict saddlepoint in 1968",
-        "Llewellyn, Tovey, and Trick gave O(n^1.59) algorithm and conjectured optimality in 1988",
-        "Bienstock, Chung, Fredman, Schäffer, Shor, and Suri O(n log n) in 1991",
-        "Byrne and Vaserstei at the same time with similar results",
-        "Dagstuhl 2023: Can an n log n lower bound be proven?", 
-        "Now: O(n log*n) deterministic & O(n) randomized sampling",
+        "Optimal O(n^2) algorithm for non-strict saddlepoint in 1968",
+        "O(n^1.59) algorithm for strict in 1988",
+        "O(n log n) in 1991",
+        "n log n lower bound question in Dagstuhl 2023", 
+        "Now: O(n log*n) deterministic & O(n) randomized sampling algorithm",
     ], {
-        titleFont: "50px sans-serif",
-        titleStart: 50,
-        bulletFont: "32px sans-serif",
+        titleFont: "70px sans-serif",
+        titleStart: 80,
+        bulletFont: "48px sans-serif",
         bullet: "-",
         bulletStartLeft: 100,
-        bulletStartTop: 120,
-        bulletOffset: 60,
+        bulletStartTop: 200,
+        bulletOffset: 75,
         bulletByBullet: false
     }));
 
@@ -402,24 +515,29 @@ function initialize() {
         ctx.textAlign = 'left'
         ctx.font = "70px sans-serif";
         ctx.fillText("How is a saddlepoint?", 1100, 80);
+        ctx.font = "40px sans-serif";
+        ctx.fillText("(rows and columns)", 1250, 135);
 
         ctx.font = "48px sans-serif";
-        ctx.fillText("- Guess a value for saddlepoint", 1100, 200);
-        ctx.fillText("- Sorounded by red in column", 1100, 275);
+        ctx.fillText('- Guess a value "t" for saddlepoint "s"', 1100, 200);
+        ctx.fillText("- t < s ⇒ there is a column of red", 1100, 275);
+        ctx.fillText("  (no column of red ⇒ t >= s)", 1100, 325);
+        ctx.fillText("- t > s ⇒ there is a row of green", 1100, 400);
+        ctx.fillText("  (no row of green ⇒ t <= s)", 1100, 450);
 
         ctx.fillStyle = 'green';
         ctx.beginPath();
         ctx.arc(1150, greenCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
         ctx.fill();
         ctx.fillStyle = 'black';
-        ctx.fillText("= value is smaller than guess", 1200, greenCircleLegendHeight);
+        ctx.fillText("< t", 1200, greenCircleLegendHeight);
 
         ctx.fillStyle = 'red';
         ctx.beginPath();
         ctx.arc(1150, redCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
         ctx.fill();
         ctx.fillStyle = 'black';
-        ctx.fillText("= value is larger than guess", 1200, redCircleLegendHeight);
+        ctx.fillText("> t", 1200, redCircleLegendHeight);
 
     });
     slide.isInteractable = true;
@@ -432,13 +550,58 @@ function initialize() {
     }
     state.slides.push(slide);
 
+    state.currentSlideIndex = state.slides.length;
+    // Interactive number slide 2 all values circled
+    slide = createDrawSlide(ctx => {
+        drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawColoredCircledValue);
+
+        ctx.textAlign = 'left'
+        ctx.font = "70px sans-serif";
+        ctx.fillText("How is a saddlepoint?", 1100, 80);
+        ctx.font = "40px sans-serif";
+        ctx.fillText("(lower/upper bounds)", 1250, 135);
+
+        ctx.font = "48px sans-serif";
+        ctx.fillText('- A lower bound means s cannot be', 1100, 200);
+        ctx.fillText("  in a column with a lower value", 1100, 250);
+        ctx.fillText("  (because s cannot be minimum)", 1100, 300);
+        ctx.fillText('- An upper bound means s cannot be', 1100, 375);
+        ctx.fillText("  in a row with a higher value", 1100, 425);
+        ctx.fillText("  (because s cannot be maximum)", 1100, 475);
+
+        ctx.fillStyle = 'green';
+        ctx.beginPath();
+        ctx.arc(1150, greenCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.fillStyle = 'black';
+        ctx.fillText("< t", 1200, greenCircleLegendHeight);
+
+        ctx.fillStyle = 'red';
+        ctx.beginPath();
+        ctx.arc(1150, redCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.fillStyle = 'black';
+        ctx.fillText("> t", 1200, redCircleLegendHeight);
+
+    });
+    slide.isInteractable = true;
+    slide.mouseDown = function() { // Update threshold (guess) based on the cell clicked on
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(state.mousePosition.x, state.mousePosition.y, defaultMatrixDrawSettings);
+        if (matrixX < 0 || matrixX >= matrix.columns) return;
+        if (matrixY < 0 || matrixY >= matrix.rows) return;
+        
+        thresholdState.threshold = matrix.getValue(matrixX, matrixY);
+    }
+    state.slides.push(slide);
+
+
     // Create slides for walk
     const dogImage = new Image();
     dogImage.src = "dog_shibainu_brown.png"; // Relative path
     const walkMatrix = {...matrix, data: goodWalkMatrixData}
 
-    const greenCircleLegendHeight = 600;
-    const redCircleLegendHeight = 700;
+    const greenCircleLegendHeight = 700;
+    const redCircleLegendHeight = 800;
 
     const walkSlides = createWalkSlides(walkMatrix, goodWalkMatrixData[99], matrixDrawSettingsDrawCircleOnly, dogImage);
     state.slides.push(...walkSlides.map(slide => {
@@ -449,9 +612,11 @@ function initialize() {
             ctx.textAlign = 'left'
             ctx.font = "70px sans-serif";
             ctx.fillText("How is a saddlepoint?", 1100, 80);
+            ctx.font = "40px sans-serif";
+            ctx.fillText("(linear time reduction)", 1250, 135);
 
             ctx.font = "48px sans-serif";
-            ctx.fillText("- Go for a walk", 1100, 200);
+            ctx.fillText('- Go for a walk using guess t', 1100, 200);
             ctx.fillText("- Walk right on green value", 1100, 275);
             ctx.fillText("- Walk down on red value", 1100, 350);
             ctx.fillText("- Either visit all columns or all rows", 1100, 425);
@@ -463,46 +628,105 @@ function initialize() {
             ctx.arc(1150, greenCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
             ctx.fill();
             ctx.fillStyle = 'black';
-            ctx.fillText("= value is smaller than guess", 1200, greenCircleLegendHeight);
+            ctx.fillText("< t", 1200, greenCircleLegendHeight);
 
             ctx.fillStyle = 'red';
             ctx.beginPath();
             ctx.arc(1150, redCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
             ctx.fill();
             ctx.fillStyle = 'black';
-            ctx.fillText("= value is larger than guess", 1200, redCircleLegendHeight);
+            ctx.fillText("> t", 1200, redCircleLegendHeight);
         })
     }));
 
-    const bigMatrix = {
-        columns: 200,
-        rows: 200, 
-        data: [],
-        getValue: function(x, y) {
-            return this.data[x + y * this.columns];
-        }, 
-        setValue: function(x, y, v) {
-            this.data[x + y * this.columns] = v;
-        }
-    }
-    bigMatrix.data = randomList(bigMatrix.columns * bigMatrix.rows);
-
-    const bigMatrixDrawSettings = {
-        ...defaultMatrixDrawSettings,
-        cellWidth: 5,
-        drawMatrixValue: function() {}, // Leave values empty seems to work well for the big thing
-        lineWidth: 0 
-    };
-
+    // Explain algorithm and issue
     state.slides.push(createDrawSlide(ctx => {
-        drawMatrix(ctx, bigMatrix, 0.5, bigMatrixDrawSettings);
+        walkSlides[walkSlides.length-1].draw(ctx);
+        ctx.fillStyle = 'black';
+        ctx.textAlign = 'left'
+        ctx.font = "70px sans-serif";
+        ctx.fillText("How is a saddlepoint?", 1100, 80);
+        ctx.font = "40px sans-serif";
+        ctx.fillText("(linear time reduction)", 1250, 135);
+
+        ctx.font = "48px sans-serif";
+        ctx.fillText("- Pick t greater than many columns ", 1100, 200);
+        ctx.fillText("  and smaller than many rows ", 1100, 250);
+        ctx.fillText("  (e.g. median of diagonal) ", 1100, 300);
+
+        ctx.fillText("- May only remove rows or columns", 1100, 375);
+        ctx.fillText("  in every iteration", 1100, 425);
+
+        ctx.fillText("- Fine for O(n log log n) algorithm", 1100, 500);
+        ctx.fillText("  with an extra trick", 1100, 550);
+        // ctx.fillText("- Walk down on red value", 1100, 350);
+        // ctx.fillText("- Either visit all columns or all rows", 1100, 425);
+
+
+        ctx.font = "48px sans-serif";
+        ctx.fillStyle = 'green';
+        ctx.beginPath();
+        ctx.arc(1150, greenCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.fillStyle = 'black';
+        ctx.fillText("< t", 1200, greenCircleLegendHeight);
+
+        ctx.fillStyle = 'red';
+        ctx.beginPath();
+        ctx.arc(1150, redCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.fillStyle = 'black';
+        ctx.fillText("> t", 1200, redCircleLegendHeight);
+
     }));
 
-    state.slides.push(...createWalkSlides(bigMatrix, 0.5, bigMatrixDrawSettings, dogImage));
+    const samplingMatrix = createMatrix(100, 100, (rows, columns) => randomList(rows * columns));
+        
+    const samplingMatrixDrawSettings = {
+        ...matrixDrawSettingsDrawCircleOnly,
+        cellWidth: 1000 / samplingMatrix.columns,
+        drawMatrixValue: function() {}, // Leave values empty seems to work well for the big thing
+        lineWidth: 1
+    };
+    
+    const sampleSlides = createSampleSlides(samplingMatrix, samplingMatrixDrawSettings);
+    state.slides.push(...sampleSlides.map(slide => {
+        return createDrawSlide(ctx => {
+            slide.draw(ctx);
+            ctx.fillStyle = 'black';
+            ctx.textAlign = 'left'
+            ctx.font = "70px sans-serif";
+            ctx.fillText("How is a saddlepoint?", 1100, 80);
+            ctx.font = "40px sans-serif";
+            ctx.fillText("(randomly guessing better)", 1200, 135);
 
-    // state.currentSlideIndex = 3;
+            ctx.font = "48px sans-serif";
+            ctx.fillText("- Sample in every row", 1100, 200);
+            ctx.fillText("- Remove some of the biggest rows", 1100, 275);
+            ctx.fillText("- Repeat until few rows", 1100, 350);
+            ctx.fillText("- Sample some more in remaining", 1100, 425);
+            ctx.fillText("- Pick the maximum in the best row", 1100, 500);
+            ctx.fillText("- All in linear time", 1100, 575);
+            
+            ctx.font = "48px sans-serif";
+            ctx.fillStyle = 'green';
+            ctx.beginPath();
+            ctx.arc(1150, greenCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillStyle = 'black';
+            ctx.fillText("< t", 1200, greenCircleLegendHeight);
+
+            ctx.fillStyle = 'grey';
+            ctx.beginPath();
+            ctx.arc(1150, redCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillStyle = 'black';
+            ctx.fillText(" There is a value in row > t", 1200, redCircleLegendHeight);
+        });
+    }));
     state.startSlideShow(ctx);
 }
 
-const goodNumberedMatrixData = [ 53, 86, 20, 31, 35, 65, 49, 99, 22, 64, 7, 33, 16, 89, 80, 6, 9, 97, 50, 91, 82, 30, 27, 83, 40, 10, 98, 88, 71, 26, 23, 94, 56, 41, 8, 4, 58, 81, 51, 32, 1, 17, 18, 25, 28, 37, 5, 46, 45, 21, 36, 19, 69, 34, 92, 59, 100, 77, 79, 78, 68, 42, 74, 95, 60, 96, 75, 72, 11, 90, 73, 44, 54, 52, 61, 93, 38, 67, 14, 43, 62, 12, 76, 3, 57, 13, 29, 63, 87, 47, 15, 66, 55, 70, 84, 39, 85, 48, 2, 24 ];
+
+const goodNumberedMatrixData = [ 8, 13, 20, 31, 35, 6, 38, 49, 22, 12, 7, 33, 16, 89, 80, 65, 73, 97, 50, 91, 82, 30, 27, 83, 40, 10, 98, 88, 71, 26, 23, 29, 56, 41, 53, 4, 58, 48, 51, 32, 1, 17, 18, 25, 28, 37, 45, 46, 5, 21, 36, 19, 69, 34, 92, 59, 100, 77, 79, 78, 68, 42, 74, 95, 60, 96, 75, 72, 11, 90, 9, 44, 54, 52, 61, 93, 99, 67, 14, 43, 62, 64, 76, 3, 57, 86, 94, 63, 87, 47, 15, 66, 55, 70, 84, 39, 85, 81, 2, 24 ];
 const goodWalkMatrixData = [ 0.3369543176531483, 0.7475841645906165, 0.22148343290999106, 0.9753343279336559, 0.07171949251627063, 0.6314571742956901, 0.8597003401514846, 0.0629034883322871, 0.05602895906356853, 0.44454342270750513, 0.4184705278561023, 0.6145779386865525, 0.9755668551656638, 0.9493635274249015, 0.13300957853026052, 0.6602776306069787, 0.3131992836381994, 0.9304742495544824, 0.7536041313732724, 0.6054208181741596, 0.9883512287734862, 0.45923723786307313, 0.49024518451092647, 0.8523604383964151, 0.03494121174341802, 0.6460489972643122, 0.7294505033055466, 0.8118894000685495, 0.3841931342580417, 0.40139693178644986, 0.6348220190123802, 0.7294735091990421, 0.16118358053757686, 0.6259863451699992, 0.35517671369827164, 0.408404787066854, 0.7716057603869121, 0.7808934386362014, 0.2570749095554089, 0.516527867565138, 0.6014788355558471, 0.7791197933269675, 0.877415529911511, 0.5687084533525193, 0.6362523494315137, 0.533492944004766, 0.2899822557562578, 0.9922620938769392, 0.22703265193101685, 0.986353591320075, 0.9230195387310923, 0.5598735898812519, 0.5557787793562171, 0.06820125212862183, 0.3331005954243612, 0.8295513311472502, 0.813210928785713, 0.6798080832940311, 0.5702723428914253, 0.3826786524811153, 0.9252839819516591, 0.3336998088134061, 0.03785920896456774, 0.8065848589685845, 0.5898017431529416, 0.14765716096292725, 0.1791058942355107, 0.9582011511337313, 0.6740104441179532, 0.3129448659808334, 0.478873450953622, 0.35337879097195946, 0.42450856499053813, 0.9154926505100215, 0.4258124709947422, 0.47717785984268946, 0.09560004847962078, 0.5447580997324383, 0.30307272034335186, 0.9219955695625424, 0.38227569642461623, 0.29606372081187127, 0.8211324950805537, 0.03514764982989638, 0.7864035568633203, 0.5912839839805406, 0.8344457308228863, 0.639154180540306, 0.18071312774553416, 0.6540258249190544, 0.5732406993529225, 0.5065048468990908, 0.40370221974494214, 0.5437032181121022, 0.43694153878583464, 0.8363592625013838, 0.6121438266231511, 0.7779107840897593, 0.0723578970716997, 0.6737672430790856 ];
