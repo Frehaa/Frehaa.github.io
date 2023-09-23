@@ -154,8 +154,6 @@ function drawMatrixCircleByThreshold(ctx, x, y, matrix, threshold, drawSettings)
 
 // ######## SLIDES ######
 function createSampleSlides(matrix, matrixDrawSettings) {
-    const {leftX, topY, cellWidth, valueWidthRatio, lineWidth} = matrixDrawSettings;
-
     const result = [];
     const removedRows = [];
     const rowsToSample = numberList(matrix.rows).map(v => v-1);
@@ -200,7 +198,6 @@ function createSampleSlides(matrix, matrixDrawSettings) {
                     drawMatrixSquare(ctx, j, row, matrixDrawSettings);
                 }
             });
-
         }));
     }
 
@@ -236,7 +233,7 @@ function createSampleSlides(matrix, matrixDrawSettings) {
             }
         });
 
-        ctx.fillStyle = 'green'
+        ctx.fillStyle = 'yellow'
         for (let j = 0; j < matrix.columns; j++) {
             drawMatrixSquare(ctx, j, bestRow, matrixDrawSettings);
         }
@@ -351,12 +348,51 @@ function createMatrix(rows, columns, dataInitializer) {
     };
 }
 
+function drawTimer(ctx, x, y, elapsed, total) {
+
+    // console.log(elapsed, total)
+}
+
+function createTimer(positionX, positionY, radius, totalTimeMs) {
+    return {
+        draw: function(ctx, elapsedMs) {
+            ctx.save();
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(positionX, positionY, radius, 0, 2 * Math.PI);
+            ctx.stroke();
+
+            const startAngle = -0.5 * Math.PI;
+            const fillAngle = startAngle + (2 * Math.PI) * elapsedMs/totalTimeMs;
+
+            ctx.fillStyle = 'black'
+            ctx.beginPath();
+            ctx.moveTo(positionX, positionY);
+            ctx.lineTo(positionX, positionY - radius);
+            ctx.arc(positionX, positionY, radius, startAngle, fillAngle, false);
+            ctx.lineTo(positionX, positionY);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+}
+
 function initialize() {
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     ctx.textBaseline = 'middle'
 
-    console.log(ctx.textBaseline)
+    const startTimeMs = Date.now();
+    const fiveMinutesMinus10secondsMs = 5 * 60 * 1000 - 10000;
+    const timerPositionX = 1800
+    const timerPositionY = 1000
+    const timer = createTimer(timerPositionX, timerPositionY, 40, fiveMinutesMinus10secondsMs);
+
+    // When time is up, the presentation ends.
+    setTimeout(() => {
+        document.body.removeChild(canvas);
+        document.body.style = 'background-color: black'
+    }, fiveMinutesMinus10secondsMs);
 
     const state = initializeSlideshowState()
     initializeSlideshowEventListeners(canvas, state);
@@ -396,21 +432,6 @@ function initialize() {
         threshold: threshold
     }
 
-
-
-    // state.slides.push(...createBulletPointSlides("Saddlepoints in matrices", [
-    // ], 
-    // {        
-    //     titleFont: 
-    //     titleStart: 100,
-    //     bulletFont: "64px sans-serif",
-    //     bullet: " ",
-    //     bulletStartLeft: 600,
-    //     bulletStartTop: 220,
-    //     bulletOffset: 80,
-    //     bulletByBullet: false
-    // }));
-
     // Number slide
     state.slides.push(createDrawSlide(ctx => {
         drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawNumberedOnly);
@@ -421,6 +442,8 @@ function initialize() {
         ctx.fillText("Me: Frederik Haagensen", 1100, 200);
         ctx.fillText("Supervisor: Riko Jacob", 1100, 275);
         ctx.fillText("Representing: Algorithms group", 1100, 350);
+
+        timer.draw(ctx, Date.now() - startTimeMs);
     }));
     
 
@@ -436,8 +459,8 @@ function initialize() {
         ctx.font = "48px sans-serif";
         ctx.fillText("- Maximum value in its row", 1100, 200);
         ctx.fillText("- Minimum value in its column", 1100, 275);
-        ctx.fillText("- Does not necessarily exist", 1100, 350);
-        ctx.fillText("- We are interested in the strict case", 1100, 425);
+
+        timer.draw(ctx, Date.now() - startTimeMs);
     }));
 
     state.slides.push(createDrawSlide(ctx => {
@@ -452,6 +475,8 @@ function initialize() {
         ctx.font = "48px sans-serif";
         ctx.fillText("- Surrounded by green in row", 1100, 200);
         ctx.fillText("- Surrounded by red in column", 1100, 275);
+        ctx.fillText("- Does not necessarily exist", 1100, 350);
+        ctx.fillText("- We are interested in the strict case", 1100, 425);
 
         ctx.fillStyle = 'green';
         ctx.beginPath();
@@ -475,6 +500,7 @@ function initialize() {
         ctx.fillStyle = 'black';
         ctx.fillText(">", 1200, redCircleLegendHeight);
 
+        timer.draw(ctx, Date.now() - startTimeMs);
     }));
 
     state.slides.push(createDrawSlide(ctx => {
@@ -489,9 +515,11 @@ function initialize() {
         ctx.fillText("  in a zero-sum two player game", 1100, 250);
         ctx.fillText("- In simple terms, a solution for chess", 1100, 325);
         ctx.fillText("  (though not a strict saddlepoint)", 1100, 375);
+
+        timer.draw(ctx, Date.now() - startTimeMs);
     }));
 
-    state.slides.push(...createBulletPointSlides("When is a saddlepoint?", [
+    const bulletPointSlide = createBulletPointSlides("When is a saddlepoint?", [
         "Optimal O(n^2) algorithm for non-strict saddlepoint in 1968",
         "O(n^1.59) algorithm for strict in 1988",
         "O(n log n) in 1991",
@@ -506,10 +534,13 @@ function initialize() {
         bulletStartTop: 200,
         bulletOffset: 75,
         bulletByBullet: false
-    }));
+    })[0];
+    state.slides.push(combineSlides(bulletPointSlide, createDrawSlide(ctx => {
+        timer.draw(ctx, Date.now() - startTimeMs);
+    })));
 
     // Interactive number slide all values circled
-    let slide = createDrawSlide(ctx => {
+    let interactiveNumberSlide = createDrawSlide(ctx => {
         drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawColoredCircledValue);
 
         ctx.textAlign = 'left'
@@ -539,20 +570,20 @@ function initialize() {
         ctx.fillStyle = 'black';
         ctx.fillText("> t", 1200, redCircleLegendHeight);
 
+        timer.draw(ctx, Date.now() - startTimeMs);
     });
-    slide.isInteractable = true;
-    slide.mouseDown = function() { // Update threshold (guess) based on the cell clicked on
+    interactiveNumberSlide.isInteractable = true;
+    interactiveNumberSlide.mouseDown = function() { // Update threshold (guess) based on the cell clicked on
         const [matrixX, matrixY] = canvasCoordsToMatrixIndices(state.mousePosition.x, state.mousePosition.y, defaultMatrixDrawSettings);
         if (matrixX < 0 || matrixX >= matrix.columns) return;
         if (matrixY < 0 || matrixY >= matrix.rows) return;
         
         thresholdState.threshold = matrix.getValue(matrixX, matrixY);
     }
-    state.slides.push(slide);
+    state.slides.push(interactiveNumberSlide);
 
-    state.currentSlideIndex = state.slides.length;
     // Interactive number slide 2 all values circled
-    slide = createDrawSlide(ctx => {
+    interactiveNumberSlide = createDrawSlide(ctx => {
         drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawColoredCircledValue);
 
         ctx.textAlign = 'left'
@@ -583,16 +614,17 @@ function initialize() {
         ctx.fillStyle = 'black';
         ctx.fillText("> t", 1200, redCircleLegendHeight);
 
+        timer.draw(ctx, Date.now() - startTimeMs);
     });
-    slide.isInteractable = true;
-    slide.mouseDown = function() { // Update threshold (guess) based on the cell clicked on
+    interactiveNumberSlide.isInteractable = true;
+    interactiveNumberSlide.mouseDown = function() { // Update threshold (guess) based on the cell clicked on
         const [matrixX, matrixY] = canvasCoordsToMatrixIndices(state.mousePosition.x, state.mousePosition.y, defaultMatrixDrawSettings);
         if (matrixX < 0 || matrixX >= matrix.columns) return;
         if (matrixY < 0 || matrixY >= matrix.rows) return;
         
         thresholdState.threshold = matrix.getValue(matrixX, matrixY);
     }
-    state.slides.push(slide);
+    state.slides.push(interactiveNumberSlide);
 
 
     // Create slides for walk
@@ -636,6 +668,8 @@ function initialize() {
             ctx.fill();
             ctx.fillStyle = 'black';
             ctx.fillText("> t", 1200, redCircleLegendHeight);
+
+            timer.draw(ctx, Date.now() - startTimeMs);
         })
     }));
 
@@ -678,6 +712,7 @@ function initialize() {
         ctx.fillStyle = 'black';
         ctx.fillText("> t", 1200, redCircleLegendHeight);
 
+        timer.draw(ctx, Date.now() - startTimeMs);
     }));
 
     const samplingMatrix = createMatrix(100, 100, (rows, columns) => randomList(rows * columns));
@@ -722,6 +757,8 @@ function initialize() {
             ctx.fill();
             ctx.fillStyle = 'black';
             ctx.fillText(" There is a value in row > t", 1200, redCircleLegendHeight);
+
+            timer.draw(ctx, Date.now() - startTimeMs);
         });
     }));
     state.startSlideShow(ctx);

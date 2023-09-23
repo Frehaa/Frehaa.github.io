@@ -20,7 +20,7 @@ function initializeSlideshowState() {
         mousePosition: {x:0, y: 0},
         slides: [],
         currentSlideIndex: 0,
-        showSlideNumber: true,
+        showSlideNumber: false,
         currentSlide: function() {
             return this.slides[this.currentSlideIndex];
         },
