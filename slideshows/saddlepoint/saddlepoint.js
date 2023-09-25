@@ -106,7 +106,7 @@ function drawMatrix(ctx, matrix, threshold, drawSettings) {
         ctx.beginPath();
         ctx.moveTo(leftX, topY + i * cellWidth);
         ctx.lineTo(leftX + width, topY + i * cellWidth);
-        ctx.stroke();        
+        ctx.stroke();
     }
 
     for (let i = 0; i < matrix.rows * matrix.columns; ++i) {
@@ -115,7 +115,7 @@ function drawMatrix(ctx, matrix, threshold, drawSettings) {
         drawSettings.drawMatrixValue(ctx, x, y, matrix, threshold);
         // drawMatrixValue( drawSettings);
     }
-}   
+}
 
 function drawMatrixCircle(ctx, x, y, drawSettings) {
     const circleRadiusToCellWidthRatio = 0.4
@@ -238,7 +238,7 @@ function createSampleSlides(matrix, matrixDrawSettings) {
             drawMatrixSquare(ctx, j, bestRow, matrixDrawSettings);
         }
 
-        
+
     }));
     return result;
 }
@@ -252,7 +252,7 @@ function createWalkSlides(matrix, threshold, matrixDrawSettings, dogImage) {
     let currentY = 0;
     while (currentX < matrix.columns && currentY < matrix.rows) {
         path.push([currentX, currentY]);
-        
+
         if (matrix.getValue(currentX, currentY) > threshold) {
             currentY += 1;
         } else {
@@ -276,9 +276,9 @@ function createWalkSlides(matrix, threshold, matrixDrawSettings, dogImage) {
                 if (j < path.length - 1) {
                     drawMatrixCircleByThreshold(ctx, x, y, matrix, threshold, matrixDrawSettings);
                 }
-                
+
                 // ctx.save();
-                // ctx.fillStyle = 'black';    
+                // ctx.fillStyle = 'black';
                 // let [centerX, centerY] = matrixIndicesToCanvasCoords(previousX, previousY, matrixDrawSettings);
                 // ctx.lineWidth = cellWidth * 0.1
                 // ctx.strokeStyle = 'purple'
@@ -310,21 +310,21 @@ function createWalkSlides(matrix, threshold, matrixDrawSettings, dogImage) {
 // EXPLAIN PROBLEM: A saddlepoint in the context of matrices, is a value which is the maximum of its row, and the minimum of its column. And we are concerned in when it is the strict maximum in the row and the strict minimum in its column. (How does this look like)
 // WHY IS THIS COOL: Game theory zero-sum game pure strategy
 // MORE PROBLEM EXPLAINING: Note that a matrix might not have any saddlepoints, strict or not, but we still want to be able to tell whether one exists, in as few probes as possible. In particular, for an $n$ by $n$ matrix, i.e. one which has $n^2$ number of values, we are researching whether it is possible to tell whether the matrix has a strict saddlepoint in O(n) operations, so only looking at a tiny part of the all the values, or if there is some lower bound on the problem
-// HISTORY: To give a brief history of the problem. 
+// HISTORY: To give a brief history of the problem.
 // 1. Knut gave some O(n^2) algorithms for finding non-strict saddlepoints in (1968)
 // 2. Somebody else gave O(n^1.59) for the strict saddlepoint (and conjectured optimality>) and proved that non-strict had a lower bound of O(n^2) in (19??)
 // 3. 2 more gave (n log n) in (19??)
 // 4. Dagstuhl (2023) wanted to find an (n log n) lower bound
 // 5. PRESENT O(n log* n) deterministic + O(n) random (This is the part where we brag). "Together with co-authers from Dagstuhl, we broke the n log n barrier and managed to find an n log* n deterministic algorithm which we submitted last month. And now, we are in the proccess of finalizing details for an O(n) randomized algorithm"
-// WHY IS THIS HARD?: 
-// Here we talk about the complicated lemmas. What are they. 
+// WHY IS THIS HARD?:
+// Here we talk about the complicated lemmas. What are they.
 // IF WALK RIGHT THEN TOO BIG => ROWS WITH BIGGER VALUES DOES NOT CONTAIN SADDLEPOINT (BECAUSE THE SADDLE POINT HAS TO BE MAXIMUM, SO IF IT IS SMALLER THEN IT CANNOT BE THE MAXIMUM)
 
 
 // 1. Show matrix of numbers from 1 to n^2
 // 2. Highlight the saddlepoint
 // 3. Show the green red separation
-// 4. Show that if value is smaller => Red wall and if value is larger => green wall 
+// 4. Show that if value is smaller => Red wall and if value is larger => green wall
 // 5. Demonstrate for multiple values
 // 6. Do the walk
 // 7. The main lemma about removing rows or columns
@@ -341,7 +341,7 @@ function createMatrix(rows, columns, dataInitializer) {
         data: dataInitializer(rows, columns),
         getValue: function(x, y) {
             return this.data[x + y * this.columns];
-        }, 
+        },
         setValue: function(x, y, v) {
             this.data[x + y * this.columns] = v;
         }
@@ -406,7 +406,7 @@ function initialize() {
         lineWidth: 2
     };
     const matrixDrawSettingsDrawNumberedOnly = {
-        ...defaultMatrixDrawSettings, 
+        ...defaultMatrixDrawSettings,
         drawMatrixValue: function(ctx, x, y, matrix, threshold) {
             writeMatrixValue(ctx, x, y, matrix, this);
         }
@@ -440,12 +440,13 @@ function initialize() {
         ctx.fillText("Saddlepoints in matrices", 1100, 80);
         ctx.font = "48px sans-serif";
         ctx.fillText("Me: Frederik Haagensen", 1100, 200);
-        ctx.fillText("Supervisor: Riko Jacob", 1100, 275);
+        ctx.fillText("Current Supervisor: Riko Jacob", 1100, 275);
         ctx.fillText("Representing: Algorithms group", 1100, 350);
+        ctx.fillText("Experts in Unusual PhD processes", 1100, 425);
 
         timer.draw(ctx, Date.now() - startTimeMs);
     }));
-    
+
 
     // Number slide with circled saddlepoint
     state.slides.push(createDrawSlide(ctx => {
@@ -515,6 +516,9 @@ function initialize() {
         ctx.fillText("  in a zero-sum two player game", 1100, 250);
         ctx.fillText("- In simple terms, a solution for chess", 1100, 325);
         ctx.fillText("  (though not a strict saddlepoint)", 1100, 375);
+        ctx.fillText("- Fast algorithms are interesting", 1100, 450);
+        ctx.fillText("  when values may be generated on", 1100, 500);
+        ctx.fillText("  demand", 1100, 550);
 
         timer.draw(ctx, Date.now() - startTimeMs);
     }));
@@ -523,7 +527,7 @@ function initialize() {
         "Optimal O(n^2) algorithm for non-strict saddlepoint in 1968",
         "O(n^1.59) algorithm for strict in 1988",
         "O(n log n) in 1991",
-        "n log n lower bound question in Dagstuhl 2023", 
+        "n log n lower bound question in Dagstuhl 2023",
         "Now: O(n log*n) deterministic & O(n) randomized sampling algorithm",
     ], {
         titleFont: "70px sans-serif",
@@ -577,7 +581,7 @@ function initialize() {
         const [matrixX, matrixY] = canvasCoordsToMatrixIndices(state.mousePosition.x, state.mousePosition.y, defaultMatrixDrawSettings);
         if (matrixX < 0 || matrixX >= matrix.columns) return;
         if (matrixY < 0 || matrixY >= matrix.rows) return;
-        
+
         thresholdState.threshold = matrix.getValue(matrixX, matrixY);
     }
     state.slides.push(interactiveNumberSlide);
@@ -621,7 +625,7 @@ function initialize() {
         const [matrixX, matrixY] = canvasCoordsToMatrixIndices(state.mousePosition.x, state.mousePosition.y, defaultMatrixDrawSettings);
         if (matrixX < 0 || matrixX >= matrix.columns) return;
         if (matrixY < 0 || matrixY >= matrix.rows) return;
-        
+
         thresholdState.threshold = matrix.getValue(matrixX, matrixY);
     }
     state.slides.push(interactiveNumberSlide);
@@ -716,14 +720,14 @@ function initialize() {
     }));
 
     const samplingMatrix = createMatrix(100, 100, (rows, columns) => randomList(rows * columns));
-        
+
     const samplingMatrixDrawSettings = {
         ...matrixDrawSettingsDrawCircleOnly,
         cellWidth: 1000 / samplingMatrix.columns,
         drawMatrixValue: function() {}, // Leave values empty seems to work well for the big thing
         lineWidth: 1
     };
-    
+
     const sampleSlides = createSampleSlides(samplingMatrix, samplingMatrixDrawSettings);
     state.slides.push(...sampleSlides.map(slide => {
         return createDrawSlide(ctx => {
@@ -742,7 +746,7 @@ function initialize() {
             ctx.fillText("- Sample some more in remaining", 1100, 425);
             ctx.fillText("- Pick the maximum in the best row", 1100, 500);
             ctx.fillText("- All in linear time", 1100, 575);
-            
+
             ctx.font = "48px sans-serif";
             ctx.fillStyle = 'green';
             ctx.beginPath();
