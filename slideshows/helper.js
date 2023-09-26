@@ -106,7 +106,7 @@ function createDrawSlide(draw) {
     };
 }
 
-// Initializes: mouse interactions with canvas to interact with a slide
+// Initializes: mouse and keyboard interactions with canvas to interact with a slide
 function initializeSlideshowEventListeners(canvas, state) {
     const slides = state.slides;
     canvas.addEventListener('mousemove', function(e) {
