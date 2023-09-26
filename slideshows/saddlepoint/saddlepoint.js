@@ -1,8 +1,11 @@
 "use strict";
 
+// TODO: Pick different colors for color blindness. E.g. for red-green colorblind
 const blue = `rgba(50, 100, 255, 1)`;
 
 // ######### HELPER FUNCTIONS ######
+
+// Create list of "size" pseudorandom numbers with values between 0 and 1
 function randomList(size) {
     const result = [];
     for (let i = 0; i < size; ++i) {
@@ -11,10 +14,11 @@ function randomList(size) {
     return result;
 }
 
-function randomInt(max) { // Exclusive max
+function randomInt(max) { // max excluded
     return Math.floor(Math.random() * max)
 }
 
+// Generates list of numbers 1 to "size"
 function numberList(size) {
     const result = [];
     for (let i = 0; i < size; ++i) {
@@ -32,53 +36,9 @@ function matrixIndicesToCanvasCoords(x, y, matrixDrawSettings) {
 
 function canvasCoordsToMatrixIndices(x, y, matrixDrawSettings) {
     const {leftX, topY, cellWidth} = matrixDrawSettings;
-    let matrixX = Math.floor((x - leftX) / cellWidth);
-    let matrixY = Math.floor((y - topY) / cellWidth);
+    const matrixX = Math.floor((x - leftX) / cellWidth);
+    const matrixY = Math.floor((y - topY) / cellWidth);
     return [matrixX, matrixY];
-}
-
-// Bugged, but working good enough for finding a good configuration
-function makePositionStrictSaddlepoint(matrix, x, y) {
-    // for (let i = 0; i < matrix.columns; ++i) {
-    //     if (i == x) continue;
-    //     const val = matrix.getValue(i, y);
-    //     if (val > value) {
-    //         matrix.data[i + y * matrix.columns] = Math.random() * value;
-    //     }
-    // }
-
-    // For every value in the row, compare it to all the values in the column and make sure that it is smaller than them all. If it is bigger, then swap
-    let rowMax = -Infinity;
-    let rowMaxIndex = null;
-    for (let j = 0; j < matrix.columns; ++j) {
-        for (let i = 0; i < matrix.rows; ++i) {
-            const a = matrix.getValue(j, y);
-            const b = matrix.getValue(x, i);
-            if (a > b) {
-                const tmp = a;
-                matrix.setValue(j, y, b);
-                matrix.setValue(x, i, tmp);
-            }
-        }
-
-        const rowValue = matrix.getValue(j, y);
-        if (rowValue > rowMax) {
-            rowMax = rowValue;
-            rowMaxIndex = j;
-        }
-    }
-
-    const tmp = matrix.getValue(x, y);
-    matrix.setValue(x, y, rowMax);
-    matrix.setValue(rowMaxIndex, y, tmp);
-
-    // for (let i = 0; i < matrix.rows; ++i) {
-    //     if (i == y) continue;
-    //     const val = matrix.getValue(x, i);
-    //     if (val < value) {
-    //         matrix.data[x + i * matrix.columns] = Math.random() * (1 - value) + value;
-    //     }
-    // }
 }
 
 // ########### DRAWING FUNCTIONS ########
@@ -321,6 +281,24 @@ function createTimer(positionX, positionY, radius, totalTimeMs) {
     }
 }
 
+function createBulletPointWriter(ctx, font, leftX, topY, minorOffset, majorOffset) {
+    return {
+        currentY: topY - majorOffset, // We assume we always start with a major bullet
+        writeMajorBullet(text) {
+            this.currentY += majorOffset;
+            ctx.fillText(text, leftX, this.currentY);
+        },
+        writeMinorBullet(text) {
+            this.currentY += minorOffset;
+            ctx.fillText(text, leftX, this.currentY);
+        },
+        startWriting() { // Reset before writing in a new frame
+            ctx.font = font;
+            this.currentY = topY - majorOffset; // We assume we always start with a major bullet
+        }
+    }
+}
+
 function initialize() {
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
@@ -383,22 +361,25 @@ function initialize() {
     const slideTextBulletPointMajorOffsetY = 75
     const slideTextBulletPointMinorOffsetY = 50
 
-    // Slide 1
+    const bulletPointWriter = createBulletPointWriter(ctx, slideBulletFont, slideTextDefaultX, slideTextBulletPointStartY, slideTextBulletPointMinorOffsetY, slideTextBulletPointMajorOffsetY);
+
+    // Slide 1: Introduction
     slideshowState.slides.push(createDrawSlide(ctx => {
         drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawNumberedOnly);
         ctx.textAlign = 'left'
         ctx.font = slideTitleFont;
         ctx.fillText("Saddlepoints in matrices", slideTextDefaultX, slideTitleTextDefaultY);
-        ctx.font = slideBulletFont;
-        ctx.fillText("Me: Frederik Haagensen", slideTextDefaultX, slideTextBulletPointStartY);
-        ctx.fillText("Current Supervisor: Riko Jacob", slideTextDefaultX, slideTextBulletPointStartY + slideTextBulletPointMajorOffsetY);
-        ctx.fillText("Representing: Algorithms group", slideTextDefaultX, slideTextBulletPointStartY + 2 * slideTextBulletPointMajorOffsetY);
-        ctx.fillText("Experts in Unusual PhD processes", slideTextDefaultX, slideTextBulletPointStartY + 3 * slideTextBulletPointMajorOffsetY);
+
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet("Me: Frederik Haagensen");
+        bulletPointWriter.writeMajorBullet("Current Supervisor: Riko Jacob");
+        bulletPointWriter.writeMajorBullet("Representing: Algorithms group");
+        bulletPointWriter.writeMajorBullet("Experts in Unusual PhD processes");
 
         timer.draw(ctx, Date.now() - startTimeMs);
     }));
 
-    // Slide 2
+    // Slide 2: Explanation
     slideshowState.slides.push(createDrawSlide(ctx => {
         ctx.fillStyle = blue
         drawMatrixCircle(ctx, thresholdX, thresholdY, defaultMatrixDrawSettings)
@@ -407,14 +388,15 @@ function initialize() {
         ctx.textAlign = 'left'
         ctx.font = slideTitleFont;
         ctx.fillText("What is a saddlepoint?", slideTextDefaultX, slideTitleTextDefaultY);
-        ctx.font = "48px sans-serif";
-        ctx.fillText("- Maximum value in its row", slideTextDefaultX, slideTextBulletPointStartY);
-        ctx.fillText("- Minimum value in its column", slideTextDefaultX, 275);
+        
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet("- Maximum value in its row");
+        bulletPointWriter.writeMajorBullet("- Minimum value in its column");
 
         timer.draw(ctx, Date.now() - startTimeMs);
     }));
 
-    // Slide 3
+    // Slide 3: Explanation with color
     slideshowState.slides.push(createDrawSlide(ctx => {
         drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawColoredCircledValue);
 
@@ -424,37 +406,33 @@ function initialize() {
         ctx.font = "40px sans-serif";
         ctx.fillText("(colored edition)", 1300, 135);
 
-        ctx.font = "48px sans-serif";
-        ctx.fillText("- Surrounded by green in row", slideTextDefaultX, slideTextBulletPointStartY);
-        ctx.fillText("- Surrounded by red in column", slideTextDefaultX, 275);
-        ctx.fillText("- Does not necessarily exist", slideTextDefaultX, 350);
-        ctx.fillText("- We are interested in the strict case", slideTextDefaultX, 425);
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet("- Surrounded by green in row");
+        bulletPointWriter.writeMajorBullet("- Surrounded by red in column");
+        bulletPointWriter.writeMajorBullet("- Does not necessarily exist");
+        bulletPointWriter.writeMajorBullet("- We are interested in the strict case");
 
+        const circleRadius = defaultMatrixDrawSettings.cellWidth * 0.4
+        // First circle comparison legend
         ctx.fillStyle = 'green';
-        ctx.beginPath();
-        ctx.arc(1150, greenCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
-        ctx.fill();
+        drawCircle(1150, greenCircleLegendHeight, circleRadius, ctx)
         ctx.fillStyle = blue;
-        ctx.beginPath();
-        ctx.arc(1280, greenCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
-        ctx.fill();
+        drawCircle(1280, greenCircleLegendHeight, circleRadius, ctx)
         ctx.fillStyle = 'black';
         ctx.fillText("<", 1200, greenCircleLegendHeight);
 
+        // Second circle comparison legend
         ctx.fillStyle = 'red';
-        ctx.beginPath();
-        ctx.arc(1150, redCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
-        ctx.fill();
+        drawCircle(1150, redCircleLegendHeight, circleRadius, ctx)
         ctx.fillStyle = blue;
-        ctx.beginPath();
-        ctx.arc(1280, redCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
-        ctx.fill();
+        drawCircle(1280, redCircleLegendHeight, circleRadius, ctx)
         ctx.fillStyle = 'black';
         ctx.fillText(">", 1200, redCircleLegendHeight);
 
         timer.draw(ctx, Date.now() - startTimeMs);
     }));
 
+    // Slide 4: Motivation
     slideshowState.slides.push(createDrawSlide(ctx => {
         drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawColoredCircledValue);
 
@@ -462,18 +440,19 @@ function initialize() {
         ctx.font = slideTitleFont;
         ctx.fillText("Why is a saddlepoint?", slideTextDefaultX, slideTitleTextDefaultY);
 
-        ctx.font = "48px sans-serif";
-        ctx.fillText("- Pure strategy equilibrium", slideTextDefaultX, slideTextBulletPointStartY);
-        ctx.fillText("  in a zero-sum two player game", slideTextDefaultX, 250);
-        ctx.fillText("- In simple terms, a solution for chess", slideTextDefaultX, 325);
-        ctx.fillText("  (though not a strict saddlepoint)", slideTextDefaultX, 375);
-        ctx.fillText("- Fast algorithms are interesting", slideTextDefaultX, 450);
-        ctx.fillText("  when values may be generated on", slideTextDefaultX, 500);
-        ctx.fillText("  demand", slideTextDefaultX, 550);
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet("- Pure strategy equilibrium");
+        bulletPointWriter.writeMinorBullet("  in a zero-sum two player game");
+        bulletPointWriter.writeMajorBullet("- In simple terms, a solution for chess");
+        bulletPointWriter.writeMinorBullet("  (though not a strict saddlepoint)");
+        bulletPointWriter.writeMajorBullet("- Fast algorithms are interesting");
+        bulletPointWriter.writeMinorBullet("  when values may be generated on");
+        bulletPointWriter.writeMinorBullet("  demand");
 
         timer.draw(ctx, Date.now() - startTimeMs);
     }));
 
+    // Slide 5: History
     const bulletPointSlide = createBulletPointSlides("When is a saddlepoint?", [
         "Optimal O(n^2) algorithm for non-strict saddlepoint in 1968",
         "O(n^1.59) algorithm for strict in 1988",
@@ -494,7 +473,7 @@ function initialize() {
         timer.draw(ctx, Date.now() - startTimeMs);
     })));
 
-    // Interactive number slide all values circled
+    // Slide 6: lower and upper bounds
     let interactiveNumberSlide = createDrawSlide(ctx => {
         drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawColoredCircledValue);
 
@@ -504,24 +483,23 @@ function initialize() {
         ctx.font = "40px sans-serif";
         ctx.fillText("(rows and columns)", 1250, 135);
 
-        ctx.font = "48px sans-serif";
-        ctx.fillText('- Guess a value "t" for saddlepoint "s"', slideTextDefaultX, slideTextBulletPointStartY);
-        ctx.fillText("- t < s ⇒ there is a column of red", slideTextDefaultX, 275);
-        ctx.fillText("  (no column of red ⇒ t >= s)", slideTextDefaultX, 325);
-        ctx.fillText("- t > s ⇒ there is a row of green", slideTextDefaultX, 400);
-        ctx.fillText("  (no row of green ⇒ t <= s)", slideTextDefaultX, 450);
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet('- Guess a value "t" for saddlepoint "s"');
+        bulletPointWriter.writeMajorBullet("- t < s ⇒ there is a column of red");
+        bulletPointWriter.writeMinorBullet("  (no column of red ⇒ t >= s)");
+        bulletPointWriter.writeMajorBullet("- t > s ⇒ there is a row of green");
+        bulletPointWriter.writeMinorBullet("  (no row of green ⇒ t <= s)");
 
+        const circleRadius = defaultMatrixDrawSettings.cellWidth * 0.4
+        // First circle comparison legend
         ctx.fillStyle = 'green';
-        ctx.beginPath();
-        ctx.arc(1150, greenCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
-        ctx.fill();
+        drawCircle(1150, greenCircleLegendHeight, circleRadius, ctx)
         ctx.fillStyle = 'black';
         ctx.fillText("< t", 1200, greenCircleLegendHeight);
 
+        // Second circle comparison legend
         ctx.fillStyle = 'red';
-        ctx.beginPath();
-        ctx.arc(1150, redCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
-        ctx.fill();
+        drawCircle(1150, redCircleLegendHeight, circleRadius, ctx)
         ctx.fillStyle = 'black';
         ctx.fillText("> t", 1200, redCircleLegendHeight);
 
@@ -537,7 +515,7 @@ function initialize() {
     }
     slideshowState.slides.push(interactiveNumberSlide);
 
-    // Interactive number slide 2 all values circled
+    // Slide 7: Reducing search space
     interactiveNumberSlide = createDrawSlide(ctx => {
         drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawColoredCircledValue);
 
@@ -547,25 +525,24 @@ function initialize() {
         ctx.font = "40px sans-serif";
         ctx.fillText("(lower/upper bounds)", 1250, 135);
 
-        ctx.font = "48px sans-serif";
-        ctx.fillText('- A lower bound means s cannot be', slideTextDefaultX, slideTextBulletPointStartY);
-        ctx.fillText("  in a column with a lower value", slideTextDefaultX, 250);
-        ctx.fillText("  (because s cannot be minimum)", slideTextDefaultX, 300);
-        ctx.fillText('- An upper bound means s cannot be', slideTextDefaultX, 375);
-        ctx.fillText("  in a row with a higher value", slideTextDefaultX, 425);
-        ctx.fillText("  (because s cannot be maximum)", slideTextDefaultX, 475);
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet('- A lower bound means s cannot be');
+        bulletPointWriter.writeMinorBullet("  in a column with a lower value");
+        bulletPointWriter.writeMinorBullet("  (because s cannot be minimum)");
+        bulletPointWriter.writeMajorBullet('- An upper bound means s cannot be');
+        bulletPointWriter.writeMinorBullet("  in a row with a higher value");
+        bulletPointWriter.writeMinorBullet("  (because s cannot be maximum)");
 
+        const circleRadius = defaultMatrixDrawSettings.cellWidth * 0.4
+        // First circle comparison legend
         ctx.fillStyle = 'green';
-        ctx.beginPath();
-        ctx.arc(1150, greenCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
-        ctx.fill();
+        drawCircle(1150, greenCircleLegendHeight, circleRadius, ctx)
         ctx.fillStyle = 'black';
         ctx.fillText("< t", 1200, greenCircleLegendHeight);
 
+        // Second circle comparison legend
         ctx.fillStyle = 'red';
-        ctx.beginPath();
-        ctx.arc(1150, redCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
-        ctx.fill();
+        drawCircle(1150, redCircleLegendHeight, circleRadius, ctx)
         ctx.fillStyle = 'black';
         ctx.fillText("> t", 1200, redCircleLegendHeight);
 
@@ -581,8 +558,7 @@ function initialize() {
     }
     slideshowState.slides.push(interactiveNumberSlide);
 
-
-    // Create slides for walk
+    // Walking algorithm
     const dogImage = new Image();
     dogImage.src = "dog_shibainu_brown.png"; // Relative path
     const walkMatrix = {...matrix, data: goodWalkMatrixData}
@@ -591,10 +567,8 @@ function initialize() {
     const redCircleLegendHeight = 800;
 
     const walkSlides = createWalkSlides(walkMatrix, goodWalkMatrixData[99], matrixDrawSettingsDrawCircleOnly, dogImage);
-    slideshowState.slides.push(...walkSlides.map(slide => {
-        return createDrawSlide(ctx => {
-            slide.draw(ctx);
-
+    slideshowState.slides.push(...walkSlides.map(slide => { // Create the walk slides and then update them
+        return combineSlides(slide, createDrawSlide(ctx => {
             ctx.fillStyle = 'black';
             ctx.textAlign = 'left'
             ctx.font = slideTitleFont;
@@ -602,35 +576,31 @@ function initialize() {
             ctx.font = "40px sans-serif";
             ctx.fillText("(linear time reduction)", 1250, 135);
 
-            ctx.font = "48px sans-serif";
-            ctx.fillText('- Go for a walk using guess t', slideTextDefaultX, slideTextBulletPointStartY);
-            ctx.fillText("- Walk right on green value", slideTextDefaultX, 275);
-            ctx.fillText("- Walk down on red value", slideTextDefaultX, 350);
-            ctx.fillText("- Either visit all columns or all rows", slideTextDefaultX, 425);
+            bulletPointWriter.startWriting();
+            bulletPointWriter.writeMajorBullet('- Go for a walk using guess t');
+            bulletPointWriter.writeMajorBullet("- Walk right on green value");
+            bulletPointWriter.writeMajorBullet("- Walk down on red value");
+            bulletPointWriter.writeMajorBullet("- Either visit all columns or all rows");
 
-
-            ctx.font = "48px sans-serif";
+            const circleRadius = defaultMatrixDrawSettings.cellWidth * 0.4
+            // First circle comparison legend
             ctx.fillStyle = 'green';
-            ctx.beginPath();
-            ctx.arc(1150, greenCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
-            ctx.fill();
+            drawCircle(1150, greenCircleLegendHeight, circleRadius, ctx)
             ctx.fillStyle = 'black';
             ctx.fillText("< t", 1200, greenCircleLegendHeight);
 
+            // Second circle comparison legend
             ctx.fillStyle = 'red';
-            ctx.beginPath();
-            ctx.arc(1150, redCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
-            ctx.fill();
+            drawCircle(1150, redCircleLegendHeight, circleRadius, ctx)
             ctx.fillStyle = 'black';
             ctx.fillText("> t", 1200, redCircleLegendHeight);
 
             timer.draw(ctx, Date.now() - startTimeMs);
-        })
+        }));
     }));
 
-    // Explain algorithm and issue
-    slideshowState.slides.push(createDrawSlide(ctx => {
-        walkSlides[walkSlides.length-1].draw(ctx);
+    // Explain diagonal algorithm and issue
+    slideshowState.slides.push(combineSlides(walkSlides[walkSlides.length-1], createDrawSlide(ctx => {
         ctx.fillStyle = 'black';
         ctx.textAlign = 'left'
         ctx.font = slideTitleFont;
@@ -638,40 +608,33 @@ function initialize() {
         ctx.font = "40px sans-serif";
         ctx.fillText("(linear time reduction)", 1250, 135);
 
-        ctx.font = "48px sans-serif";
-        ctx.fillText("- Pick t greater than many columns ", slideTextDefaultX, slideTextBulletPointStartY);
-        ctx.fillText("  and smaller than many rows ", slideTextDefaultX, 250);
-        ctx.fillText("  (e.g. median of diagonal) ", slideTextDefaultX, 300);
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet("- Pick t greater than many columns ");
+        bulletPointWriter.writeMinorBullet("  and smaller than many rows ");
+        bulletPointWriter.writeMinorBullet("  (e.g. median of diagonal) ");
+        bulletPointWriter.writeMajorBullet("- May only remove rows or columns");
+        bulletPointWriter.writeMinorBullet("  in every iteration");
+        bulletPointWriter.writeMajorBullet("- Fine for O(n log log n) algorithm");
+        bulletPointWriter.writeMinorBullet("  with an extra trick");
 
-        ctx.fillText("- May only remove rows or columns", slideTextDefaultX, 375);
-        ctx.fillText("  in every iteration", slideTextDefaultX, 425);
-
-        ctx.fillText("- Fine for O(n log log n) algorithm", slideTextDefaultX, 500);
-        ctx.fillText("  with an extra trick", slideTextDefaultX, 550);
-        // ctx.fillText("- Walk down on red value", slideTextDefaultX, 350);
-        // ctx.fillText("- Either visit all columns or all rows", slideTextDefaultX, 425);
-
-
-        ctx.font = "48px sans-serif";
+        const circleRadius = defaultMatrixDrawSettings.cellWidth * 0.4
+        // First circle comparison legend
         ctx.fillStyle = 'green';
-        ctx.beginPath();
-        ctx.arc(1150, greenCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
-        ctx.fill();
+        drawCircle(1150, greenCircleLegendHeight, circleRadius, ctx)
         ctx.fillStyle = 'black';
         ctx.fillText("< t", 1200, greenCircleLegendHeight);
 
+        // Second circle comparison legend
         ctx.fillStyle = 'red';
-        ctx.beginPath();
-        ctx.arc(1150, redCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
-        ctx.fill();
+        drawCircle(1150, redCircleLegendHeight, circleRadius, ctx)
         ctx.fillStyle = 'black';
         ctx.fillText("> t", 1200, redCircleLegendHeight);
 
         timer.draw(ctx, Date.now() - startTimeMs);
-    }));
+    })));
 
+    // Explain sampling process
     const samplingMatrix = createMatrix(100, 100, (rows, columns) => randomList(rows * columns));
-
     const samplingMatrixDrawSettings = {
         ...matrixDrawSettingsDrawCircleOnly,
         cellWidth: 1000 / samplingMatrix.columns,
@@ -681,8 +644,7 @@ function initialize() {
 
     const sampleSlides = createSampleSlides(samplingMatrix, samplingMatrixDrawSettings);
     slideshowState.slides.push(...sampleSlides.map(slide => {
-        return createDrawSlide(ctx => {
-            slide.draw(ctx);
+        return combineSlides(slide, createDrawSlide(ctx => {
             ctx.fillStyle = 'black';
             ctx.textAlign = 'left'
             ctx.font = slideTitleFont;
@@ -690,35 +652,32 @@ function initialize() {
             ctx.font = "40px sans-serif";
             ctx.fillText("(randomly guessing better)", 1200, 135);
 
-            ctx.font = "48px sans-serif";
-            ctx.fillText("- Sample in every row", slideTextDefaultX, slideTextBulletPointStartY);
-            ctx.fillText("- Remove some of the biggest rows", slideTextDefaultX, 275);
-            ctx.fillText("- Repeat until few rows", slideTextDefaultX, 350);
-            ctx.fillText("- Sample some more in remaining", slideTextDefaultX, 425);
-            ctx.fillText("- Pick the maximum in the best row", slideTextDefaultX, 500);
-            ctx.fillText("- All in linear time", slideTextDefaultX, 575);
+            bulletPointWriter.startWriting()
+            bulletPointWriter.writeMajorBullet("- Sample in every row");
+            bulletPointWriter.writeMajorBullet("- Remove some of the biggest rows");
+            bulletPointWriter.writeMajorBullet("- Repeat until few rows");
+            bulletPointWriter.writeMajorBullet("- Sample some more in remaining");
+            bulletPointWriter.writeMajorBullet("- Pick the maximum in the best row");
+            bulletPointWriter.writeMajorBullet("- All in linear time");
 
-            ctx.font = "48px sans-serif";
+            const circleRadius = defaultMatrixDrawSettings.cellWidth * 0.4
+            // Second circle comparison legend
             ctx.fillStyle = 'green';
-            ctx.beginPath();
-            ctx.arc(1150, greenCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
-            ctx.fill();
+            drawCircle(1150, greenCircleLegendHeight, circleRadius, ctx)
             ctx.fillStyle = 'black';
             ctx.fillText("< t", 1200, greenCircleLegendHeight);
 
+            // Second circle comparison legend
             ctx.fillStyle = 'grey';
-            ctx.beginPath();
-            ctx.arc(1150, redCircleLegendHeight, defaultMatrixDrawSettings.cellWidth * 0.4, 0, 2 * Math.PI);
-            ctx.fill();
+            drawCircle(1150, redCircleLegendHeight, circleRadius, ctx)
             ctx.fillStyle = 'black';
             ctx.fillText(" There is a value in row > t", 1200, redCircleLegendHeight);
 
             timer.draw(ctx, Date.now() - startTimeMs);
-        });
+        }));
     }));
     slideshowState.startSlideShow(ctx);
 }
-
 
 const goodNumberedMatrixData = [ 8, 13, 20, 31, 35, 6, 38, 49, 22, 12, 7, 33, 16, 89, 80, 65, 73, 97, 50, 91, 82, 30, 27, 83, 40, 10, 98, 88, 71, 26, 23, 29, 56, 41, 53, 4, 58, 48, 51, 32, 1, 17, 18, 25, 28, 37, 45, 46, 5, 21, 36, 19, 69, 34, 92, 59, 100, 77, 79, 78, 68, 42, 74, 95, 60, 96, 75, 72, 11, 90, 9, 44, 54, 52, 61, 93, 99, 67, 14, 43, 62, 64, 76, 3, 57, 86, 94, 63, 87, 47, 15, 66, 55, 70, 84, 39, 85, 81, 2, 24 ];
 const goodWalkMatrixData = [ 0.3369543176531483, 0.7475841645906165, 0.22148343290999106, 0.9753343279336559, 0.07171949251627063, 0.6314571742956901, 0.8597003401514846, 0.0629034883322871, 0.05602895906356853, 0.44454342270750513, 0.4184705278561023, 0.6145779386865525, 0.9755668551656638, 0.9493635274249015, 0.13300957853026052, 0.6602776306069787, 0.3131992836381994, 0.9304742495544824, 0.7536041313732724, 0.6054208181741596, 0.9883512287734862, 0.45923723786307313, 0.49024518451092647, 0.8523604383964151, 0.03494121174341802, 0.6460489972643122, 0.7294505033055466, 0.8118894000685495, 0.3841931342580417, 0.40139693178644986, 0.6348220190123802, 0.7294735091990421, 0.16118358053757686, 0.6259863451699992, 0.35517671369827164, 0.408404787066854, 0.7716057603869121, 0.7808934386362014, 0.2570749095554089, 0.516527867565138, 0.6014788355558471, 0.7791197933269675, 0.877415529911511, 0.5687084533525193, 0.6362523494315137, 0.533492944004766, 0.2899822557562578, 0.9922620938769392, 0.22703265193101685, 0.986353591320075, 0.9230195387310923, 0.5598735898812519, 0.5557787793562171, 0.06820125212862183, 0.3331005954243612, 0.8295513311472502, 0.813210928785713, 0.6798080832940311, 0.5702723428914253, 0.3826786524811153, 0.9252839819516591, 0.3336998088134061, 0.03785920896456774, 0.8065848589685845, 0.5898017431529416, 0.14765716096292725, 0.1791058942355107, 0.9582011511337313, 0.6740104441179532, 0.3129448659808334, 0.478873450953622, 0.35337879097195946, 0.42450856499053813, 0.9154926505100215, 0.4258124709947422, 0.47717785984268946, 0.09560004847962078, 0.5447580997324383, 0.30307272034335186, 0.9219955695625424, 0.38227569642461623, 0.29606372081187127, 0.8211324950805537, 0.03514764982989638, 0.7864035568633203, 0.5912839839805406, 0.8344457308228863, 0.639154180540306, 0.18071312774553416, 0.6540258249190544, 0.5732406993529225, 0.5065048468990908, 0.40370221974494214, 0.5437032181121022, 0.43694153878583464, 0.8363592625013838, 0.6121438266231511, 0.7779107840897593, 0.0723578970716997, 0.6737672430790856 ];
