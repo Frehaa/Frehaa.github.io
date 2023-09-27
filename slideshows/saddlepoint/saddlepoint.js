@@ -309,12 +309,12 @@ function initialize() {
     const timerPositionX = 1800
     const timerPositionY = 1000
     const timer = createTimer(timerPositionX, timerPositionY, 40, presentationDuration);
-    // timer.draw = function(){} // Disable visual timer 
+    timer.draw = function(){} // Disable visual timer 
 
-    setTimeout(() => { // Call a function when time is up. The presentation ends with a black screen
-        document.body.removeChild(canvas);
-        document.body.style = 'background-color: black'
-    }, presentationDuration);
+    // setTimeout(() => { // Call a function when time is up. The presentation ends with a black screen
+    //     document.body.removeChild(canvas);
+    //     document.body.style = 'background-color: black'
+    // }, presentationDuration);
 
     const slideshowState = initializeSlideshowState()
     initializeSlideshowEventListeners(canvas, slideshowState);
