@@ -43,7 +43,7 @@ function canvasCoordsToMatrixIndices(x, y, matrixDrawSettings) {
 
 // ########### DRAWING FUNCTIONS ########
 
-function drawMatrix(ctx, matrix, threshold, drawSettings) {
+function drawMatrix(ctx, matrix, drawSettings) {
     const {leftX, topY, cellWidth, valueWidthRatio, lineWidth} = drawSettings;
     const width = matrix.columns * cellWidth;
     const height = matrix.rows * cellWidth;
@@ -72,7 +72,7 @@ function drawMatrix(ctx, matrix, threshold, drawSettings) {
     for (let i = 0; i < matrix.rows * matrix.columns; ++i) {
         const x = i % matrix.columns;
         const y = Math.floor(i / matrix.columns);
-        drawSettings.drawMatrixValue(ctx, x, y, matrix, threshold);
+        drawSettings.drawMatrixValue(ctx, x, y, matrix);
         // drawMatrixValue( drawSettings);
     }
 }
@@ -127,7 +127,7 @@ function createSampleSlides(matrix, matrixDrawSettings) {
         const currentSampleCount = allSamples.length;
         const removedCountFirst = currentRemovedCount;
         const sampleSlide = createDrawSlide(ctx => {
-            drawMatrix(ctx, matrix, 0, matrixDrawSettings);
+            drawMatrix(ctx, matrix, matrixDrawSettings);
             ctx.fillStyle = 'green'
             allSamples.slice(0, currentSampleCount).forEach(sample => {
                 drawMatrixCircle(ctx, sample[1], sample[0], matrixDrawSettings);
@@ -166,7 +166,7 @@ function createSampleSlides(matrix, matrixDrawSettings) {
         allSamples.push(...samples);
     }
     result.push(createDrawSlide(ctx => {
-        drawMatrix(ctx, matrix, 0, matrixDrawSettings);
+        drawMatrix(ctx, matrix, matrixDrawSettings);
         ctx.fillStyle = 'green'
         allSamples.forEach(sample => {
             drawMatrixCircle(ctx, sample[1], sample[0], matrixDrawSettings);
@@ -181,7 +181,7 @@ function createSampleSlides(matrix, matrixDrawSettings) {
 
     const bestRow = rowsToSample[0];
     result.push(createDrawSlide(ctx => {
-        drawMatrix(ctx, matrix, 0, matrixDrawSettings);
+        drawMatrix(ctx, matrix, matrixDrawSettings);
         ctx.fillStyle = 'green'
         allSamples.forEach(sample => {
             drawMatrixCircle(ctx, sample[1], sample[0], matrixDrawSettings);
@@ -224,7 +224,7 @@ function createWalkSlides(matrix, threshold, matrixDrawSettings, dogImage) {
     for (let i = 0; i < path.length; ++i) {
         result.push(createDrawSlide(ctx => {
             ctx.fillStyle = 'grey'
-            drawMatrix(ctx, matrix, threshold, matrixDrawSettings)
+            drawMatrix(ctx, matrix, matrixDrawSettings)
             drawMatrixCircleByThreshold(ctx, 0, 0, matrix, threshold, matrixDrawSettings);
             for (let j = 1; j <= i; ++j) {
                 const [x, y] = path[j];
@@ -300,31 +300,84 @@ function createBulletPointWriter(ctx, font, leftX, topY, minorOffset, majorOffse
 }
 
 // 
-function createVerticalThresholdSlider(state, leftX, topY, width, height) {
+function createVerticalThresholdSlider(slideshowState, thresholdState, drawSettings) {
+    const {position, size, lineWidth} = drawSettings;
+    const leftX = position.x;
+    const topY = position.y;
+    const width = size.width;
+    const height = size.height;
     const arcHeight = width; 
-    return {
+    const centerX = leftX + width /2;
+    const arclessTop = topY + arcHeight;
+    const arclessBottom = topY + height - arcHeight;
+    const slider = {
         color: 'black',
+        isInteractable: true,
+        currentPosition: (thresholdState.value - thresholdState.min) / (thresholdState.max - thresholdState.min),
         draw: function(ctx) {
             ctx.strokeStyle = this.color;
+            ctx.lineWidth = lineWidth
             ctx.beginPath()
-            ctx.arc(leftX + width / 2, topY + arcHeight, width / 2, Math.PI + 0.001, -0.001);
-            ctx.arc(leftX + width / 2, topY + height - arcHeight, width / 2, 0.001, Math.PI - 0.001);
-            ctx.moveTo(leftX, topY + arcHeight);
-            ctx.lineTo(leftX, topY + height - arcHeight);
-            ctx.moveTo(leftX + width, topY + arcHeight);
-            ctx.lineTo(leftX + width, topY + height - arcHeight);
+            ctx.arc(centerX, arclessTop, width / 2, Math.PI + 0.001, -0.001);
+            ctx.arc(centerX, arclessBottom, width / 2, 0.001, Math.PI - 0.001);
+            ctx.moveTo(leftX, arclessTop);
+            ctx.lineTo(leftX, arclessBottom);
+            ctx.moveTo(leftX + width, arclessTop);
+            ctx.lineTo(leftX + width, arclessBottom);
             ctx.stroke()
+
+            if (this.isDragging){
+                drawCircle(centerX, lerp(arclessBottom, arclessTop, this.currentPosition), width / 2 + lineWidth, ctx)
+            } else {
+                drawCircle(centerX, lerp(arclessBottom, arclessTop, this.currentPosition), width / 2 - lineWidth, ctx)
+            }
+        },
+        isDragging: false,
+        updatePosition: function() {
+            const y = clamp(slideshowState.mousePosition.y, arclessTop, arclessBottom);
+            this.currentPosition = 1 - (y - arclessTop) / (height - 2 * arcHeight);
+            thresholdState.setValue(this.currentPosition * (thresholdState.max - thresholdState.min) + thresholdState.min);
         },
         mouseDown: function() {
-            console.log('hest')
-            if (state.mousePosition.x < leftX || state.mousePosition.x > leftX + width ||
-                state.mousePosition.y < topY || state.mousePosition.y > topY + height) return;
-            this.color = blue
-
+            if (slideshowState.mousePosition.x < leftX || slideshowState.mousePosition.x > leftX + width ||
+                slideshowState.mousePosition.y < topY || slideshowState.mousePosition.y > topY + height) return;
+            this.isDragging = true;
+            this.updatePosition();
+        }, 
+        mouseUp: function() {
+            this.isDragging = false;
+        },
+        mouseMove: function() {
+            if (!this.isDragging) return;
+            this.updatePosition();
         }
-    };
+    }
+    thresholdState.callbacks["slider"] = function() {
+        slider.currentPosition = (thresholdState.value - thresholdState.min) / (thresholdState.max - thresholdState.min)
+    }
+    return slider;
 }
 
+function createThresholdState(min, max, initialValue) {
+    return {
+        value: initialValue,
+        min: min, 
+        max: max, 
+        callbacks: {},
+        setValue: function(value) {
+            this.value = value;
+            for (let c in this.callbacks) {
+                console.log(c)
+                this.callbacks[c](this);
+            }
+        },
+    }
+}
+
+// TODO: is it a problem that, if we go back to slide 2 and 3, that the colors are drawn based on a new threshold?
+// TODO: Should the slider round to an integer value such that a blue color is highlighted? It seems quite distracting when looking. 
+// It can be fixed by removing the Math.round in the "matrixDrawSettingsDrawColoredCircledValue". Then only 1 and 100 will be colored blue
+// TODO: For the sampling slides, should we remove old samples circles when we resample, or should the be kept? If they are kept, should they be colored red if they are too big? In other words, should the visualization be a good representation of the algorithm, or just give the intuition?
 function initialize() {
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
@@ -362,7 +415,7 @@ function initialize() {
     const matrixDrawSettingsDrawColoredCircledValue = {
         ...defaultMatrixDrawSettings,
         drawMatrixValue: function(ctx, x, y, matrix) {
-            drawMatrixCircleByThreshold(ctx, x, y, matrix, thresholdState.threshold, this);
+            drawMatrixCircleByThreshold(ctx, x, y, matrix, thresholdState.value, this);
             writeMatrixValue(ctx, x, y, matrix, this);
         }
     };
@@ -375,9 +428,16 @@ function initialize() {
     const thresholdX = Math.floor(matrix.columns * 0.71);
     const thresholdY = Math.floor(matrix.rows * 0.47);
 
-    const thresholdState = {
-        threshold: matrix.getValue(thresholdX, thresholdY)
+    const thresholdState = createThresholdState(Math.min(...matrix.data), Math.max(...matrix.data), matrix.getValue(thresholdX, thresholdY));
+    function updateThresholdStateFromCanvasPosition() {
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, defaultMatrixDrawSettings);
+        if (matrixX < 0 || matrixX >= matrix.columns) return;
+        if (matrixY < 0 || matrixY >= matrix.rows) return;
+
+        thresholdState.setValue(matrix.getValue(matrixX, matrixY));
     }
+
+    slideshowState.currentSlideIndex = 5
 
     const slideTitleFont = "70px sans-serif";
     const slideBulletFont = "48px sans-serif";
@@ -389,11 +449,16 @@ function initialize() {
 
     const bulletPointWriter = createBulletPointWriter(ctx, slideBulletFont, slideTextDefaultX, slideTextBulletPointStartY, slideTextBulletPointMinorOffsetY, slideTextBulletPointMajorOffsetY);
 
-    const slider = createVerticalThresholdSlider(slideshowState, 1500, 200, 20, 500);
+    const sliderDrawSettings = {
+        position: {x: 1060, y: 100},
+        size: {width: 20, height: 900},
+        lineWidth: 2
+    };
+    const slider = createVerticalThresholdSlider(slideshowState, thresholdState, sliderDrawSettings);
 
     // Slide 1: Introduction
-    slideshowState.slides.push(combineSlides(createDrawSlide(ctx => {
-        drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawNumberedOnly);
+    slideshowState.slides.push(createDrawSlide(ctx => {
+        drawMatrix(ctx, matrix, matrixDrawSettingsDrawNumberedOnly);
         ctx.textAlign = 'left'
         ctx.font = slideTitleFont;
         ctx.fillText("Saddlepoints in matrices", slideTextDefaultX, slideTitleTextDefaultY);
@@ -405,13 +470,13 @@ function initialize() {
         bulletPointWriter.writeMajorBullet("Experts in Unusual PhD processes");
 
         timer.draw(ctx, Date.now() - startTimeMs);
-    })));
+    }));
 
     // Slide 2: Explanation
     slideshowState.slides.push(createDrawSlide(ctx => {
         ctx.fillStyle = blue
         drawMatrixCircle(ctx, thresholdX, thresholdY, defaultMatrixDrawSettings)
-        drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawNumberedOnly);
+        drawMatrix(ctx, matrix, matrixDrawSettingsDrawNumberedOnly);
 
         ctx.textAlign = 'left'
         ctx.font = slideTitleFont;
@@ -424,9 +489,10 @@ function initialize() {
         timer.draw(ctx, Date.now() - startTimeMs);
     }));
 
+
     // Slide 3: Explanation with color
     slideshowState.slides.push(createDrawSlide(ctx => {
-        drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawColoredCircledValue);
+        drawMatrix(ctx, matrix, matrixDrawSettingsDrawColoredCircledValue);
 
         ctx.textAlign = 'left'
         ctx.font = slideTitleFont;
@@ -462,7 +528,7 @@ function initialize() {
 
     // Slide 4: Motivation
     slideshowState.slides.push(createDrawSlide(ctx => {
-        drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawColoredCircledValue);
+        drawMatrix(ctx, matrix, matrixDrawSettingsDrawColoredCircledValue);
 
         ctx.textAlign = 'left'
         ctx.font = slideTitleFont;
@@ -503,7 +569,7 @@ function initialize() {
 
     // Slide 6: lower and upper bounds
     let interactiveNumberSlide = createDrawSlide(ctx => {
-        drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawColoredCircledValue);
+        drawMatrix(ctx, matrix, matrixDrawSettingsDrawColoredCircledValue);
 
         ctx.textAlign = 'left'
         ctx.font = slideTitleFont;
@@ -534,18 +600,12 @@ function initialize() {
         timer.draw(ctx, Date.now() - startTimeMs);
     });
     interactiveNumberSlide.isInteractable = true;
-    interactiveNumberSlide.mouseDown = function() { // Update threshold (guess) based on the cell clicked on
-        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, defaultMatrixDrawSettings);
-        if (matrixX < 0 || matrixX >= matrix.columns) return;
-        if (matrixY < 0 || matrixY >= matrix.rows) return;
-
-        thresholdState.threshold = matrix.getValue(matrixX, matrixY);
-    }
-    slideshowState.slides.push(interactiveNumberSlide);
+    interactiveNumberSlide.mouseDown = updateThresholdStateFromCanvasPosition; 
+    slideshowState.slides.push(combineSlides(slider, interactiveNumberSlide));
 
     // Slide 7: Reducing search space
     interactiveNumberSlide = createDrawSlide(ctx => {
-        drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawColoredCircledValue);
+        drawMatrix(ctx, matrix, matrixDrawSettingsDrawColoredCircledValue);
 
         ctx.textAlign = 'left'
         ctx.font = slideTitleFont;
@@ -577,14 +637,8 @@ function initialize() {
         timer.draw(ctx, Date.now() - startTimeMs);
     });
     interactiveNumberSlide.isInteractable = true;
-    interactiveNumberSlide.mouseDown = function() { // Update threshold (guess) based on the cell clicked on
-        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, defaultMatrixDrawSettings);
-        if (matrixX < 0 || matrixX >= matrix.columns) return;
-        if (matrixY < 0 || matrixY >= matrix.rows) return;
-
-        thresholdState.threshold = matrix.getValue(matrixX, matrixY);
-    }
-    slideshowState.slides.push(interactiveNumberSlide);
+    interactiveNumberSlide.mouseDown = updateThresholdStateFromCanvasPosition;
+    slideshowState.slides.push(combineSlides(slider,interactiveNumberSlide));
 
     // Walking algorithm
     const dogImage = new Image();
@@ -669,10 +723,12 @@ function initialize() {
         drawMatrixValue: function() {}, // Leave values empty seems to work well for the big thing
         lineWidth: 1
     };
+    const samplingThresholdState = createThresholdState(0, 1, 1);
+    const samplingSlider = createVerticalThresholdSlider(slideshowState, samplingThresholdState, sliderDrawSettings);
 
     const sampleSlides = createSampleSlides(samplingMatrix, samplingMatrixDrawSettings);
     slideshowState.slides.push(...sampleSlides.map(slide => {
-        return combineSlides(slide, createDrawSlide(ctx => {
+        return combineSlides(slide, samplingSlider, createDrawSlide(ctx => {
             ctx.fillStyle = 'black';
             ctx.textAlign = 'left'
             ctx.font = slideTitleFont;
