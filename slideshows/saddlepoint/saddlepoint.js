@@ -299,6 +299,32 @@ function createBulletPointWriter(ctx, font, leftX, topY, minorOffset, majorOffse
     }
 }
 
+// 
+function createVerticalThresholdSlider(state, leftX, topY, width, height) {
+    const arcHeight = width; 
+    return {
+        color: 'black',
+        draw: function(ctx) {
+            ctx.strokeStyle = this.color;
+            ctx.beginPath()
+            ctx.arc(leftX + width / 2, topY + arcHeight, width / 2, Math.PI + 0.001, -0.001);
+            ctx.arc(leftX + width / 2, topY + height - arcHeight, width / 2, 0.001, Math.PI - 0.001);
+            ctx.moveTo(leftX, topY + arcHeight);
+            ctx.lineTo(leftX, topY + height - arcHeight);
+            ctx.moveTo(leftX + width, topY + arcHeight);
+            ctx.lineTo(leftX + width, topY + height - arcHeight);
+            ctx.stroke()
+        },
+        mouseDown: function() {
+            console.log('hest')
+            if (state.mousePosition.x < leftX || state.mousePosition.x > leftX + width ||
+                state.mousePosition.y < topY || state.mousePosition.y > topY + height) return;
+            this.color = blue
+
+        }
+    };
+}
+
 function initialize() {
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
@@ -363,8 +389,10 @@ function initialize() {
 
     const bulletPointWriter = createBulletPointWriter(ctx, slideBulletFont, slideTextDefaultX, slideTextBulletPointStartY, slideTextBulletPointMinorOffsetY, slideTextBulletPointMajorOffsetY);
 
+    const slider = createVerticalThresholdSlider(slideshowState, 1500, 200, 20, 500);
+
     // Slide 1: Introduction
-    slideshowState.slides.push(createDrawSlide(ctx => {
+    slideshowState.slides.push(combineSlides(createDrawSlide(ctx => {
         drawMatrix(ctx, matrix, thresholdState.threshold, matrixDrawSettingsDrawNumberedOnly);
         ctx.textAlign = 'left'
         ctx.font = slideTitleFont;
@@ -377,7 +405,7 @@ function initialize() {
         bulletPointWriter.writeMajorBullet("Experts in Unusual PhD processes");
 
         timer.draw(ctx, Date.now() - startTimeMs);
-    }));
+    })));
 
     // Slide 2: Explanation
     slideshowState.slides.push(createDrawSlide(ctx => {
