@@ -441,8 +441,6 @@ function initialize() {
         thresholdState.setValue(matrix.getValue(matrixX, matrixY));
     }
 
-    slideshowState.currentSlideIndex = 5
-
     const slideTitleFont = "70px sans-serif";
     const slideBulletFont = "48px sans-serif";
     const slideTextDefaultX = 1100
