@@ -66,14 +66,14 @@ function combineSlides(...slides) {
                 if (f.mouseMove && f.isInteractable) f.mouseMove();
             });
         }, 
-        mouseDown: function() {
+        mouseDown: function(e) {
             this.slides.forEach(f => {
-                if (f.mouseDown && f.isInteractable) f.mouseDown();
+                if (f.mouseDown && f.isInteractable) f.mouseDown(e);
             });
         }, 
-        mouseUp: function() {
+        mouseUp: function(e) {
             this.slides.forEach(f => {
-                if (f.mouseUp && f.isInteractable) f.mouseUp();
+                if (f.mouseUp && f.isInteractable) f.mouseUp(e);
             });
         }, 
         slideEnd: function() {
@@ -120,12 +120,12 @@ function initializeSlideshowEventListeners(canvas, state) {
 
     canvas.addEventListener('mousedown', function(e) {
         const slide = state.currentSlide();
-        if (slide.isInteractable) slide.mouseDown();
+        if (slide.isInteractable) slide.mouseDown(e);
     });
 
     canvas.addEventListener('mouseup', function(e) {
         const slide = state.currentSlide();
-        if (slide.isInteractable) slide.mouseUp();
+        if (slide.isInteractable) slide.mouseUp(e);
     });
 
     document.addEventListener('keydown', function(e) {

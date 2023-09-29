@@ -333,25 +333,28 @@ function createVerticalThresholdSlider(slideshowState, thresholdState, drawSetti
             }
         },
         isDragging: false,
-        updatePosition: function() {
+        updateThresholdState: function() { 
             const y = clamp(slideshowState.mousePosition.y, arclessTop, arclessBottom);
-            this.currentPosition = 1 - (y - arclessTop) / (height - 2 * arcHeight);
-            thresholdState.setValue(this.currentPosition * (thresholdState.max - thresholdState.min) + thresholdState.min);
+            const percentage = 1 - (y - arclessTop) / (height - 2 * arcHeight);
+            thresholdState.setValue(lerp(thresholdState.min, thresholdState.max, percentage));
         },
-        mouseDown: function() {
+        mouseDown: function(e) {
             if (slideshowState.mousePosition.x < leftX || slideshowState.mousePosition.x > leftX + width ||
                 slideshowState.mousePosition.y < topY || slideshowState.mousePosition.y > topY + height) return;
+            if (e.button != 0) return; // Only left click
             this.isDragging = true;
-            this.updatePosition();
+            this.updateThresholdState();
         }, 
-        mouseUp: function() {
+        mouseUp: function(e) {
+            if (e.button != 0) return; // Only left click
             this.isDragging = false;
         },
         mouseMove: function() {
             if (!this.isDragging) return;
-            this.updatePosition();
+            this.updateThresholdState();
         }
     }
+    // The slider position is updated based on a callback from the threshold state
     thresholdState.callbacks["slider"] = function() {
         slider.currentPosition = (thresholdState.value - thresholdState.min) / (thresholdState.max - thresholdState.min)
     }
@@ -367,13 +370,13 @@ function createThresholdState(min, max, initialValue) {
         setValue: function(value) {
             this.value = value;
             for (let c in this.callbacks) {
-                console.log(c)
                 this.callbacks[c](this);
             }
         },
     }
 }
 
+// TODO: MouseDown and mouseUp events should focus on only left mouse clicks
 // TODO: is it a problem that, if we go back to slide 2 and 3, that the colors are drawn based on a new threshold?
 // TODO: Should the slider round to an integer value such that a blue color is highlighted? It seems quite distracting when looking. 
 // It can be fixed by removing the Math.round in the "matrixDrawSettingsDrawColoredCircledValue". Then only 1 and 100 will be colored blue
@@ -429,7 +432,8 @@ function initialize() {
     const thresholdY = Math.floor(matrix.rows * 0.47);
 
     const thresholdState = createThresholdState(Math.min(...matrix.data), Math.max(...matrix.data), matrix.getValue(thresholdX, thresholdY));
-    function updateThresholdStateFromCanvasPosition() {
+    function updateThresholdStateFromCanvasPosition(e) {
+        if (e.button != 0) return; // Only left click
         const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, defaultMatrixDrawSettings);
         if (matrixX < 0 || matrixX >= matrix.columns) return;
         if (matrixY < 0 || matrixY >= matrix.rows) return;
