@@ -1,7 +1,10 @@
 "use strict";
 
 // TODO: Pick different colors for color blindness. E.g. for red-green colorblind
-const blue = `rgba(50, 100, 255, 1)`;
+const equalToColor = `rgba(50, 100, 255, 1)`;
+const greaterThanColor = 'red';
+const smallerThanColor = 'green';
+const fontColor = 'black'
 
 // ######### HELPER FUNCTIONS ######
 
@@ -44,55 +47,46 @@ function canvasCoordsToMatrixIndices(x, y, matrixDrawSettings) {
 // ########### DRAWING FUNCTIONS ########
 
 function drawMatrix(ctx, matrix, drawSettings) {
-    const {leftX, topY, cellWidth, valueWidthRatio, lineWidth} = drawSettings;
+    const {leftX, topY, cellWidth, lineWidth} = drawSettings;
     const width = matrix.columns * cellWidth;
     const height = matrix.rows * cellWidth;
     ctx.lineWidth = lineWidth
-    ctx.beginPath()
-    ctx.moveTo(leftX, topY)
-    ctx.lineTo(leftX + width, topY)
-    ctx.lineTo(leftX + width, topY + height)
-    ctx.lineTo(leftX, topY + height)
-    ctx.lineTo(leftX, topY)
-    ctx.stroke();
 
+    ctx.beginPath()
+    ctx.rect(leftX, topY, width, height);
     for (let i = 1; i < matrix.columns; ++i) {
-        ctx.beginPath();
         ctx.moveTo(leftX + i * cellWidth, topY);
         ctx.lineTo(leftX + i * cellWidth, topY + height);
-        ctx.stroke();
     }
     for (let i = 1; i < matrix.rows; ++i) {
-        ctx.beginPath();
         ctx.moveTo(leftX, topY + i * cellWidth);
         ctx.lineTo(leftX + width, topY + i * cellWidth);
-        ctx.stroke();
     }
+    ctx.stroke();
 
-    for (let i = 0; i < matrix.rows * matrix.columns; ++i) {
-        const x = i % matrix.columns;
-        const y = Math.floor(i / matrix.columns);
-        drawSettings.drawMatrixValue(ctx, x, y, matrix);
-        // drawMatrixValue( drawSettings);
+    for (let y = 0; y < matrix.rows; ++ y) {
+        for (let x = 0; x < matrix.columns; ++x) {
+            drawSettings.drawMatrixValue(ctx, x, y, matrix); // Injected value-drawing method
+        }
     }
 }
 
 function drawMatrixCircle(ctx, x, y, drawSettings) {
-    const circleRadiusToCellWidthRatio = 0.4
     const [centerX, centerY] = matrixIndicesToCanvasCoords(x, y, drawSettings);
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, drawSettings.cellWidth * circleRadiusToCellWidthRatio , 0, 2 * Math.PI);
-    ctx.fill();
+    const radius = drawSettings.cellWidth * 0.4;
+    drawCircle(centerX, centerY, radius, ctx);
 }
 
 function drawMatrixSquare(ctx, x, y, drawSettings) {
     const [centerX, centerY] = matrixIndicesToCanvasCoords(x, y, drawSettings);
-    ctx.fillRect(centerX - drawSettings.cellWidth / 2, centerY - drawSettings.cellWidth / 2, drawSettings.cellWidth, drawSettings.cellWidth);
+    const leftX = centerX - drawSettings.cellWidth / 2;
+    const topY = centerY - drawSettings.cellWidth / 2;
+    ctx.fillRect(leftX, topY, drawSettings.cellWidth, drawSettings.cellWidth);
 }
 
 function writeMatrixValue(ctx, x, y, matrix, drawSettings) {
     const [centerX, centerY] = matrixIndicesToCanvasCoords(x, y, drawSettings);
-    ctx.fillStyle = 'black';
+    ctx.fillStyle = fontColor;
     ctx.font = "32px sans-serif";
     ctx.textAlign = "center"
     ctx.textBaseline = "middle"
@@ -103,11 +97,11 @@ function writeMatrixValue(ctx, x, y, matrix, drawSettings) {
 function drawMatrixCircleByThreshold(ctx, x, y, matrix, threshold, drawSettings) {
     const value = matrix.getValue(x, y);
     if (value > threshold) {
-        ctx.fillStyle = 'red';
+        ctx.fillStyle = greaterThanColor; 
     } else if (value < threshold) {
-        ctx.fillStyle = 'green'
+        ctx.fillStyle = smallerThanColor;
     } else {
-        ctx.fillStyle = blue
+        ctx.fillStyle = equalToColor
     }
     drawMatrixCircle(ctx, x, y, drawSettings);
 }
@@ -128,7 +122,7 @@ function createSampleSlides(matrix, matrixDrawSettings) {
         const removedCountFirst = currentRemovedCount;
         const sampleSlide = createDrawSlide(ctx => {
             drawMatrix(ctx, matrix, matrixDrawSettings);
-            ctx.fillStyle = 'green'
+            ctx.fillStyle = smallerThanColor;
             allSamples.slice(0, currentSampleCount).forEach(sample => {
                 drawMatrixCircle(ctx, sample[1], sample[0], matrixDrawSettings);
             });
@@ -167,7 +161,7 @@ function createSampleSlides(matrix, matrixDrawSettings) {
     }
     result.push(createDrawSlide(ctx => {
         drawMatrix(ctx, matrix, matrixDrawSettings);
-        ctx.fillStyle = 'green'
+        ctx.fillStyle = smallerThanColor;
         allSamples.forEach(sample => {
             drawMatrixCircle(ctx, sample[1], sample[0], matrixDrawSettings);
         });
@@ -182,7 +176,7 @@ function createSampleSlides(matrix, matrixDrawSettings) {
     const bestRow = rowsToSample[0];
     result.push(createDrawSlide(ctx => {
         drawMatrix(ctx, matrix, matrixDrawSettings);
-        ctx.fillStyle = 'green'
+        ctx.fillStyle = smallerThanColor;
         allSamples.forEach(sample => {
             drawMatrixCircle(ctx, sample[1], sample[0], matrixDrawSettings);
         });
@@ -242,21 +236,20 @@ function createWalkSlides(matrix, threshold, matrixDrawSettings, dogImage) {
 
     return result;
 }
+class Matrix {
+    constructor(rows, columns, dataInitializer) {
+        this.columns = columns;
+        this.rows = rows;
+        this.data = dataInitializer(rows, columns);
+    }
 
-function createMatrix(rows, columns, dataInitializer) {
-    return {
-        columns,
-        rows,
-        data: dataInitializer(rows, columns),
-        getValue: function(x, y) {
-            return this.data[x + y * this.columns];
-        },
-        setValue: function(x, y, v) {
-            this.data[x + y * this.columns] = v;
-        }
-    };
+    getValue(x, y) {
+        return this.data[x + y * this.columns];
+    }
+    setValue(x, y, v) {
+        this.data[x + y * this.columns] = v;
+    }
 }
-
 function createTimer(positionX, positionY, radius, totalTimeMs) {
     return {
         draw: function(ctx, elapsedMs) {
@@ -269,7 +262,7 @@ function createTimer(positionX, positionY, radius, totalTimeMs) {
             const startAngle = -0.5 * Math.PI;
             const fillAngle = startAngle + (2 * Math.PI) * elapsedMs/totalTimeMs;
 
-            ctx.fillStyle = 'black'
+            ctx.fillStyle = fontColor
             ctx.beginPath();
             ctx.moveTo(positionX, positionY);
             ctx.lineTo(positionX, positionY - radius);
@@ -311,7 +304,7 @@ function createVerticalThresholdSlider(slideshowState, thresholdState, drawSetti
     const arclessTop = topY + arcHeight;
     const arclessBottom = topY + height - arcHeight;
     const slider = {
-        color: 'black',
+        color: fontColor,
         isInteractable: true,
         currentPosition: (thresholdState.value - thresholdState.min) / (thresholdState.max - thresholdState.min),
         draw: function(ctx) {
@@ -376,10 +369,8 @@ function createThresholdState(min, max, initialValue) {
     }
 }
 
-// TODO: MouseDown and mouseUp events should focus on only left mouse clicks
 // TODO: is it a problem that, if we go back to slide 2 and 3, that the colors are drawn based on a new threshold?
-// TODO: Should the slider round to an integer value such that a blue color is highlighted? It seems quite distracting when looking. 
-// It can be fixed by removing the Math.round in the "matrixDrawSettingsDrawColoredCircledValue". Then only 1 and 100 will be colored blue
+// TODO: Should the slider round to an integer value such that a blue color is highlighted? It seems quite distracting when looking. It can be fixed by removing the Math.round in the "matrixDrawSettingsDrawColoredCircledValue". Then only 1 and 100 will be colored blue
 // TODO: For the sampling slides, should we remove old samples circles when we resample, or should the be kept? If they are kept, should they be colored red if they are too big? In other words, should the visualization be a good representation of the algorithm, or just give the intuition?
 function initialize() {
     const canvas = document.getElementById('canvas');
@@ -401,7 +392,7 @@ function initialize() {
     const slideshowState = initializeSlideshowState()
     initializeSlideshowEventListeners(canvas, slideshowState);
 
-    const matrix = createMatrix(10, 10, () => goodNumberedMatrixData);
+    const matrix = new Matrix(10, 10, () => goodNumberedMatrixData);
 
     const defaultMatrixDrawSettings = {
         leftX: 40,
@@ -476,7 +467,7 @@ function initialize() {
 
     // Slide 2: Explanation
     slideshowState.slides.push(createDrawSlide(ctx => {
-        ctx.fillStyle = blue
+        ctx.fillStyle = equalToColor
         drawMatrixCircle(ctx, thresholdX, thresholdY, defaultMatrixDrawSettings)
         drawMatrix(ctx, matrix, matrixDrawSettingsDrawNumberedOnly);
 
@@ -510,19 +501,19 @@ function initialize() {
 
         const circleRadius = defaultMatrixDrawSettings.cellWidth * 0.4
         // First circle comparison legend
-        ctx.fillStyle = 'green';
+        ctx.fillStyle = smallerThanColor;
         drawCircle(1150, greenCircleLegendHeight, circleRadius, ctx)
-        ctx.fillStyle = blue;
+        ctx.fillStyle = equalToColor;
         drawCircle(1280, greenCircleLegendHeight, circleRadius, ctx)
-        ctx.fillStyle = 'black';
+        ctx.fillStyle = fontColor;
         ctx.fillText("<", 1200, greenCircleLegendHeight);
 
         // Second circle comparison legend
-        ctx.fillStyle = 'red';
+        ctx.fillStyle = greaterThanColor;
         drawCircle(1150, redCircleLegendHeight, circleRadius, ctx)
-        ctx.fillStyle = blue;
+        ctx.fillStyle = equalToColor;
         drawCircle(1280, redCircleLegendHeight, circleRadius, ctx)
-        ctx.fillStyle = 'black';
+        ctx.fillStyle = fontColor;
         ctx.fillText(">", 1200, redCircleLegendHeight);
 
         timer.draw(ctx, Date.now() - startTimeMs);
@@ -588,15 +579,15 @@ function initialize() {
 
         const circleRadius = defaultMatrixDrawSettings.cellWidth * 0.4
         // First circle comparison legend
-        ctx.fillStyle = 'green';
+        ctx.fillStyle = smallerThanColor;
         drawCircle(1150, greenCircleLegendHeight, circleRadius, ctx)
-        ctx.fillStyle = 'black';
+        ctx.fillStyle = fontColor;
         ctx.fillText("< t", 1200, greenCircleLegendHeight);
 
         // Second circle comparison legend
-        ctx.fillStyle = 'red';
+        ctx.fillStyle = greaterThanColor;
         drawCircle(1150, redCircleLegendHeight, circleRadius, ctx)
-        ctx.fillStyle = 'black';
+        ctx.fillStyle = fontColor;
         ctx.fillText("> t", 1200, redCircleLegendHeight);
 
         timer.draw(ctx, Date.now() - startTimeMs);
@@ -625,15 +616,15 @@ function initialize() {
 
         const circleRadius = defaultMatrixDrawSettings.cellWidth * 0.4
         // First circle comparison legend
-        ctx.fillStyle = 'green';
+        ctx.fillStyle = smallerThanColor;
         drawCircle(1150, greenCircleLegendHeight, circleRadius, ctx)
-        ctx.fillStyle = 'black';
+        ctx.fillStyle = fontColor;
         ctx.fillText("< t", 1200, greenCircleLegendHeight);
 
         // Second circle comparison legend
-        ctx.fillStyle = 'red';
+        ctx.fillStyle = greaterThanColor;
         drawCircle(1150, redCircleLegendHeight, circleRadius, ctx)
-        ctx.fillStyle = 'black';
+        ctx.fillStyle = fontColor;
         ctx.fillText("> t", 1200, redCircleLegendHeight);
 
         timer.draw(ctx, Date.now() - startTimeMs);
@@ -645,7 +636,7 @@ function initialize() {
     // Walking algorithm
     const dogImage = new Image();
     dogImage.src = "dog_shibainu_brown.png"; // Relative path
-    const walkMatrix = {...matrix, data: goodWalkMatrixData}
+    const walkMatrix = new Matrix(10, 10, () => goodWalkMatrixData);
 
     const greenCircleLegendHeight = 700;
     const redCircleLegendHeight = 800;
@@ -653,7 +644,7 @@ function initialize() {
     const walkSlides = createWalkSlides(walkMatrix, goodWalkMatrixData[99], matrixDrawSettingsDrawCircleOnly, dogImage);
     slideshowState.slides.push(...walkSlides.map(slide => { // Create the walk slides and then update them
         return combineSlides(slide, createDrawSlide(ctx => {
-            ctx.fillStyle = 'black';
+            ctx.fillStyle = fontColor;
             ctx.textAlign = 'left'
             ctx.font = slideTitleFont;
             ctx.fillText("How is a saddlepoint?", slideTextDefaultX, slideTitleTextDefaultY);
@@ -668,15 +659,15 @@ function initialize() {
 
             const circleRadius = defaultMatrixDrawSettings.cellWidth * 0.4
             // First circle comparison legend
-            ctx.fillStyle = 'green';
+            ctx.fillStyle = smallerThanColor;
             drawCircle(1150, greenCircleLegendHeight, circleRadius, ctx)
-            ctx.fillStyle = 'black';
+            ctx.fillStyle = fontColor;
             ctx.fillText("< t", 1200, greenCircleLegendHeight);
 
             // Second circle comparison legend
-            ctx.fillStyle = 'red';
+            ctx.fillStyle = greaterThanColor;
             drawCircle(1150, redCircleLegendHeight, circleRadius, ctx)
-            ctx.fillStyle = 'black';
+            ctx.fillStyle = fontColor;
             ctx.fillText("> t", 1200, redCircleLegendHeight);
 
             timer.draw(ctx, Date.now() - startTimeMs);
@@ -685,7 +676,7 @@ function initialize() {
 
     // Explain diagonal algorithm and issue
     slideshowState.slides.push(combineSlides(walkSlides[walkSlides.length-1], createDrawSlide(ctx => {
-        ctx.fillStyle = 'black';
+        ctx.fillStyle = fontColor;
         ctx.textAlign = 'left'
         ctx.font = slideTitleFont;
         ctx.fillText("How is a saddlepoint?", slideTextDefaultX, slideTitleTextDefaultY);
@@ -703,22 +694,22 @@ function initialize() {
 
         const circleRadius = defaultMatrixDrawSettings.cellWidth * 0.4
         // First circle comparison legend
-        ctx.fillStyle = 'green';
+        ctx.fillStyle = smallerThanColor;
         drawCircle(1150, greenCircleLegendHeight, circleRadius, ctx)
-        ctx.fillStyle = 'black';
+        ctx.fillStyle = fontColor;
         ctx.fillText("< t", 1200, greenCircleLegendHeight);
 
         // Second circle comparison legend
-        ctx.fillStyle = 'red';
+        ctx.fillStyle = greaterThanColor;
         drawCircle(1150, redCircleLegendHeight, circleRadius, ctx)
-        ctx.fillStyle = 'black';
+        ctx.fillStyle = fontColor;
         ctx.fillText("> t", 1200, redCircleLegendHeight);
 
         timer.draw(ctx, Date.now() - startTimeMs);
     })));
 
     // Explain sampling process
-    const samplingMatrix = createMatrix(100, 100, (rows, columns) => randomList(rows * columns));
+    const samplingMatrix = new Matrix(100, 100, (rows, columns) => randomList(rows * columns));
     const samplingMatrixDrawSettings = {
         ...matrixDrawSettingsDrawCircleOnly,
         cellWidth: 1000 / samplingMatrix.columns,
@@ -731,7 +722,7 @@ function initialize() {
     const sampleSlides = createSampleSlides(samplingMatrix, samplingMatrixDrawSettings);
     slideshowState.slides.push(...sampleSlides.map(slide => {
         return combineSlides(slide, samplingSlider, createDrawSlide(ctx => {
-            ctx.fillStyle = 'black';
+            ctx.fillStyle = fontColor;
             ctx.textAlign = 'left'
             ctx.font = slideTitleFont;
             ctx.fillText("How is a saddlepoint?", slideTextDefaultX, slideTitleTextDefaultY);
@@ -748,15 +739,15 @@ function initialize() {
 
             const circleRadius = defaultMatrixDrawSettings.cellWidth * 0.4
             // Second circle comparison legend
-            ctx.fillStyle = 'green';
+            ctx.fillStyle = smallerThanColor;
             drawCircle(1150, greenCircleLegendHeight, circleRadius, ctx)
-            ctx.fillStyle = 'black';
+            ctx.fillStyle = fontColor;
             ctx.fillText("< t", 1200, greenCircleLegendHeight);
 
             // Second circle comparison legend
             ctx.fillStyle = 'grey';
             drawCircle(1150, redCircleLegendHeight, circleRadius, ctx)
-            ctx.fillStyle = 'black';
+            ctx.fillStyle = fontColor;
             ctx.fillText(" There is a value in row > t", 1200, redCircleLegendHeight);
 
             timer.draw(ctx, Date.now() - startTimeMs);
