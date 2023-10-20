@@ -80,6 +80,44 @@
 // function hitSphere(ray, sphere) {
 // }
 
+
+class Sphere {
+    constructor(x, y, z, radius) {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+        this.radius = radius;
+    }
+
+    hit(ray) {
+        const origin = ray.origin;
+        const direction = ray.direction;
+
+        const xt = origin.x + direction.x * t; // ox + dx * t
+        const yt = origin.y + direction.y * t; // oy + dy * t
+        const zt = origin.z + direction.z * t; // oz + dz * t
+
+        // We want to know for which t 
+        // (xt - xc)^2 + (yt - yc)^2 + (zt - zc)^2 - R^2 = 0
+        // Expanding:
+        // xt^2            + xc^2  - 2*xt*xc                + yt^2            + yc^2 - 2 * yt * yc            + zt^2             + zc^2 - 2*zt*zc                - R^2 = 0
+        // (ox + dx * t)^2 + xc^2  - 2 * (ox + dx * t) * xc + (oy + dy * t)^2 + yc^2 - 2 * (oy + dy * t) * yc + (oz + dz * t)^2  + zc^2 - 2 * (oz + dz * t) * zc - R^2 = 0
+        // (ox + dx * t)^2                     + xc^2  - 2 * (ox + dx * t) * xc       + (oy + dy * t)^2                      + yc^2 - 2 * (oy + dy * t) * yc       + (oz + dz * t)^2                  + zc^2  - 2 * (oz + dz * t) * zc         - R^2 = 0
+        // ox^2   +   dx^2*t^2   +   2*ox*dx*t   +   xc^2   -   2*ox*xc   +   2*dx*xc*t   +   oy^2   +   dy^2*t^2   +   2*oy*dy*t   +   yc^2   -   2*oy*yc   +   2*dy*yz*t   +   oz^2   +   dz^2*t^2   +   2*oz*dz   +   zc^2   -   2*oz*zc   +   2*dz*zc*t   -   R^2 = 0
+        // Simplifying:
+        // 2*ox*dx*t  +   2*dx*xc*t   +   2*oy*dy*t   +   2*dy*yz*t   + 2*dz*zc*t   
+        // dx^2*t^2d + y^2*t^2 + dz^2*t^2
+
+
+
+        // (a + bc)^2 = (a + bc) * (a + bc) = aa + abc + abc + bcbc = a^2 + (bc)^2 + abc
+
+
+
+    }
+}
+
+
 function initialize() {
     const canvas = document.getElementById('canvas');// as HTMLCanvasElement;
     const ctx = canvas.getContext('2d');// as CanvasRenderingContext2D;
@@ -88,18 +126,24 @@ function initialize() {
     const nx = 100;
     const imageData = new ImageData(nx, ny); // Pixel / frame buffer
 
-    const w = new Vec3(0, 0, 1);
-    const e = new Vec3(0, 0, -5); // Eye / origin 
-    const u = new Vec3(1, 0, 0);
-    const v = new Vec3(0, 1, 0);
-    const l = -(nx/2);
-    const r = nx/2;
-    const b = -(ny/2);
-    const t = ny/2;
+    // const w = new Vec3(0, 0, 1);
+    // const e = new Vec3(0, 0, -5); // Eye / origin 
+    // const u = new Vec3(1, 0, 0);
+    // const v = new Vec3(0, 1, 0);
+    // const l = -(nx/2);
+    // const r = nx/2;
+    // const b = -(ny/2);
+    // const t = ny/2;
     // const l = v3add(e, [-(nx/2), 0, 0]);
     // const r = v3add(e, [  nx/2,  0, 0]);
     // const b = v3add(e, [0, -(ny/2), 0]);
     // const t = v3add(e, [0,   ny/2 , 0]);
+
+
+
+
+
+
 
     // const imagePlane = []; // The set of pixel points to project onto
 
