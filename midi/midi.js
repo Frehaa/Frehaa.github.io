@@ -459,20 +459,15 @@ function drawFallingNotes(ctx, noteEvents, elapsed, { msToPixel, noteFill, topLi
     ctx.stroke();
     for (let i = 0; i < noteEvents.length; i++) {
         const event = noteEvents[i];
-        if (elapsed + timeFromTopToBottomMilliseconds < event.startMs) break; // Stop processing more events since they wont be shown anyway. (Requires input to be sorted)
+        if (elapsed + timeFromTopToBottomMilliseconds < event.startMs) break; // Stop processing more events since they wont be shown anyway. (Correctness requires input to be sorted)
 
         const top = (-event.endMs + elapsed) * msToPixel + topLineHeight;
         if (top > topLineHeight) continue;  
 
         const left = 10 + event.note * 14 - noteWidth/2;
-        const height = (event.endMs - event.startMs) * msToPixel;
-
+        const height = Math.min((event.endMs - event.startMs) * msToPixel, topLineHeight - top);
         ctx.fillStyle = noteFill(event, i);
-        if (topLineHeight - top < height) {
-            ctx.fillRect(left, top, noteWidth, topLineHeight - top);
-        } else {
-            ctx.fillRect(left, top, noteWidth, height);
-        }            
+        ctx.fillRect(left, top, noteWidth, height);
     }
 }
 
@@ -972,13 +967,14 @@ function play(eventMap, tempoMap, midiState) {
     const timeMeasures = []; 
     const controlEvents = tempoMap(eventMap[MIDI_EVENT.CONTROL_CHANGE]);
     const programEvents = tempoMap(eventMap[MIDI_EVENT.PROGRAM_CHANGE]);
+
     // TODO: Stop playing current song when new song is selected
-    animateFallingNotes(noteEvents, timeMeasures, { noteFill, topLineHeight, msToPixel } );
-    setTimeout(() => { // Gives a warning on long files. 
-        playEventsByScheduling(midiState, noteEvents, controlEvents, programEvents)
-    }, timeFromTopToBottomMilliseconds)
+    // animateFallingNotes(noteEvents, timeMeasures, { noteFill, topLineHeight, msToPixel } );
+    // setTimeout(() => { // Gives a warning on long files. 
+    //     playEventsByScheduling(midiState, noteEvents, controlEvents, programEvents)
+    // }, timeFromTopToBottomMilliseconds)
     
-    return
+    // return
 
     // TODO: Deal with the issue of lingering notes somehow. What should be done about a note which should be played longer than other notes? Do I keep holding it down? Should it be optional? Should it be grayed out such that it is visible that it should not be played? Should only the next notes to be played be colored? 
 
@@ -994,76 +990,171 @@ function play(eventMap, tempoMap, midiState) {
 
     // TODO: On correct, animate smoothly to next notes instead of instantly.
 
+    // TODO: For the first iteration let us just do down press. So we make sure the down presses are correct. For coords where you need more key down presses, then we just make sure that we press all the keys within some time frame. 
+
+    // TODO: Do not show notes from cleared groups. Otherwise it can be hard to see which notes to play. Maybe we can do something fancy where they disapear and the new ones light up. So only the ones in focus a bright and the other ones are greyed out.
+
     // INTERACTIVE STUFF
 
+
     const noteEventsBatched = batchNoteEvents(noteEvents);
-    // l(`Note events batched`, noteEventsBatched)
-    const currentlyPressed = new Set();
-    let lastPedal = false;
-    let currentNoteGroup = 0; // Start note
-    let currentElapsed = noteEventsBatched[currentNoteGroup][0].start;
+    l(`Note events batched`, noteEventsBatched)
+    const playStateTimeoutLimit = 1000;
+    const playState = {
+        currentlyPressed: new Set(),
+        currentNoteGroup: 0,
+        currentTimeout: null,
+        failedState: false,
+        previousAnimationTime: 0,
+        currentElapsed: noteEventsBatched[0][0].startMs,
+        startTimeout: function() {
+            const self = this;
+            this.currentTimeout = setTimeout(e => {
+                self.fail();
+                this.currentTimeout = null;
+            }, playStateTimeoutLimit);
+        }, 
+        cancelTimeout: function() {
+            clearTimeout(this.currentTimeout);
+            this.currentTimeout = null;
+        },
+        stepAnimation: function(currentAnimationTime) {
+            assert(currentAnimationTime >= this.previousAnimationTime, "Animation time should only increase.")
+            const deltaTime = currentAnimationTime - this.previousAnimationTime;
+            this.previousAnimationTime = currentAnimationTime;
+            const targetElapsed = noteEventsBatched[this.currentNoteGroup][0].startMs;
+            if (targetElapsed > this.currentElapsed) {
+                // If anything needs to be done then we do 
+                this.currentElapsed = Math.min(this.currentElapsed + deltaTime, targetElapsed);
+                return true;
+            }
+            return false;
+        },
+        getCurrentElapsed: function(currentAnimationTime) {
+            assert(this.currentNoteGroup < noteEventsBatched.length, "Should not call get elapsed when the note group is outside the limit");
+            assert(noteEventsBatched[this.currentNoteGroup].length != 0, "There should not be an empty batch of events.");
+            return this.currentElapsed;
+        },
+        getCurrentGroup: function() {
+            return noteEventsBatched[playState.currentNoteGroup]
+        },
+        fail: function() {
+            this.failedState = true;
+            // TODO: Implement something fancy 
+        },
+        recentlySucceded: function() {
+            return true;
+        },
+        toBePlayed: function(key) {
+            return true;
+        }, 
+        addKey: function(key) {
+            this.currentlyPressed.add(key);
+        }
+    };   
 
-    ctx.clearRect(0, 0, canvas.width, topLineHeight);
-    drawFallingNotes(ctx, noteEvents, currentElapsed, { msToPixel, noteFill, topLineHeight });
+    // TODO: How do I animate the transition from one state to the next?
+    // One simple way may just be to keep track of the previous and the current state and if they are differernt then we have a transition state. I am however not sure what to do if we change states quickly.
 
-    function update(newNoteGroup) {
+    // How does the animation work? We need to change the elapsed slowly instead of instantly. So getCurrentElapsed should return something different from just the start of the note. 
+
+    function playAnimation(time) {
+        if (!playState.stepAnimation(time)) { return requestAnimationFrame(playAnimation); }
+        // console.log(playState.hasChanged)
+        playState.hasChanged = false;
         ctx.clearRect(0, 0, canvas.width, topLineHeight);
 
-        currentNoteGroup = newNoteGroup;
-        if (currentNoteGroup >= noteEventsBatched.length) {
+        ctx.fillStyle = 'black'
+        ctx.fillText("Current group: " + playState.currentNoteGroup, 100, 100);
+        ctx.fillText("Time elapsed: " + Math.round(time)+"ms", 100, 120);
+        const timeoutHasStarted = playState.currentTimeout !== null;
+        ctx.fillText("Timeout started: " + timeoutHasStarted, 100, 140);
+        ctx.fillText("Failed: " + playState.failedState, 100, 160);
 
-        } else {
-            currentElapsed = noteEventsBatched[currentNoteGroup][0].start;
-            drawFallingNotes(ctx, noteEvents, currentElapsed, { msToPixel, noteFill, topLineHeight });
-        }
+
+        const elapsed = playState.getCurrentElapsed(time);
+        // Draw groups
+        const noteWidth = 20
+        const timeFromTopToBottomMilliseconds = topLineHeight / msToPixel;
+        ctx.beginPath()
+        ctx.moveTo(0, topLineHeight);
+        ctx.lineTo(ctx.canvas.width, topLineHeight);
+        ctx.stroke();
+        ctx.fillStyle = 'red';
+        for (let i = 0; i < noteEventsBatched.length; ++i) {
+            if (elapsed + timeFromTopToBottomMilliseconds < noteEventsBatched[i][0].startMs) break; // Stop processing more events since they wont be shown anyway. (Correctness requires input to be sorted)
+
+            ctx.fillStyle = (i === playState.currentNoteGroup)? 'red' : 'gray';
+
+            for (let j = 0; j < noteEventsBatched[i].length; ++j) {
+                const event = noteEventsBatched[i][j];
+
+                const top = (-event.endMs + elapsed) * msToPixel + topLineHeight;
+                if (top > topLineHeight) continue;  
+
+                const left = 10 + event.note * 14 - noteWidth/2;
+                const height = Math.min((event.endMs - event.startMs) * msToPixel, topLineHeight - top);
+                ctx.fillRect(left, top, noteWidth, height);
+            }
+        } 
+
+        requestAnimationFrame(playAnimation);
     }
 
-    function noteOff() {
-        if (currentlyPressed.size > 0) { // Reset on error
-            currentlyPressed.clear();
-            update(0);
+    window.addEventListener('keydown', e => {
+        if (e.key === 'a' && playState.currentTimeout === null) {
+            playState.startTimeout();
+        } else if (e.key === 's') {
+            playState.cancelTimeout();
+        } else if (e.key === 'n') {
+            playState.currentNoteGroup = Math.min(playState.currentNoteGroup + 1, noteEventsBatched.length-1);
         }
-    }
+    });
+    midiState.currentInput.onmidimessage = (e) => {
+        // We have a current note group of some notes. As long as we press notes in this group, we do not remove fingers from notes while we have not played the whole group, and we press all the notes in the group within some timeframe, we go to the next group. Success criteria is press all notes in group without lifting finger from any and press them in time frame. Fail criteria is if press some note outside group, lift finger from note before finish, or do not press within time frame. (Easy mode is to have an infinite time frame.)
 
-    midiState.currentInput.onmidimessage = (e) => { 
-        switch (e.data[0] & 0xF0) {
-            case MIDI_EVENT.NOTE_ON: {
-                if (e.data[2] === 0) { // If velocity is 0 then it is a NOTE_OFF event
-                    noteOff();
-                } else {
-                    currentlyPressed.add(e.data[1]);
-                }
-            } break;
-            case MIDI_EVENT.NOTE_OFF: {
-                noteOff()
-            } break;
-            case MIDI_EVENT.CONTROL_CHANGE: {
-                if (e.data[1] === CONTROL_FUNCTION.DAMPER_PEDAL) {
-                    if (e.data[2] === 0) {
-                        lastPedal = false;
-                    } else if (lastPedal === false) {
-                        // lastPedal = true; // This gives fast return to start
-                        // currentNoteGroup = Math.max(0, currentNoteGroup - 1);
-                        update(0);
-                    }
-                } 
-            } break;
-            default: {// Do not know yet? Maybe do nothing
-            } break
+        const event_type = e.data[0] & 0xF0;
+        const event_velocity = e.data[2];
+        if (event_type === MIDI_EVENT.NOTE_OFF || (event_type === MIDI_EVENT.NOTE_ON && event_velocity === 0)) { // Note off event
+            // If we successfuly finished the last group. Don't do anything
+            // Otherwise we fail
+            if (playState.recentlySucceded()) {
+
+            } else {
+                playState.fail()
+            }
+        } else if (event_type === MIDI_EVENT.NOTE_ON) { // Note on event
+            if (playState.currentTimeout === null) {
+                playState.startTimeout();
+            }
+            const key = e.data[1];
+            if (playState.toBePlayed(key)) { 
+                playState.addKey(key);
+            } else {
+                playState.fail();
+            }
         }
         
-        const currentGroup = noteEventsBatched[currentNoteGroup]
-        if (currentNoteGroup < noteEventsBatched.length && currentlyPressed.size === currentGroup.length) {
-            const success = currentGroup.reduce((s, e) => currentlyPressed.has(e.note) && s, true);
-            if (success) {
-                currentlyPressed.clear();
-                update(currentNoteGroup + 1);
-                if (currentNoteGroup === noteEventsBatched.length) {
-                    l('win')
-                } 
-            }  
+        // Did we successfully play the whole thing?
+        const currentGroup = playState.getCurrentGroup(); 
+        if (playState.didSucceed()) {
+            playState.cancelTimeout();
+            playState.nextGroup();
+
+            // const success = currentGroup.reduce((s, e) => currentlyPressed.has(e.note) && s, true);
+            // if (playState.) {
+            //     currentlyPressed.clear();
+            //     update(currentNoteGroup + 1);
+            //     if (currentNoteGroup === noteEventsBatched.length) {
+            //         l('win')
+            //     } 
+            // }  
         }
     }
+
+    requestAnimationFrame(playAnimation);
+
+    // Maybe we can do this as an animation loop? So we check for correctness in the loop and only do midi events in this callback. The downside of this is that in theory we can press a key and release it efore it gets checked. Maybe this should just be checked. 
 }
 
 
