@@ -1018,8 +1018,11 @@ function play(eventMap, tempoMap, midiState) {
             clearTimeout(this.currentTimeout);
             this.currentTimeout = null;
         },
-        stepAnimation: function(currentAnimationTime) {
+        stepAnimation: function(currentAnimationTime) { // Returns whether a change has happened 
             assert(currentAnimationTime >= this.previousAnimationTime, "Animation time should only increase.")
+            assert(this.currentNoteGroup < noteEventsBatched.length, "Should not call get elapsed when the note group is outside the limit");
+            assert(noteEventsBatched[this.currentNoteGroup].length != 0, "There should not be an empty batch of events.");
+
             const deltaTime = currentAnimationTime - this.previousAnimationTime;
             this.previousAnimationTime = currentAnimationTime;
             const targetElapsed = noteEventsBatched[this.currentNoteGroup][0].startMs;
@@ -1030,9 +1033,7 @@ function play(eventMap, tempoMap, midiState) {
             }
             return false;
         },
-        getCurrentElapsed: function(currentAnimationTime) {
-            assert(this.currentNoteGroup < noteEventsBatched.length, "Should not call get elapsed when the note group is outside the limit");
-            assert(noteEventsBatched[this.currentNoteGroup].length != 0, "There should not be an empty batch of events.");
+        getCurrentElapsed: function() {
             return this.currentElapsed;
         },
         getCurrentGroup: function() {
@@ -1045,25 +1046,22 @@ function play(eventMap, tempoMap, midiState) {
         recentlySucceded: function() {
             return true;
         },
-        toBePlayed: function(key) {
-            return true;
+        toBePlayed: function(note) {
+            const currentGroup = noteEventsBatched[this.currentNoteGroup];
+            for (let event of currentGroup) {
+                if (event.note === note) return true;
+            }
+            return false;
         }, 
         addKey: function(key) {
             this.currentlyPressed.add(key);
         }
     };   
 
-    // TODO: How do I animate the transition from one state to the next?
-    // One simple way may just be to keep track of the previous and the current state and if they are differernt then we have a transition state. I am however not sure what to do if we change states quickly.
-
-    // How does the animation work? We need to change the elapsed slowly instead of instantly. So getCurrentElapsed should return something different from just the start of the note. 
-
-    function playAnimation(time) {
-        if (!playState.stepAnimation(time)) { return requestAnimationFrame(playAnimation); }
-        // console.log(playState.hasChanged)
-        playState.hasChanged = false;
-        ctx.clearRect(0, 0, canvas.width, topLineHeight);
-
+    // TODO: Scroll? 
+    // TODO: Select notes and group them (e.g. left-hand right-hand)
+    
+    function drawThing(time) {
         ctx.fillStyle = 'black'
         ctx.fillText("Current group: " + playState.currentNoteGroup, 100, 100);
         ctx.fillText("Time elapsed: " + Math.round(time)+"ms", 100, 120);
@@ -1071,15 +1069,11 @@ function play(eventMap, tempoMap, midiState) {
         ctx.fillText("Timeout started: " + timeoutHasStarted, 100, 140);
         ctx.fillText("Failed: " + playState.failedState, 100, 160);
 
-
         const elapsed = playState.getCurrentElapsed(time);
         // Draw groups
         const noteWidth = 20
         const timeFromTopToBottomMilliseconds = topLineHeight / msToPixel;
-        ctx.beginPath()
-        ctx.moveTo(0, topLineHeight);
-        ctx.lineTo(ctx.canvas.width, topLineHeight);
-        ctx.stroke();
+
         ctx.fillStyle = 'red';
         for (let i = 0; i < noteEventsBatched.length; ++i) {
             if (elapsed + timeFromTopToBottomMilliseconds < noteEventsBatched[i][0].startMs) break; // Stop processing more events since they wont be shown anyway. (Correctness requires input to be sorted)
@@ -1096,8 +1090,15 @@ function play(eventMap, tempoMap, midiState) {
                 const height = Math.min((event.endMs - event.startMs) * msToPixel, topLineHeight - top);
                 ctx.fillRect(left, top, noteWidth, height);
             }
-        } 
+        }
+    }
 
+    function playAnimation(time) {
+        const hasUpdated = playState.stepAnimation(time); 
+        if (!hasUpdated) { return requestAnimationFrame(playAnimation); }
+
+        ctx.clearRect(0, 0, canvas.width, topLineHeight);
+        drawThing(time);
         requestAnimationFrame(playAnimation);
     }
 
@@ -1152,7 +1153,10 @@ function play(eventMap, tempoMap, midiState) {
         }
     }
 
-    requestAnimationFrame(playAnimation);
+    requestAnimationFrame(time => {
+        drawThing(time);
+        playAnimation(time);
+    });
 
     // Maybe we can do this as an animation loop? So we check for correctness in the loop and only do midi events in this callback. The downside of this is that in theory we can press a key and release it efore it gets checked. Maybe this should just be checked. 
 }
