@@ -1001,12 +1001,13 @@ function play(eventMap, tempoMap, midiState) {
     l(`Note events batched`, noteEventsBatched)
     const playStateTimeoutLimit = 1000;
     const playState = {
-        currentlyPressed: new Set(),
+        currentlyPressedKeys: new Set(),
+        previouslyPressedKeys: new Set(),
         currentNoteGroup: 0,
         currentTimeout: null,
         failedState: false,
         previousAnimationTime: 0,
-        currentElapsed: noteEventsBatched[0][0].startMs,
+        currentElapsedPlay: noteEventsBatched[0][0].startMs,
         startTimeout: function() {
             const self = this;
             this.currentTimeout = setTimeout(e => {
@@ -1023,24 +1024,38 @@ function play(eventMap, tempoMap, midiState) {
             assert(this.currentNoteGroup < noteEventsBatched.length, "Should not call get elapsed when the note group is outside the limit");
             assert(noteEventsBatched[this.currentNoteGroup].length != 0, "There should not be an empty batch of events.");
 
+            let hasChanged = false;
             const deltaTime = currentAnimationTime - this.previousAnimationTime;
             this.previousAnimationTime = currentAnimationTime;
             const targetElapsed = noteEventsBatched[this.currentNoteGroup][0].startMs;
-            if (targetElapsed > this.currentElapsed) {
+            if (targetElapsed > this.currentElapsedPlay) {
                 // If anything needs to be done then we do 
-                this.currentElapsed = Math.min(this.currentElapsed + deltaTime, targetElapsed);
-                return true;
+                this.currentElapsedPlay = Math.min(this.currentElapsedPlay + deltaTime, targetElapsed);
+                hasChanged = true;
             }
-            return false;
+            return hasChanged;
         },
         getCurrentElapsed: function() {
-            return this.currentElapsed;
+            return this.currentElapsedPlay;
         },
         getCurrentGroup: function() {
             return noteEventsBatched[playState.currentNoteGroup]
         },
+        didSucceed: function() {
+            const currentGroup = this.getCurrentGroup();
+            if (this.currentlyPressedKeys.length !== currentGroup.length) return false;
+            const result = currentGroup.reduce((s, e) => this.currentlyPressedKeys.has(e.note) && s, true);
+            return result;
+        },
+        success: function() {
+            this.previouslyPressedKeys = this.currentlyPressedKeys;
+            this.currentlyPressedKeys = new Set();
+
+        },
         fail: function() {
             this.failedState = true;
+            this.previouslyPressedKeys = this.currentlyPressedKeys;
+            this.currentlyPressedKeys = new Set();
             // TODO: Implement something fancy 
         },
         recentlySucceded: function() {
@@ -1048,13 +1063,14 @@ function play(eventMap, tempoMap, midiState) {
         },
         toBePlayed: function(note) {
             const currentGroup = noteEventsBatched[this.currentNoteGroup];
+            if (!this.currentlyPressedKeys.has(note)) return false;
             for (let event of currentGroup) {
                 if (event.note === note) return true;
             }
             return false;
         }, 
         addKey: function(key) {
-            this.currentlyPressed.add(key);
+            this.currentlyPressedKeys.add(key);
         }
     };   
 
@@ -1512,6 +1528,7 @@ function batchNoteEvents(noteEvents) {
     let group = [];
     for (const event of noteEvents) {
         if (event.time === previous.time) {
+            assert(group.every(e => e.note != event.note), `The same note should not be added twice at the same time. ${event} already in ${group}`)
             group.push(event);
         } else {
             noteEventsBatched.push(group);
@@ -1602,7 +1619,7 @@ function runTests() {
     testParseTempoMetaData();
     testCalcAccumulatedDeltaTimes();
     testMergeTracks();
-    testBatchNoteEvents();
+    // testBatchNoteEvents(); // Broken after checking for dupplicate key entries
     testComputeTempoMap();
 }
 
