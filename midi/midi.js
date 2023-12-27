@@ -848,6 +848,121 @@ function createPointShape(framesPerSecond, startPosition, duration, createUpdate
 // ############# MAIN #############
 
 function main() {
+    const canvas = document.getElementById('note-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function drawGroup(ctx, group) {
+        const marginX = 450;
+        const marginY = 500;
+        
+        const width = 100;
+        const height = 80;
+        const offSetX = 10;
+        ctx.font = "48px Courier New";
+        ctx.textBaseline = 'middle'
+        ctx.textAlign = 'center'
+        for (const val of group) {
+            ctx.strokeRect(marginX + (width + offSetX) * (val-1), marginY, width, height)
+            ctx.fillText(val, marginX + (width + offSetX) * (val-1) + width / 2, marginY + height/2)
+        }
+    }
+
+    const numbers = 4;
+
+    // Test functionality I want on keyboard
+
+    function createRandomGroups(length) {
+        const result = [];
+        for (let i = 0; i < length; i++) {
+            const groupsSize = Math.round(Math.random() * numbers) + 1;
+            const values = shuffle([1,2,3,4]);
+            result.push(values.slice(numbers-groupsSize));
+        }
+        return result;
+    }
+
+    const state = {
+        // groups: [[1], [2], [3], [4], [5], [1, 2], [1,2, 3], [2,3,4, 5], [1,2,3,4, 5]],
+        groups: createRandomGroups(100),
+        currentGroupIndex: 0,
+        currentlyPressed: new Set()
+    }
+
+    function drawAllGroups() {
+        ctx.save();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.translate(0, state.currentGroupIndex * 100);
+        for (let i = 0; i < state.groups.length; i++) {
+            if (i === state.currentGroupIndex) {
+                ctx.strokeStyle = 'red'
+            } else {
+                ctx.strokeStyle = 'black'
+            }
+            drawGroup(ctx, state.groups[i])
+            ctx.translate(0, -100)
+        }
+        ctx.restore();
+        requestAnimationFrame(drawAllGroups);
+    }
+    requestAnimationFrame(drawAllGroups)
+
+    let currentOffset = 0;
+    function keyInGroup(key, currentGroup) {
+        return currentGroup.indexOf(key) >= 0;
+    }
+
+    const currentlyPressed = new Set();
+
+    // TODO: what happens if we miss a key up event because the window did not have focus?
+    window.addEventListener('keydown', e => {
+        let key = e.key;
+        if (currentlyPressed.has(key)) return;
+        currentlyPressed.add(key);
+
+        switch (key) {
+            case '1': 
+            case '2': 
+            case '3': 
+            case '4': 
+            case '5': 
+                state.currentlyPressed.add(Number(key));
+            break;
+            default: return
+        }
+
+        const currentGroup = state.groups[state.currentGroupIndex];
+
+        console.log(currentGroup, state.currentlyPressed)
+        if (currentGroup.length === state.currentlyPressed.size) {
+            const result = currentGroup.reduce((s, key) => state.currentlyPressed.has(key) && s, true);
+            if (result) {
+                state.currentGroupIndex += 1
+                console.log(state.currentGroupIndex)
+                state.currentlyPressed.clear()
+            }
+        }
+
+    });
+    window.addEventListener('onfocus', e => {
+        currentlyPressed.clear();
+    })
+    window.addEventListener('keyup', e => {
+        currentlyPressed.delete(e.key);
+        switch (e.key) {
+            case '1': 
+            case '2': 
+            case '3': 
+            case '4': 
+            case '5': 
+                state.currentlyPressed.delete(Number(e.key));
+            break;
+            default: return
+        }
+    });
+    
+    return
+
+
     runTests();
     const playbackState = initializePlaybackState();
     const midiState = initializeMidiState();
@@ -1135,27 +1250,29 @@ function play(eventMap, tempoMap, midiState) {
         if (event_type === MIDI_EVENT.NOTE_OFF || (event_type === MIDI_EVENT.NOTE_ON && event_velocity === 0)) { // Note off event
             // If we successfuly finished the last group. Don't do anything
             // Otherwise we fail
-            if (playState.recentlySucceded()) {
-
-            } else {
-                playState.fail()
-            }
-        } else if (event_type === MIDI_EVENT.NOTE_ON) { // Note on event
-            if (playState.currentTimeout === null) {
-                playState.startTimeout();
-            }
             const key = e.data[1];
-            if (playState.toBePlayed(key)) { 
-                playState.addKey(key);
-            } else {
-                playState.fail();
-            }
+            state.currentlyPressedKeys.delete(key);
+            // if (playState.recentlySucceded()) {
+
+            // } else {
+            //     playState.fail()
+            // }
+        } else if (event_type === MIDI_EVENT.NOTE_ON) { // Note on event
+            // if (playState.currentTimeout === null) {
+            //     playState.startTimeout();
+            // }
+            const key = e.data[1];
+            // if (playState.toBePlayed(key)) { 
+            playState.addKey(key);
+            // } else {
+            //     playState.fail();
+            // }
         }
         
         // Did we successfully play the whole thing?
         const currentGroup = playState.getCurrentGroup(); 
         if (playState.didSucceed()) {
-            playState.cancelTimeout();
+            // playState.cancelTimeout();
             playState.nextGroup();
 
             // const success = currentGroup.reduce((s, e) => currentlyPressed.has(e.note) && s, true);
