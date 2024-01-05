@@ -27,7 +27,8 @@ const world = {
     // How can we quickly represent a simple 2 dimensional world? (How should we extend this to 3D? Should we even do that? Why? Let us put in the maybe)
     // We can represent the world as a series of polygons 
     // Maybe the easiest first thing to do is to represent it as a 2 dimensional array with blocks
-
+    width: 20,
+    height: 20,
     map: [
         [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
         [2, 2, 2, 2, 0, 0, 0, 0, 2, 2, 2, 2, 0, 0, 0, 0, 0, 2, 2, 2],
@@ -75,6 +76,33 @@ function drawCursor(ctx, mouseState) {
     ctx.fill()
 }
 
+function drawWorld(ctx, world, camera) {
+    const squarePixelSize = 100;
+    ctx.strokeStyle = 'black'
+    for (let x = 0; x < world.width; x++) {
+        for (let y = 0; y < world.height; y++) {
+            switch (world.map[y][x]) {
+                case 2: {
+                    ctx.fillStyle = 'gray';
+                } break;
+                case 1: {
+                    ctx.fillStyle = 'blue';
+                } break;
+                case 0: {
+                    ctx.fillStyle = 'green';
+                } break;
+                default: {
+                    l('Unknown map square', world.map[y][x])
+                }
+            }
+            ctx.fillRect(x * squarePixelSize - camera.position.x, y * squarePixelSize - camera.position.y, squarePixelSize, squarePixelSize);
+            ctx.strokeRect(x * squarePixelSize - camera.position.x, y * squarePixelSize - camera.position.y, squarePixelSize, squarePixelSize);
+        }
+    }
+}
+
+// TODO: Draw map
+// We first ignore camera and just say that 
 function draw(t) {
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
@@ -82,14 +110,16 @@ function draw(t) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save()
 
-    for (const entity of entities) {
-        entity.draw(ctx, camera);
-    }
+    drawWorld(ctx, world, camera)
+
+    // for (const entity of entities) {
+    //     entity.draw(ctx, camera);
+    // }
 
     ctx.restore()
     if (mouseState.dragStartPosition !== null) {
         drawSelectionBox(ctx, mouseState.dragStartPosition, mouseState.position);
-        l(mouseState.dragStartPosition, mouseState.position)
+        // l(mouseState.dragStartPosition, mouseState.position)
     }
 
     if (document.pointerLockElement === canvas && mouseState.cameraDrag === null) {
@@ -199,7 +229,7 @@ function initialize() {
     }
 
     const settings = {
-        cameraSpeedDrag: 0.2,
+        cameraSpeedDrag: 2,
         cameraSpeedArrow: 10,
         mouseSpeed: 1
     }
@@ -207,12 +237,15 @@ function initialize() {
     var highestXDiff = 0;
     var highestYDiff = 0;
     function mouseMove(e) {
-        // Weird bug fix. 
-        if (Math.abs(e.movementX) > 100) {l(e); return}
-        if (Math.abs(e.movementY) > 100) {l(e); return}
+        // Weird bug fix for problem when mouse suddenly moves too fast. 
+        if (Math.abs(e.movementX) > 100) {l('too fast', e); return}
+        if (Math.abs(e.movementY) > 100) {l('too fast', e); return}
 
         // TODO: Handle things with a locked curser and MovementX / MovementY mouse event properties
         if (mouseState.cameraDrag !== null) {
+            // TODO: Clamp based on world boundaries
+            camera.position.x = clamp(-100, 500, camera.position.x + e.movementX * settings.cameraSpeedDrag);
+            camera.position.y = clamp(-100, 1180, camera.position.y + e.movementY * settings.cameraSpeedDrag);
 
         } else {
             highestXDiff = Math.max(highestXDiff, Math.abs(e.movementX));
