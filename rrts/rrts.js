@@ -21,6 +21,10 @@ const camera = {
     viewPort: {width: 1920, height: 1080}
 }
 
+const gameState = {
+    selectedEntities: [],
+}
+
 const entities = [];
 
 const world = {
@@ -101,6 +105,28 @@ function drawWorld(ctx, world, camera) {
     }
 }
 
+function drawMinimap(ctx) {
+
+}
+
+function drawBottomThingy(ctx, gameState) {
+    const bottom = ctx.canvas.height;
+    const height = 200;
+    const width = ctx.canvas.width;
+    ctx.fillStyle = 'rgba(50, 50, 50)'
+    ctx.fillRect(0, bottom - height, width, height);
+
+
+    ctx.fillStyle = 'white'
+    ctx.font = 'Bold 48px serif'
+    ctx.fillText(String(gameState.selectedEntities.length), 250, bottom - height + 50)
+
+    // MINIMAP (TODO: DRAW BASED ON WORLD MAP)
+    ctx.fillStyle = 'rgba(255, 50, 50)'
+    ctx.fillRect(0, bottom - height, height, height);
+
+}
+
 // TODO: Draw map
 // We first ignore camera and just say that 
 function draw(t) {
@@ -122,6 +148,8 @@ function draw(t) {
         drawSelectionBox(ctx, mouseState.dragStartPosition, mouseState.position);
         // l(mouseState.dragStartPosition, mouseState.position)
     }
+
+    drawBottomThingy(ctx, gameState);
 
     if (document.pointerLockElement === canvas && mouseState.cameraDrag === null) {
         drawCursor(ctx, mouseState);
@@ -230,6 +258,7 @@ function initialize() {
         l(e)
         switch(e.button) {
             case MOUSE_LEFT_BUTTON: {
+                entities.forEach(entity => { entity.selected = false; })
                 const selectionBoxCornerA = canvasCoordinatesToWorldCoordinates(mouseState.position, camera);
                 const selectionBoxCornerB = canvasCoordinatesToWorldCoordinates(mouseState.dragStartPosition, camera);
                 const r = findEntitiesInBox(entities, selectionBoxCornerA, selectionBoxCornerB);
@@ -238,6 +267,7 @@ function initialize() {
                     entity.hovered = false;
                     entity.selected = true;
                 })
+                gameState.selectedEntities = r;
                 mouseState.dragStartPosition = null;
             } break;
             case MOUSE_MIDDLE_BUTTON: {
