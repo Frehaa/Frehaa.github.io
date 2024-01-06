@@ -96,7 +96,7 @@ function drawWorld(ctx, world, camera) {
                 }
             }
             ctx.fillRect(x * squarePixelSize - camera.position.x, y * squarePixelSize - camera.position.y, squarePixelSize, squarePixelSize);
-            ctx.strokeRect(x * squarePixelSize - camera.position.x, y * squarePixelSize - camera.position.y, squarePixelSize, squarePixelSize);
+            // ctx.strokeRect(x * squarePixelSize - camera.position.x, y * squarePixelSize - camera.position.y, squarePixelSize, squarePixelSize);
         }
     }
 }
@@ -112,9 +112,10 @@ function draw(t) {
 
     drawWorld(ctx, world, camera)
 
-    // for (const entity of entities) {
-    //     entity.draw(ctx, camera);
-    // }
+    ctx.translate(-camera.position.x, -camera.position.y)
+    for (const entity of entities) {
+        entity.draw(ctx);
+    }
 
     ctx.restore()
     if (mouseState.dragStartPosition !== null) {
@@ -138,29 +139,41 @@ function mouseEventToCanvasCoordinates(e, canvas) {
 
 function canvasCoordinatesToWorldCoordinates(coords, camera) {
     return {
-        x: coords.x + camera.position.x - camera.canvas.width/2,
-        y: coords.y + camera.position.y - camera.canvas.height/2
+        x: coords.x + camera.position.x,
+        y: coords.y + camera.position.y
     };
 }
 
+class Entity {
+    constructor(x, y) {
+        this.position = {x, y};
+        this.selected = false;
+        this.hovered = false;
+    }
+
+    draw(ctx) {
+        ctx.fillStyle = 'blue'
+        ctx.beginPath();
+        ctx.arc(this.position.x, this.position.y, 30, 0, 2 * Math.PI);
+        ctx.fill()
+        if (this.selected) {
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 3
+            ctx.stroke();
+        }
+        else if (this.hovered) {
+            ctx.strokeStyle = 'green';
+            ctx.lineWidth = 3
+            ctx.stroke();
+        }
+    }
+}
 
 function initialize() {
     const canvas = document.getElementById('canvas');
     camera.canvas = canvas;
 
-    function circleDraw(position, ctx, camera) {
-        const x = position.x - camera.position.x + canvas.width/2;
-        const y = position.y - camera.position.y + canvas.height/2;
-        ctx.fillStyle = 'blue'
-        ctx.beginPath();
-        ctx.arc(x, y, 5, 0, 2 * Math.PI);
-        ctx.fill()
-    }
-
-    const entity = {
-        position: {x: 0, y: 0},
-        draw: (ctx, camera) => {circleDraw(entity.position, ctx, camera)},
-    }
+    const entity = new Entity(250, 100)
     entities.push(entity)
 
     // Prevent right click from opening context menu
@@ -203,10 +216,8 @@ function initialize() {
                e.preventDefault()
             } break;
             case MOUSE_RIGHT_BUTTON: {
-                const newEntity = {
-                    position: canvasCoordinatesToWorldCoordinates(mouseState.position, camera),
-                    draw: (ctx, camera) => circleDraw(newEntity.position, ctx, camera),
-                }
+                const position = canvasCoordinatesToWorldCoordinates(mouseState.position, camera);
+                const newEntity = new Entity(position.x, position.y);
                 entities.push(newEntity)
                 l(entities)
             } break;
@@ -219,6 +230,14 @@ function initialize() {
         l(e)
         switch(e.button) {
             case MOUSE_LEFT_BUTTON: {
+                const selectionBoxCornerA = canvasCoordinatesToWorldCoordinates(mouseState.position, camera);
+                const selectionBoxCornerB = canvasCoordinatesToWorldCoordinates(mouseState.dragStartPosition, camera);
+                const r = findEntitiesInBox(entities, selectionBoxCornerA, selectionBoxCornerB);
+                l('lift', r)
+                r.forEach(entity => {
+                    entity.hovered = false;
+                    entity.selected = true;
+                })
                 mouseState.dragStartPosition = null;
             } break;
             case MOUSE_MIDDLE_BUTTON: {
@@ -227,6 +246,32 @@ function initialize() {
             } break;
         }
     }
+
+    function findEntitiesInBox(entities, topLeft, bottomRight) {
+        if (topLeft.x > bottomRight.x) {
+            const tmp = topLeft.x;
+            topLeft.x = bottomRight.x;
+            bottomRight.x = tmp;
+        }
+        if (topLeft.y > bottomRight.y) {
+            const tmp = topLeft.y;
+            topLeft.y = bottomRight.y;
+            bottomRight.y = tmp;
+        }
+
+        const result = [];
+        for (const entity of entities) {
+            if (topLeft.x <= entity.position.x && entity.position.x <= bottomRight.x &&
+                topLeft.y <= entity.position.y && entity.position.y <= bottomRight.y)  
+                {
+                    result.push(entity);
+                }
+        }
+        return result;
+    }
+
+    l(findEntitiesInBox(entities, {x: 0, y: 0}, {x:1000, y: 1000}))
+    l(findEntitiesInBox(entities, {x: 500, y: 500}, {x:1000, y: 1000}))
 
     const settings = {
         cameraSpeedDrag: 2,
@@ -246,13 +291,26 @@ function initialize() {
             // TODO: Clamp based on world boundaries
             camera.position.x = clamp(-100, 500, camera.position.x + e.movementX * settings.cameraSpeedDrag);
             camera.position.y = clamp(-100, 1180, camera.position.y + e.movementY * settings.cameraSpeedDrag);
-
         } else {
             highestXDiff = Math.max(highestXDiff, Math.abs(e.movementX));
             highestYDiff = Math.max(highestYDiff, Math.abs(e.movementY));
             mouseState.position.x = clamp(0, 1920, mouseState.position.x + e.movementX * settings.mouseSpeed);
             mouseState.position.y = clamp(0, 1080, mouseState.position.y + e.movementY * settings.mouseSpeed);
-            // l(highestXDiff, highestYDiff)
+        }
+
+        if (mouseState.dragStartPosition !== null) {
+            // Find all entities in area
+                const selectionBoxCornerA = canvasCoordinatesToWorldCoordinates(mouseState.position, camera);
+                const selectionBoxCornerB = canvasCoordinatesToWorldCoordinates(mouseState.dragStartPosition, camera);
+                const r = findEntitiesInBox(entities, selectionBoxCornerA, selectionBoxCornerB);
+                entities.forEach(entity => {
+                    entity.hovered = false;
+                })
+                r.forEach(entity => {
+                    entity.hovered = true;
+                });
+
+            // l('start',mouseState.dragStartPosition.x, mouseState.dragStartPosition.y, 'current', mouseState.position.x, mouseState.position.y)
         }
 
         // if (mouseState.cameraDrag !== null) { // TODO: mouse position should not move
