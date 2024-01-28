@@ -74,22 +74,24 @@ const world = {
     ]
 }
 
+// Connect faces if they share a common edge 
 const navigationMesh = {
-    convexes: [ 
-        [ 
-            [40, 40], [500, 40], [500, 500], [40, 500]
-        ],
-        [
-            [500, 40], [1000, 40], [1000, 500], [500, 500]
-        ],
-        [
-            [40, 500], [1000, 500], [1000, 1000], [40, 1000]
-        ]
+    faces: [ 
+        [ [40, 40], [500, 40], [40, 500] ],
+        [ [40, 500], [500, 40], [500, 500] ],
+        [ [500, 40], [1000, 40], [500, 500] ],
+        [ [1000, 40], [1000, 500], [500, 500] ],
+        [ [40, 500], [1000, 500], [40, 1000] ],
+        [ [1000, 500], [1000, 1000], [40, 1000] ]
+
     ],
     connections: [
-        [0, 1],
-        [0,2],
-        [1, 2]
+        [1],
+        [0,2,4],
+        [1,3],
+        [2, 4],
+        [1, 3, 5],
+        [4]
     ]
 }
 
@@ -213,23 +215,29 @@ function calculateConvexPolygonCenter(convexPolygon) {
 }
 
 function drawNavigationMesh(ctx, camera) {
-    const convexes = navigationMesh.convexes;
+    const triangles = navigationMesh.faces;
     ctx.fillStyle = 'rgba(50, 60, 200, 0.7)';
     ctx.lineWidth = 3
     ctx.strokeStyle = 'rgba(50, 60, 200, 1)';
 
-    for (const convex of convexes) {
+    for (let i = 0; i < triangles.length; i++) {
+        const triangle = triangles[i];
         ctx.beginPath();
-        ctx.moveTo(convex[0][0] - camera.position.x, convex[0][1] - camera.position.y);
-        for (let i = 0; i < convex.length; i++) {
-            const [x, y] = convex[i];
+        ctx.moveTo(triangle[0][0] - camera.position.x, triangle[0][1] - camera.position.y);
+        for (let i = 0; i < triangle.length; i++) {
+            const [x, y] = triangle[i];
             ctx.lineTo(x - camera.position.x, y - camera.position.y);
         }
         ctx.closePath();
         ctx.fill()
         ctx.stroke();
 
-        // const center = findConvexCenter(convex, ctx);
+        const center = calculateConvexPolygonCenter(triangle, ctx);
+
+        ctx.fillStyle = 'black'
+        ctx.fillText(i, center[0] - camera.position.x, center[1] - camera.position.y);
+        ctx.fillStyle = 'rgba(50, 60, 200, 0.7)';
+
         // ctx.save()
         // ctx.fillStyle = 'black'
         // ctx.beginPath()
@@ -238,28 +246,42 @@ function drawNavigationMesh(ctx, camera) {
         // ctx.restore()
     }
 
+    // LINE BETWEEN TRIANGLES
     ctx.fillStyle = 'black';
     ctx.strokeStyle = 'black';
     ctx.lineWidth = 3
-    for (const connection of navigationMesh.connections) {
-        const convexA = convexes[connection[0]];
-        const convexB = convexes[connection[1]];
-
-        const centerA = calculateConvexPolygonCenter(convexA);
-        const centerB = calculateConvexPolygonCenter(convexB);
-
-
-        ctx.beginPath();
-        ctx.moveTo(centerA[0], centerA[1]);
-        ctx.lineTo(centerB[0], centerB[1]);
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.arc(centerA[0], centerA[1], 10, 0, 2 * Math.PI);
-        ctx.arc(centerB[0], centerB[1], 10, 0, 2 * Math.PI);
-        ctx.fill()
-        
+    for (let i = 0; i < triangles.length; i++) {
+        const triangleA = triangles[i];
+        const centerA = calculateConvexPolygonCenter(triangleA);
+        l(i)
+        for (let j = 0; j < navigationMesh.connections[i].length; j++) {
+            const index = navigationMesh.connections[i][j];
+            const triangleB = navigationMesh.faces[index];
+            const centerB = calculateConvexPolygonCenter(triangleB);
+            ctx.beginPath();
+            ctx.moveTo(centerA[0], centerA[1]);
+            ctx.lineTo(centerB[0], centerB[1]);
+            ctx.stroke();           
+        }
     }
+    // for (const connection of navigationMesh.connections) {
+    //     const convexA = convexes[connection[0]];
+    //     const convexB = convexes[connection[1]];
+
+    //     const centerA = calculateConvexPolygonCenter(convexA);
+    //     const centerB = calculateConvexPolygonCenter(convexB);
+
+
+    //     ctx.beginPath();
+    //     ctx.moveTo(centerA[0], centerA[1]);
+    //     ctx.lineTo(centerB[0], centerB[1]);
+    //     ctx.stroke();
+
+    //     ctx.beginPath();
+    //     ctx.arc(centerA[0], centerA[1], 10, 0, 2 * Math.PI);
+    //     ctx.arc(centerB[0], centerB[1], 10, 0, 2 * Math.PI);
+    //     ctx.fill()
+    // }
 }
 
 function drawBottomThingy(ctx, gameState) {
@@ -388,6 +410,10 @@ function positionToTile(position) {
     return world.map[y][x];
 }
 
+function isPositionInPolygon(polygon, position) {
+    return true;
+}
+
 class Entity {
     constructor(x, y, speed, width, height) {
         this.position = {x, y};
@@ -396,6 +422,16 @@ class Entity {
         this.speed = speed;
         this.moveTarget = [];
         this.size = { width, height };
+        
+        this.currentNavMeshTileIndex = null;
+        for (let i = 0; i < navigationMesh.faces.length; i++) {
+            const convex = navigationMesh.faces[i];
+            if (isPositionInPolygon(convex, this.position)) {
+                this.currentNavMeshTileIndex = i;
+                break;
+            }
+        }
+        l(this.currentNavMeshTileIndex, navigationMesh.faces[this.currentNavMeshTileIndex]);
     }
 
     draw(ctx) {
@@ -470,22 +506,10 @@ class Entity {
         // l(dt, this.position, direction)
         const newPosition = addVec2(scaleVec2((dt/1000) * this.speed, direction), this.position);
 
-        const targetTile = positionToTile(newPosition);
-        if (targetTile === null) {
-            // SOME WEIRD HAPPENED
-            console.log("The entity move outside the map somehow?")
-            return;
-        }
-        if (targetTile > 0) { // Cannot walk on this
-            // TODO: Move as close as possible => orthogonal(?) to the wall and the point
-            
-            // this.position = this.position;
-            // l(positionToTile(this.position))
-        }
 
         // TODO: Properly handle the multimove
         // Make sure target stops exactly where we click and no longer tries to move after
-        else if (pointBetween(nextMove, this.position, newPosition)) {
+        if (pointBetween(nextMove, this.position, newPosition)) {
             this.position = nextMove;
             // TODO: use a queue instead or something
             this.moveTarget.shift(); // REMOVE THE NEXT MOVE
