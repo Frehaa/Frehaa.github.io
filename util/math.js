@@ -80,3 +80,34 @@ function solveQuadraticEquation(a/*:number\*/, b/*:number\*/, c/*:number\*/) {
   const x2 = (-b - sqrtDiscriminant) / (2*a)
   return [x1, x2];
 }
+
+function solveLinearEquations(matrix, vector) {
+  // TODO: Generalize
+  // const m = matrix.height;
+  // const n = matrix.width;
+  // if (vector.dimensions !== n) throw new Error("Invalid input");
+
+
+  const a = matrix[0][0];
+  const b = matrix[0][1];
+  const c = matrix[1][0];
+  const d = matrix[1][1];
+
+  // Assuming 2x2 matrix and 2d vector
+
+  // Add 1 row vector to the other until one variable is removed. (if both are removed then an infinite number of solutions exists)
+}
+
+function pointToBarycentric(point, triangle) { 
+    const [xa, ya, xb, yb, xc, yc] = triangle;
+    const [x, y] = point;
+
+    const bn = (ya - yc) * x + (xc - xa) * y + xa * yc - xc * ya;
+    const bd = (ya - yc) * xb + (xc - xa) * yb + xa * yc - xc * ya;
+    const beta = bn/bd;
+    const gn = (ya - yb) * x + (xb - xa) * y + xa * yb - xb * ya;
+    const gd = (ya - yb)*xc + (xb - xa) * yc + xa * yb - xb * ya;
+    const gamma = gn/gd;
+    const alpha = 1 - beta - gamma;
+    return [alpha, beta, gamma]
+}
