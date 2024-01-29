@@ -74,6 +74,11 @@ const world = {
     ]
 }
 
+// TODO?: Color picker? Do I need it for my game with my color scheme? Probably.
+
+// TODO: Figure out if the points of the faces should be in clockwise or counterclockwise position, or whether it does not matter. (Right now they seem to be clockwise)
+// This matters for some tests for (1) points in triangle, (2) for the determinant, (3) ??? add more if I find 
+
 // Connect faces if they share a common edge 
 const navigationMesh = {
     faces: [ 
@@ -95,7 +100,15 @@ const navigationMesh = {
     ]
 }
 
+// TODO: To test function, loop over all positions in area of navigation mesh
+
 // TODO: Customizable selection box
+
+function pointInTriangle(point, triangle) {
+
+
+}
+
 
 function drawSelectionBox(ctx, start, end) {
     const width = end.x - start.x;
@@ -253,14 +266,13 @@ function drawNavigationMesh(ctx, camera) {
     for (let i = 0; i < triangles.length; i++) {
         const triangleA = triangles[i];
         const centerA = calculateConvexPolygonCenter(triangleA);
-        l(i)
         for (let j = 0; j < navigationMesh.connections[i].length; j++) {
             const index = navigationMesh.connections[i][j];
             const triangleB = navigationMesh.faces[index];
             const centerB = calculateConvexPolygonCenter(triangleB);
             ctx.beginPath();
-            ctx.moveTo(centerA[0], centerA[1]);
-            ctx.lineTo(centerB[0], centerB[1]);
+            ctx.moveTo(centerA[0] - camera.position.x, centerA[1] - camera.position.y);
+            ctx.lineTo(centerB[0] - camera.position.x, centerB[1] - camera.position.y);
             ctx.stroke();           
         }
     }
