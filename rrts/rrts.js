@@ -105,10 +105,10 @@ const navigationMesh = {
 // TODO: Customizable selection box
 
 function pointInTriangle(point, triangle) {
-
-
+    // TODO: check bounding box first
+    const [alpha, beta, gamma] = pointToBarycentric(point, triangle)
+    return alpha >= 0 && beta >= 0 && gamma >= 0;
 }
-
 
 function drawSelectionBox(ctx, start, end) {
     const width = end.x - start.x;
@@ -576,8 +576,11 @@ function initialize() {
         l(e)
         switch(e.button) {
             case MOUSE_LEFT_BUTTON: { // TODO: Movement should be done every frame after pressing down, not until it starts repeating
-                l(mouseState.position)
                 mouseState.dragStartPosition = { ...mouseState.position };
+
+
+                l(mouseState.position)
+
             } break;
             case MOUSE_MIDDLE_BUTTON: {
                mouseState.cameraDrag = { ...mouseState.position };
@@ -591,8 +594,28 @@ function initialize() {
                     } 
                     e.moveTarget.push(position);
                 });
+
+                // Manual test
+                // navigationMesh.faces.forEach((triangle, index) => {
+                //     if (pointInTriangle([position.x, position.y], triangle.flatMap(a => a))) {
+                //         l("Mouse click in triangle", index)
+                //     }
+                // });
+
             } break;
             default: {}
+        }
+    }
+
+    for (let y = 40; y <= 1000; y++) {
+        for (let x = 40; x <= 1000; x++) {
+            const result = navigationMesh.faces.findIndex(triangle => {
+                return pointInTriangle([x, y], triangle.flat());
+            })
+            if (result < 0) {
+                l(x, y, result)
+            }
+
         }
     }
 
