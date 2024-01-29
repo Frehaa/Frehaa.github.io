@@ -89,13 +89,29 @@ function drawTree(ctx, list, topLeft) {
 // With this many children I can calculate how much space I need based on the size of each node and the buffer between nodes
 // Is this easier to make a recursive or itterative? The children should be easy to make as iterative, but parents is a bit of a pain.
 
-function sample(list) {
+
+function sample(node, currentPhase) {
+    let result = [];
+    const list = node.up;
     const m = list.length;
-    const result = [];
-    for (let i = 0; i < Math.floor(m/4); i++) {
-        result.unshift(list[m - 3 - 4 * i]);
+
+    if (node.externalPhase === -1 || node.externalPhase === currentPhase) { // "For the first stage in which u is external, phase 1 is unchanged"
+        for (let i = 0; i < Math.floor(m/4); i++) {
+            result.unshift(list[m - 3 - 4 * i]);
+        }
+    } else if ((node.externalPhase + 1) === currentPhase) { // "For the second stage, SUP(u) is defined to be every second item in UP(u)"
+        // Paper states "Every second element", but this time not which way it is measured. 
+        // I assume that it is still from the right end and then it should probably look something like the following?
+        for (let i = 0; i < Math.floor(m/2); i++) {
+            result.unshift(list[m - 1 - 2 * i]);
+        }
+    } else {//if ((node.externalPhase + 2) === currentPhase){ // "For the third stage, SUP(u) is defined to be every item in UP(u) in sorted order"
+        result = result.concat(node.up);
     }
-    return result;
+    // else {
+    //     throw new Error('No need to sample again')
+    // }
+    return result;        
 }
 
 const state = {
@@ -105,15 +121,20 @@ const state = {
 
 class Leaf {
     constructor(value) {
-        this.value = value;
+        this.up = value;
+        this.sampleUp = [];
+        this.externalPhase = 1 // Phase in which the node became external
     } 
 }
 
 class Node {
     constructor(value) {
-        this.value = value;
+        this.oldUp = [];
+        this.up = value;
+        this.newUp = [];
         this.leftChild = null;
         this.rightChild = null;
+        this.externalPhase = -1; // -1 means the node is still internal
     }
 }
 
@@ -135,7 +156,7 @@ function initialize()  {
     const ctx = canvas.getContext('2d');
 
     // let list = [26,23,14,11,24,6,7,8,28,29,27,5,2,25,18,13,20,22,12,19,3,10,15,30,17,21,1,31,0,4,9,16];
-    // let list = [14,4,0,13,7,11,2,15,8,6,1,5,9,12,10,3];
+    let list = [6,1,5,9,12,10,3,8];
     // const spliceSize = 8;
     // let upLists = [
     //     list.splice(0, spliceSize).sort((a, b) => a - b), 
@@ -144,47 +165,91 @@ function initialize()  {
     //     list.splice(0, spliceSize).sort((a, b) => a - b), 
     // ];
 
-    let list = [26,23,14,11,24,6,7,8,28,29,27,5,2,25,18,13,20,22,12,19,3,10,15,30,17,21,1,31,0,4,9,16];
+    // let list = [26,23,14,11,24,6,7,8,28,29,27,5,2,25,18,13,20,22,12,19,3,10,15,30,17,21,1,31,0,4,9,16];
     // drawTree(ctx, list, [500, 50], Math.log2(list.length));
     drawTreeBySize(ctx, list, 100, 500, 1000, 500)
 
     let t = createTree(list, "ROOT");
-    const phases = [t];
-    while (t.value.length !== list.length) {
-        t = nextPhase(t);
+    const phases = [];
+    let currentPhase = 1;
+    while (t.up.length !== list.length) {
+        t = nextPhase(t, currentPhase);
         phases.push(t);
+        currentPhase += 1
+        if (currentPhase >= 50) break;
     }
-
     l(phases)
+
+    // CODE FOR DRAWING TREE
+    drawMyTree(ctx, phases[0]);
+    // CODE FOR CHANGING PHASE
+    // CODE FOR INSPECTING NODE OF TREE
 }
 
-function nextPhase(tree) {
-    const copy = copyTree(tree);
-    updateNode(copy);
-    return copy;
+function countLeaves(node) {
+    if (node instanceof Leaf) return 1;
+    return countLeaves(node.leftChild) + countLeaves(node.rightChild);
 }
 
-function updateNode(node) {
-    if (node instanceof Leaf) return node;
+function countNodes(node) {
+    if (node instanceof Leaf) return 1;
+    return countNodes(node.leftChild) + countNodes(node.rightChild) + 1;
+}
 
-    const newValue = node.leftChild.value.concat(node.rightChild.value);
-    newValue.sort((a, b) => a-b);
-    if (newValue.length !== 0) {
-        node.value = newValue;
-    }
-    updateNode(node.leftChild);
-    updateNode(node.rightChild);
+function drawMyTree(ctx, node) {
+    const leaves = countLeaves(node);
+    const size = countNodes(node);
+
+    // Calculate how much space we need / how big nodes can be (the biggest issue is width)
+
+    l(leaves, size)
+
+}
+
+function nextPhase(tree, currentPhase) {
+    updateNode(tree, currentPhase);
+    return copyTree(tree, currentPhase);
+}
+
+function merge(nodeA, nodeB) {
+    let result = nodeA.sampleUp.concat(nodeB.sampleUp);
+    result.sort((a, b) => a-b); // CHEAT UNTIL WE IMPLEMENT THE MERGING PROCEDURE
+    return result;
+}
+
+function updateNode(node, currentPhase) {
+    node.sampleUp = sample(node, currentPhase); // Phase 1 (Form the array SUP(u))
+    if (node.externalPhase >= 0) return node;   // "At external nodes, Phase 2 is not performed"
+    
+    updateNode(node.leftChild, currentPhase);
+    updateNode(node.rightChild, currentPhase);
+
+    node.newUp = merge(node.leftChild, node.rightChild); 
+    // const newUp = 
+    // if (newUp.length !== 0) {
+    //     node.newUp = newUp;
+    // }
     return node;
 }
 
-function copyTree(node) {
+function copyTree(node, currentPhase) {
     if (node instanceof Leaf) {
-        return new Leaf(node.value);
-    }
+        return new Leaf(node.up);
+    } 
     const newNode = new Node();
-    newNode.value = node.value;
-    newNode.leftChild = copyTree(node.leftChild);
-    newNode.rightChild = copyTree(node.rightChild);
+    if (node.externalPhase === -1) { // Only update if we are still an internal node
+        newNode.up = node.newUp;
+        newNode.oldUp = node.up;
+    } else {
+        newNode.up = node.up;
+        newNode.oldUp = node.oldUp;
+    }
+    newNode.leftChild = copyTree(node.leftChild, currentPhase);
+    newNode.rightChild = copyTree(node.rightChild, currentPhase);
+
+    if (newNode.externalPhase === -1 && newNode.leftChild.externalPhase !== -1 && newNode.rightChild.externalPhase !== -1 && newNode.up.length === (newNode.leftChild.up.length + newNode.rightChild.up.length)) {
+        newNode.externalPhase = currentPhase;
+    }
     return newNode;
 }
 
