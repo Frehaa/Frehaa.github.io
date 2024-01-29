@@ -32,13 +32,28 @@ function drawMouseCartesianPosition(ctx) {
     ctx.fillText(text, 100, 100);
 }
 
-function pointToBarycentric(point, triangle) { // TODO: calculate
-    return [0, 0, 0]
+function pointToBarycentricMethod1(point, triangle) { 
+    const [xa, ya, xb, yb, xc, yc] = triangle;
+    const {x, y} = point;
+
+    const bn = (ya - yc) * x + (xc - xa) * y + xa * yc - xc * ya;
+    const bd = (ya - yc) * xb + (xc - xa) * yb + xa * yc - xc * ya;
+    const beta = bn/bd;
+    const gn = (ya - yb) * x + (xb - xa) * y + xa * yb - xb * ya;
+    const gd = (ya - yb)*xc + (xb - xa) * yc + xa * yb - xb * ya;
+    const gamma = gn/gd;
+    const alpha = 1 - beta - gamma;
+    return [alpha, beta, gamma]
+}
+
+function pointToBarycentricMethod2(point, triangle) { 
+    // TODO: calculate based on signed areas
+    
 }
 
 function drawMouseBarycentricPosition(ctx) {
     const precision = 2
-    const [alpha, beta, gamma] = pointToBarycentric(state.mousePosition, state.triangle);
+    const [alpha, beta, gamma] = pointToBarycentricMethod1(state.mousePosition, state.triangle);
     // const text = "Mouse barycentric coordinates: (α="+alpha.toFixed(precision) + ", β=" + beta.toFixed(precision) + ", γ=" + gamma.toFixed(precision) + ")";
     const text = "Mouse barycentric coordinates: ("+alpha.toFixed(precision) + ", " + beta.toFixed(precision) + ", " + gamma.toFixed(precision) + ")";
     ctx.font = '32px ariel'
