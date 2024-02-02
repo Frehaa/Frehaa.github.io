@@ -81,17 +81,187 @@ function solveQuadraticEquation(a/*:number\*/, b/*:number\*/, c/*:number\*/) {
   return [x1, x2];
 }
 
+class Matrix {
+  constructor(rows, columns) {
+    this.rows = rows;
+    this.columns = columns;
+    this.values = [];
+    for (let i = 0; i < rows; i++) {
+      const row = [];
+      for (let j = 0; j < columns; j++) {
+        row.push(0);
+      }
+      this.values.push(row);
+    }
+  }
+  setValue(row, column, value) {
+    this.values[row][column] = value;
+  }
+  setRow(row, values) {
+    if (values.length !== this.columns) throw new Error('Invalid size: There are not as many values as columns.');
+    this.values[row] = values;
+  }
+  setColumn(column, values) {
+    if (values.length !== this.rows) throw new Error('Invalid size: There are not as many values as rows.');
+    for (let i = 0; i < this.rows; i++) {
+      this.values[i][column] = values[i];
+    }
+  }
+  getValue(row, column) {
+    return this.values[row][column];
+  }
+  toString() {
+    const output = [];
+    for (let i = 0; i < this.rows; i++) {
+      output.push("| ");
+      for (let j = 0; j < this.columns; j++) {
+        output.push(this.values[i][j] + " ");
+      }
+      output.push("|\n");
+    }
+    return output.join("");
+  }
+}
+
+function reduceRow(matrix, vector, baseRow, targetRow, column) {
+  const n = matrix.columns;
+  const multiplier = matrix.getValue(targetRow, column)/matrix.getValue(baseRow,column);
+
+  for (let j = 0; j < n; j++) {
+    matrix.setValue(targetRow, j, matrix.getValue(targetRow,j) - multiplier * matrix.getValue(baseRow, j));
+  }
+  matrix.setValue(targetRow, column, 0);
+  vector[targetRow] = vector[targetRow] - multiplier * vector[baseRow];
+}
+
+// Assumes the only non-zero value in the matrix row is given by column
+function reduceSelfRow(matrix, vector, row, column) {
+  vector[row] = vector[row] / matrix.getValue(row, column);
+  matrix.setValue(row, column, 1);
+}
+
+
 function solveLinearEquations(matrix, vector) {
+  if (matrix.rows !== matrix.columns) throw new Error('Expected matrix to be square');
+  if (vector.length !== matrix.columns) throw new Error("Vector and matrix are incompatible");
+
   // TODO: Generalize
-  // const m = matrix.height;
-  // const n = matrix.width;
-  // if (vector.dimensions !== n) throw new Error("Invalid input");
+  const m = matrix.rows;
+  const n = matrix.columns;
 
 
-  const a = matrix[0][0];
-  const b = matrix[0][1];
-  const c = matrix[1][0];
-  const d = matrix[1][1];
+  // a b c    x1     b1    
+  // d e f    x2     b2
+  // g h i    x3     b3
+
+  // ROWS:    1 2 3
+  // COLUMNS: 1 2 3
+  // a*x1 + b*x2 + c*x3 = b1
+  // d*x1 + e*x2 + f*x3 = b2
+  // g*x1 + h*x2 + i*x3 = b3
+
+  // ROWS:    2 1 3
+  // COLUMNS: 1 2 3
+  // d*x1 + e*x2 + f*x3 = b2
+  // a*x1 + b*x2 + c*x3 = b1
+  // g*x1 + h*x2 + i*x3 = b3
+
+  // ROWS:    2 1 3
+  // COLUMNS: 3 2 1
+  // f*x3 + d*x1 + e*x2 = b2
+  // c*x3 + a*x1 + b*x2 = b1
+  // i*x3 + g*x1 + h*x2 = b3
+
+  // Is any of the values 0? 
+  // Move the columns and rows around such that 1,1 is none zero and 3,1 (maybe also 2,1) is zero
+
+  // Assume none are 0
+  // Then we want to take the first row and subtract it (d/a) times from the second row and (g/a) times from the third row 
+
+  // d - (d/a)*a = d - da/a = d-d = 0
+
+  // Now we have
+  // a b c
+  // 0 e f
+  // 0 h i
+  // And we can do the same thing to get
+
+  // a b c
+  // 0 e f
+  // 0 0 i
+
+  // and then we get 
+
+  // a b 0
+  // 0 e 0
+  // 0 0 i
+
+  // And finaly 
+
+  // a 0 0
+  // 0 e 0
+  // 0 0 i
+
+  // The algorithm.
+  // Phase 1:
+  // First, make sure 1,1 is non-zero. If it is zero, then look for a non-zero value in the column and swap the rows. 
+  // Then, make every other value in the column except 1,1 be equal to 0 by subtracting the row 1 from the other rows
+
+  // Next, ignore the first row and column (i.e. essentially recurse on the smaller submatrix)
+  // Make sure 2,2 is non-zero. If it is zero, then loof for a non-zero value in the column (ignoring the first row) and swap the rows
+  // Then, make every other value in the column except 2,2 (and 1,2) be equal to 0 by subtracting the row 2 from the other rows
+
+  // Repeat until 1 row left.
+
+  // Phase 2:
+  // We should now have a row with only one non-zero variable in a column. Make sure the value is 1 by dividing by itself. 
+  // Next, make sure the other rows have a 0 in this column by subtracting this last row from all the other 
+
+  // Next, ignore the last row and repeat on the second to last row. 
+
+
+  const rows = [0, 1, 2];
+  const columns = [0, 1, 2];
+  // PHASE 1
+  for (let i = 0; i < m; i++) {
+    // const topLeft = matrix[rows[i]][columns[i]];
+    // if (topLeft === 0) { // TODO
+    //   // Find non-zero row (abort if none)
+    //   // Swap rows
+    //   const noneZeroRow = 1;
+    //   const tmp = rows[i];
+    //   rows[0] = rows[noneZeroRow];
+    //   rows[noneZeroRow] = tmp;
+    // }
+    for (let j = i+1; j < m; j++) {
+      reduceRow(matrix, vector, i, j, i);
+      l(matrix.toString())
+    }
+    // for (let j = i+1; j < m; j++) {
+    //   reduceRow(matrix, vector, rows[i], rows[j], columns[i]);
+    // }
+    
+  }
+
+  for (let i = m-1; i >= 0; i--) {
+    reduceSelfRow(matrix, vector, i, i);
+
+    for (let j = 0; j < i; j++) {
+      reduceRow(matrix, vector, i, j, i);
+      l(matrix.toString())
+    }
+  }
+
+  l('test')
+
+
+  
+
+
+  // const a = matrix[0][0];
+  // const b = matrix[0][1];
+  // const c = matrix[1][0];
+  // const d = matrix[1][1];
 
   // Assuming 2x2 matrix and 2d vector
 
