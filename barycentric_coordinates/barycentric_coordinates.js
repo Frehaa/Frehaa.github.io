@@ -13,6 +13,7 @@ function assert(condition, msg) {
 
 const state = {
     triangle: [1000, 300, 1100, 350, 1050, 400],
+    colorTriangle: [200, 300, 800, 450, 400, 820],
     mousePosition: {x: 0, y:0}
 }
 
@@ -51,6 +52,26 @@ function pointToBarycentricMethod2(point, triangle) {
     
 }
 
+function drawColorTriangle(buffer, triangle) {
+    const minX = Math.min(triangle[0], triangle[2], triangle[4]);
+    const maxX = Math.max(triangle[0], triangle[2], triangle[4]);
+    const minY = Math.min(triangle[1], triangle[3], triangle[5]);
+    const maxY = Math.max(triangle[1], triangle[3], triangle[5]);
+
+    for (let y = 0; y < buffer.height; y++) {
+        for (let x = 0; x < buffer.width; x++) {
+            const [alpha, beta, gamma] = pointToBarycentricMethod1({x: x + minX, y: y + minY}, triangle);
+            if (alpha >= 0 && beta >= 0 && gamma >= 0) {
+                const index = 4 * (y * buffer.width + x);
+                buffer.data[index] = 255 * alpha;
+                buffer.data[index + 1] = 255 * beta;
+                buffer.data[index + 2] = 255 * gamma;
+                buffer.data[index + 3] = 255
+            }
+        }
+    }
+}
+
 function drawMouseBarycentricPosition(ctx) {
     const precision = 2
     const [alpha, beta, gamma] = pointToBarycentricMethod1(state.mousePosition, state.triangle);
@@ -58,6 +79,15 @@ function drawMouseBarycentricPosition(ctx) {
     const text = "Mouse barycentric coordinates: ("+alpha.toFixed(precision) + ", " + beta.toFixed(precision) + ", " + gamma.toFixed(precision) + ")";
     ctx.font = '32px ariel'
     ctx.fillText(text, 100, 140);
+}
+
+function getTriangleBoundingBox(triangle) {
+    const minX = Math.min(triangle[0], triangle[2], triangle[4]);
+    const maxX = Math.max(triangle[0], triangle[2], triangle[4]);
+    const minY = Math.min(triangle[1], triangle[3], triangle[5]);
+    const maxY = Math.max(triangle[1], triangle[3], triangle[5]);
+
+    return [minX, minY, maxX, maxY];
 }
 
 let lastTime = 0;
@@ -76,17 +106,27 @@ function draw(time) {
 
     drawTriangle(ctx, state.triangle);
 
+
+    ctx.putImageData(state.colorImage, state.colorImage.width, state.colorImage.height);
+
     requestAnimationFrame(draw);
 }
 
 function initialize() {
     const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
 
     document.addEventListener("mousemove", mouseMove);
     document.addEventListener("mousedown", mouseDown);
     document.addEventListener("mouseup", mouseUp);
     document.addEventListener("keydown", keyDown);
     document.addEventListener("keyup", keyUp);
+
+    const [minX, minY, maxX, maxY] = getTriangleBoundingBox(state.colorTriangle);
+    const width = maxX - minX;
+    const height = maxY - minY;
+    state.colorImage = ctx.getImageData(minX, minY, width, height);
+    drawColorTriangle(state.colorImage, state.colorTriangle);
 
     function mouseDown(e) {
         switch(e.button) {
