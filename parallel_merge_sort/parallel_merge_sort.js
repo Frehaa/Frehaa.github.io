@@ -114,6 +114,9 @@ function createTree(list) {
 }
 
 function initialize()  {
+
+
+
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
@@ -353,6 +356,49 @@ function copyTree(node) {
     return newNode;
 }
 
+
+function isKCover(k, listA, listB) {
+    let prev = -Infinity;
+    let j = 0;
+    for (let i = 0; i < listA.length; i++) {
+        const current = listA[i];
+        
+        let counter = 0;
+        while (prev <= listB[j] && listB[j] < current && j < listB.length) {
+            j++;
+            counter++;
+        }
+        if (counter > k) return false;
+
+        prev = current;
+    }
+
+    const current = Infinity;
+    let counter = 0;
+    while (prev <= listB[j] && listB[j] < current && j < listB.length) {
+        j++;
+        counter++;
+    }
+    if (counter > k) return false;
+
+    return true;
+}
+
+function testKCover() {
+    const a = [1,3,5,7];
+    const b = [2,4,6];
+
+    l(isKCover(1, a, b)) // True
+    l(isKCover(1, b, a)) // True
+    l(isKCover(1, a, a)) // True
+    l(isKCover(1, a, [8,9,10, 11])) // False
+    l(isKCover(3, a, [8,9,10, 11])) // False
+    l(isKCover(4, a, [8,9,10, 11])) // true
+
+    l(isKCover(3, [1, 10, 20, 30], [2, 3, 4, 12, 13, 14, 22, 23, 24, 32, 33, 34])) // True
+    l(isKCover(2, [1, 10, 20, 30], [2, 3, 4, 12, 13, 14, 22, 23, 24, 32, 33, 34])) // False 
+    l(isKCover(2, [2, 3, 4, 12, 13, 14, 22, 23, 24, 32, 33, 34], [1, 10, 20, 30])) // True
+}
 
 // function drawTreeTest(ctx, list, position) {
 
