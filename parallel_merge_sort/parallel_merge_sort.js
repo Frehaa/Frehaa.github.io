@@ -113,8 +113,19 @@ function createTree(list) {
     return node;
 }
 
+// TODO: Fix bug with dupplicates
 function initialize()  {
 
+    // l(computeCrossrank([1,2,3,4], [1,2,3,4]))
+    // l(computeCrossrank([1,2,3,4], [4]))
+    // l(computeCrossrank([1,2,3,4], [4]))
+    // l(computeCrossrank([1,2,3,4], [3]))
+    // l(computeCrossrank([1,2,3,4], [3, 4]))
+    // l(computeCrossrank([1,2], [3, 4]))
+    // l(computeCrossrank([1,6], [3, 4]))
+    // l(computeCrossrank([4, 5, 6, 7], [1, 2,3, 4]))
+
+    // return
 
 
     const canvas = document.getElementById('canvas');
@@ -300,20 +311,55 @@ function rank(element, list) {
     return list.length;
 }
 
+// TODO: Is this correct?
+function computeCrossrank(listA, listB) {
+    const result = Array(listA.length);
+    let j = 0;
+    for (let i = 0; i < listA.length; i++) {
+        while (listA[i] >= listB[j] && j < listB.length) {
+            j++;
+        }
+        result[i] = j;
+    }
+    return result;
+}
+
+// This should get the two elements from the other list which straddles the element of index.
+function getStraddlePoints(index, mergedList, cameFrom, originalRank, rankAinB, rankBinA) {
+    const rank = originalRank[index];
+    if (cameFrom[index] === 0) { // Came from A
+        const lowRank = rankAinB[rank]; 
+    } else { // Came from B
+        const lowRank = rankBinA[rank]; 
+    }
+    // TODO: Take care of corner case with minus and plus infinity 
+
+}
+
 // Closer approximation of the merge algorithm, but with a slow calculation of crossrank
 function merge(nodeA, nodeB) { 
     const listA = nodeA.sampleUp;
     const listB = nodeB.sampleUp;
-    let result = Array(listA.length + listB.length);
-    const mergeList = (list, crossrank) => {
-        for (let i = 0; i < list.length; i++) {
-            const element = list[i];
-            const index = i + crossrank(element);
-            result[index] = element;
-        }        
+    const n = listA.length + listB.length;
+    let result = Array(n);
+    let cameFrom = Array(n);
+    let originalRank = Array(n);
+    const rankAinB = computeCrossrank(listA, listB);
+    const rankBinA = computeCrossrank(listB, listA);
+
+    for (let i = 0; i < listA.length; i++) {
+        const index = i + rankAinB[i];
+        result[index] = listA[i];
+        originalRank[index] = i;
+        cameFrom[index] = 0; // Came from A
     }
-    mergeList(listA, e => rank(e, listB));
-    mergeList(listB, e => rank(e, listA));
+    // For every item in list B, move it to new array and record where it came from
+    for (let i = 0; i < listB.length; i++) {
+        const index = i + rankBinA[i];
+        result[index] = listB[i];
+        originalRank[index] = i;
+        cameFrom[index] = 1; // Came from B
+    }
     return result;
 }
 
