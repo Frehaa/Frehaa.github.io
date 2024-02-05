@@ -291,9 +291,29 @@ function nextStage(tree, currentStage) {
     return newTree
 }
 
-function merge(nodeA, nodeB) {
-    let result = nodeA.sampleUp.concat(nodeB.sampleUp);
-    result.sort((a, b) => a-b); // CHEAT UNTIL WE IMPLEMENT THE MERGING PROCEDURE
+function rank(element, list) {
+    for (let i = 0; i < list.length; i++) {
+        if (element < list[i]) {
+            return i;
+        }
+    }
+    return list.length;
+}
+
+// Closer approximation of the merge algorithm, but with a slow calculation of crossrank
+function merge(nodeA, nodeB) { 
+    const listA = nodeA.sampleUp;
+    const listB = nodeB.sampleUp;
+    let result = Array(listA.length + listB.length);
+    const mergeList = (list, crossrank) => {
+        for (let i = 0; i < list.length; i++) {
+            const element = list[i];
+            const index = i + crossrank(element);
+            result[index] = element;
+        }        
+    }
+    mergeList(listA, e => rank(e, listB));
+    mergeList(listB, e => rank(e, listA));
     return result;
 }
 
