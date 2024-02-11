@@ -13,6 +13,56 @@ class LineSegment {
     }
 }
 
+class Polygon {
+    constructor(points) {
+        this.points = points;
+
+        let xMin = Infinity;
+        let yMin = Infinity;
+        let xMax = -Infinity;
+        let yMax = -Infinity;
+
+        for (const point of points) {
+            if (point.x < xMin) xMin = point.x;
+            if (point.y < yMin) yMin = point.y;
+            if (point.x > xMax) xMax = point.x;
+            if (point.y > yMax) yMax = point.y;
+        }
+
+        this.boundingBox = {
+            xMin,
+            yMin,
+            xMax,
+            yMax
+        };
+        console.log(this.points, this.boundingBox)
+    }
+
+    contains(point) {
+        // Quick check for bounding box
+        if (point.x < this.boundingBox.xMin || this.boundingBox.xMax < point.x || 
+            point.y < this.boundingBox.yMin || this.boundingBox.yMax < point.y) return false;
+
+        // Slower check inside bounding box ray casting algorithm: https://stackoverflow.com/questions/217578/how-can-i-determine-whether-a-2d-point-is-within-a-polygon
+        const outsidePoint = {
+            x: this.boundingBox.xMin - 1,
+            y: point.y
+        };
+
+        let count = 0;
+        for (let i = 0; i < this.points.length-1; i++) {
+            if (lineSegmentIntersection(outsidePoint, point, this.points[i], this.points[i+1])) {
+                count++
+            }
+        }
+
+        return count % 2 === 1;
+        
+    }
+
+
+}
+
 // I do not get how this works
 // Code from: https://www.geeksforgeeks.org/check-if-two-given-line-segments-intersect/
 function pointOrientation(p, q, r) {

@@ -65,12 +65,30 @@ const entities = [];
 //     ]
 // }
 
+const blockade1Points = [];
+blockade1Points.push(new Point(300, 300));
+blockade1Points.push(new Point(330, 300));
+blockade1Points.push(new Point(330, 500));
+blockade1Points.push(new Point(300, 500));
+blockade1Points.push(new Point(300, 300));
+const blockade1 = new Polygon(blockade1Points);
+
+const blockade2Points = [];
+blockade2Points.push(new Point(400, 350));
+blockade2Points.push(new Point(600, 350));
+blockade2Points.push(new Point(600, 700));
+blockade2Points.push(new Point(400, 700));
+blockade2Points.push(new Point(400, 350));
+const blockade2 = new Polygon(blockade2Points);
+
+
 const world = {
     width: 3000,
     height: 3000,
     wallThickness: 20,
     blockades: [
-        [[300, 300], [330, 300], [330, 500], [300, 500]],
+        blockade1,
+        blockade2
     ]
 }
 
@@ -91,14 +109,26 @@ const navigationMesh = {
 
     ],
     connections: [
-        [1],
-        [0,2,4],
-        [1,3],
-        [2, 4],
-        [1, 3, 5],
-        [4]
-    ]
+        [{to: 1, range: [40, 500, 500, 40]}],
+        [{to: 0, range: [40, 500, 500, 40]},
+         {to: 2, range: []},
+         {to: 4, range: []}],
+        [{to: 1, range: []},
+         {to: 3, range: []}],
+        [{to: 2, range: []},
+         {to: 4, range: []}],
+        [{to: 1, range: []},
+         {to: 3, range: []}, 
+         {to: 5, range: []}],
+        [{to: 4, range: []}]
+    ], 
 }
+
+// Cases. Two corners of triangle A (a1, a2) and of triangle B (b1, b2)
+// 1. BOTH BETWEEN: a1 and a2 are between b1 and b2 (and opposite)
+// 2. SAME: a1 = b1 and a2 = b2
+// 3. SINGLE BETWEEN: a1 is between b1 and b2, but a2 is not between (or any other scenario) 
+
 
 // TODO: To test function, loop over all positions in area of navigation mesh
 
@@ -177,10 +207,10 @@ function drawWorld(ctx, world, camera) {
     ctx.fillStyle = 'white';
     for (const blockade of world.blockades) {
         ctx.beginPath();
-        ctx.moveTo(blockade[0][0] - camera.position.x, blockade[0][1] - camera.position.y);
-        for (let i = 1; i < blockade.length; i++) {
-            const [x,y] = blockade[i];
-            ctx.lineTo(x - camera.position.x, y - camera.position.y);
+        ctx.moveTo(blockade.points[0].x - camera.position.x, blockade.points[0].y - camera.position.y);
+        for (let i = 1; i < blockade.points.length; i++) {
+            const p = blockade.points[i];
+            ctx.lineTo(p.x - camera.position.x, p.y - camera.position.y);
         }
         ctx.closePath();
         ctx.fill();
@@ -267,7 +297,7 @@ function drawNavigationMesh(ctx, camera) {
         const triangleA = triangles[i];
         const centerA = calculateConvexPolygonCenter(triangleA);
         for (let j = 0; j < navigationMesh.connections[i].length; j++) {
-            const index = navigationMesh.connections[i][j];
+            const index = navigationMesh.connections[i][j].to;
             const triangleB = navigationMesh.faces[index];
             const centerB = calculateConvexPolygonCenter(triangleB);
             ctx.beginPath();
@@ -296,6 +326,11 @@ function drawNavigationMesh(ctx, camera) {
     // }
 }
 
+function polygonContainsPoint(polygon, point) {
+    // TODO 
+}
+
+
 function drawBottomThingy(ctx, gameState) {
     const bottom = ctx.canvas.height;
     const height = 200;
@@ -311,7 +346,21 @@ function drawBottomThingy(ctx, gameState) {
     // MINIMAP (TODO: DRAW BASED ON WORLD MAP)
     ctx.fillStyle = 'rgba(255, 50, 50)'
     ctx.fillRect(0, bottom - height, height, height);
+}
 
+function drawWaypointGraph(ctx, camera) {
+    ctx.fillStyle = 'red'
+    for (const point of waypointGraph) {
+        ctx.beginPath();
+        ctx.arc(point.x - camera.position.x, point.y - camera.position.y, 10, 0, 2 * Math.PI);
+        ctx.fill()
+
+        for (const otherPoint of point.connected) {
+            ctx.moveTo(point.x - camera.position.x, point.y - camera.position.y);
+            ctx.lineTo(otherPoint.x - camera.position.x, otherPoint.y - camera.position.y);
+        } 
+        ctx.stroke();
+    }
 }
 
 let lastTime = 0;
@@ -335,7 +384,9 @@ function draw(time) {
 
     drawWorld(ctx, world, camera)
 
-    drawNavigationMesh(ctx, camera)
+    // drawNavigationMesh(ctx, camera)
+
+    drawWaypointGraph(ctx, camera);
 
     ctx.translate(-camera.position.x, -camera.position.y)
 
@@ -426,6 +477,12 @@ function isPositionInPolygon(polygon, position) {
     return true;
 }
 
+// TODO: Try the naive scatter waypoint strategy.
+//  How to do this? Do we add a point where we click and the connect it to all other nodes within some area? That seems fine.
+// Next we can try some square search
+// Finally Navigation Mesh
+// The tricky part seems to be corners, but I will try to ignore this in the beginning.
+
 class Entity {
     constructor(x, y, speed, width, height) {
         this.position = {x, y};
@@ -443,7 +500,7 @@ class Entity {
                 break;
             }
         }
-        l(this.currentNavMeshTileIndex, navigationMesh.faces[this.currentNavMeshTileIndex]);
+        l("Entity is in nav mesh with index: ", this.currentNavMeshTileIndex, navigationMesh.faces[this.currentNavMeshTileIndex]);
     }
 
     draw(ctx) {
@@ -533,12 +590,82 @@ class Entity {
     }
 }
 
+class Waypoint {
+    constructor(x,y) {
+        this.x = x;
+        this.y = y;
+        this.connected = [];
+    }
+
+    isCloseTo(other, distanceSq) {
+        const dx = other.x - this.x;
+        const dy = other.y - this.y;
+        return (dx*dx + dy*dy) <= distanceSq;
+    }
+
+    connect(otherPoint) {
+        this.connected.push(otherPoint);
+        otherPoint.connected.push(this);
+    }
+}
+
+function createWaypointGraph(world, entity, points) {
+    // Is this a place where regular sampling could be useful? 
+    // How do we connect to waypoints? There needs to be nothing between them
+    // I can do nearest neighbour to figure out if they are close to other points, but how do I determine that no object is between them?
+    // I loop through all obstacles and check. Since obstacles are a series of points, it should(?) surfice to check if the line between the waypoints intersects the line between polygon points. How do we check if two lines intersect? 
+
+    const result = [];
+    for (let i = 0; i < points; i++) {
+        const x = Math.random() * world.width;
+        const y = Math.random() * world.height;
+        const newPoint = new Waypoint(x,y);
+
+        let isBlocked = false;
+        for (const blockade of world.blockades) {
+            if (blockade.contains(newPoint)) {
+                isBlocked = true;
+                break;
+            }
+        }
+        if (isBlocked) continue;
+        // if (canEntityOccupyArea(x, y, world, entity)) {
+
+        // }
+        // Connect point to other points
+        for (const otherPoint of result) {
+            if (newPoint.isCloseTo(otherPoint, 40000) && doesPointsHaveNoObstructionsBetweenThem(newPoint, otherPoint, world)) {
+                newPoint.connect(otherPoint);
+            }
+        }
+        result.push(newPoint);
+    }
+
+    return result;
+}
+
+function doesPointsHaveNoObstructionsBetweenThem(pointA, pointB, world) {
+    for (const blockade of world.blockades) {
+        for (let i = 0; i < blockade.points.length-1; i++) {
+            if (lineSegmentIntersection(pointA, pointB, blockade.points[i], blockade.points[i+1])) return false
+        }
+    }
+
+    return true
+}
+
+const waypointGraph = createWaypointGraph(world, null, 800);
+
+
 function initialize() {
     const canvas = document.getElementById('canvas');
     camera.canvas = canvas;
 
+
+
     const entity = new Entity(250, 100, 400, 20, 20)
     entities.push(entity)
+
 
     // Prevent right click from opening context menu
     document.addEventListener('contextmenu', e => e.preventDefault());
@@ -607,17 +734,17 @@ function initialize() {
         }
     }
 
-    for (let y = 40; y <= 1000; y++) {
-        for (let x = 40; x <= 1000; x++) {
-            const result = navigationMesh.faces.findIndex(triangle => {
-                return pointInTriangle([x, y], triangle.flat());
-            })
-            if (result < 0) {
-                l(x, y, result)
-            }
+    // for (let y = 40; y <= 1000; y++) {
+    //     for (let x = 40; x <= 1000; x++) {
+    //         const result = navigationMesh.faces.findIndex(triangle => {
+    //             return pointInTriangle([x, y], triangle.flat());
+    //         })
+    //         if (result < 0) {
+    //             l(x, y, result)
+    //         }
 
-        }
-    }
+    //     }
+    // }
 
     function mouseUp(e) {
         l(e)
@@ -687,8 +814,8 @@ function initialize() {
         return result;
     }
 
-    l(findEntitiesInBox(entities, {x: 0, y: 0}, {x:1000, y: 1000}))
-    l(findEntitiesInBox(entities, {x: 500, y: 500}, {x:1000, y: 1000}))
+    // l(findEntitiesInBox(entities, {x: 0, y: 0}, {x:1000, y: 1000}))
+    // l(findEntitiesInBox(entities, {x: 500, y: 500}, {x:1000, y: 1000}))
 
     const settings = {
         cameraSpeedDrag: 2,
