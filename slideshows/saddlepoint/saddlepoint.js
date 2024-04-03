@@ -53,18 +53,18 @@ function drawMatrix(ctx, matrix, drawSettings) {
     ctx.lineWidth = lineWidth
 
     ctx.beginPath()
-    ctx.rect(leftX, topY, width, height);
-    for (let i = 1; i < matrix.columns; ++i) {
+    ctx.rect(leftX, topY, width, height);               // Border
+    for (let i = 1; i < matrix.columns; ++i) {          // Vertical lines
         ctx.moveTo(leftX + i * cellWidth, topY);
         ctx.lineTo(leftX + i * cellWidth, topY + height);
     }
-    for (let i = 1; i < matrix.rows; ++i) {
+    for (let i = 1; i < matrix.rows; ++i) {             // Horizontal lines
         ctx.moveTo(leftX, topY + i * cellWidth);
         ctx.lineTo(leftX + width, topY + i * cellWidth);
     }
     ctx.stroke();
 
-    for (let y = 0; y < matrix.rows; ++ y) {
+    for (let y = 0; y < matrix.rows; ++ y) {            // Values
         for (let x = 0; x < matrix.columns; ++x) {
             drawSettings.drawMatrixValue(ctx, x, y, matrix); // Injected value-drawing method
         }
@@ -236,7 +236,7 @@ function createWalkSlides(matrix, threshold, matrixDrawSettings, dogImage) {
 
     return result;
 }
-class Matrix {
+class SaddlepointSlideMatrix {
     constructor(rows, columns, dataInitializer) {
         this.columns = columns;
         this.rows = rows;
@@ -250,6 +250,7 @@ class Matrix {
         this.data[x + y * this.columns] = v;
     }
 }
+
 function createTimer(positionX, positionY, radius, totalTimeMs) {
     return {
         draw: function(ctx, elapsedMs) {
@@ -392,7 +393,7 @@ function initialize() {
     const slideshowState = initializeSlideshowState()
     initializeSlideshowEventListeners(canvas, slideshowState);
 
-    const matrix = new Matrix(10, 10, () => goodNumberedMatrixData);
+    const matrix = new SaddlepointSlideMatrix(10, 10, () => goodNumberedMatrixData);
 
     const defaultMatrixDrawSettings = {
         leftX: 40,
@@ -636,7 +637,7 @@ function initialize() {
     // Walking algorithm
     const dogImage = new Image();
     dogImage.src = "dog_shibainu_brown.png"; // Relative path
-    const walkMatrix = new Matrix(10, 10, () => goodWalkMatrixData);
+    const walkMatrix = new SaddlepointSlideMatrix(10, 10, () => goodWalkMatrixData);
 
     const greenCircleLegendHeight = 700;
     const redCircleLegendHeight = 800;
@@ -709,7 +710,7 @@ function initialize() {
     })));
 
     // Explain sampling process
-    const samplingMatrix = new Matrix(100, 100, (rows, columns) => randomList(rows * columns));
+    const samplingMatrix = new SaddlepointSlideMatrix(100, 100, (rows, columns) => randomList(rows * columns));
     const samplingMatrixDrawSettings = {
         ...matrixDrawSettingsDrawCircleOnly,
         cellWidth: 1000 / samplingMatrix.columns,
