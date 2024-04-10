@@ -43,7 +43,7 @@ function initialize() {
         },
         drawWireOverlay: false
     };
-    let wikiNetworkSlide = new NetworkFrame(wikiNetwork, wikiNetworkDrawSettings, false);
+    let wikiNetworkSlide = new NetworkFrame(state, wikiNetwork, wikiNetworkDrawSettings, false);
     bitonicSort(0, 16, DESCENDING, wikiNetwork, 0.1);
 
     let bulletPointSlideDrawSettings = {
@@ -101,7 +101,7 @@ function initialize() {
             }
         }
     }
-    let tinyExampleNetworkSlide = new NetworkFrame(tinyExampleNetwork, tinyExampleNetworkDrawSettings, true);
+    let tinyExampleNetworkSlide = new NetworkFrame(state, tinyExampleNetwork, tinyExampleNetworkDrawSettings, true);
     let tinyExampleTitle = "Sorting Networks - Wires, Arrows & Sorting";
 
     // I show them how it works 1
@@ -127,7 +127,7 @@ function initialize() {
 
     // Let them do it
     let selfExampleNetwork = new Network(5);
-    let selfExampleNetworkSlide = new NetworkFrame(selfExampleNetwork, {
+    let selfExampleNetworkSlide = new NetworkFrame(state, selfExampleNetwork, {
         marginX: h / 20,
         marginY: h / 20,
         squareLength: h / 7, 
@@ -164,7 +164,7 @@ function initialize() {
 
     // Bubble sort
     let bubbleExampleNetwork = new Network(6);
-    let bubbleExampleNetworkSlide = new NetworkFrame(bubbleExampleNetwork, {
+    let bubbleExampleNetworkSlide = new NetworkFrame(state, bubbleExampleNetwork, {
         ...selfExampleNetworkSlide.drawSettings,
         squareOffset: h * 0.005,
         drawBox: false
@@ -204,7 +204,7 @@ function initialize() {
         },
         drawWireOverlay: true
     };
-    let networkSlide = new NetworkFrame(network16, defaultNetworkDrawSettings, true);
+    let networkSlide = new NetworkFrame(state, network16, defaultNetworkDrawSettings, true);
 
     let greenOverlaySlide = new OverlayFrame({
         position: {x: w / 2, y: networkSlide.drawSettings.marginY},
@@ -543,6 +543,7 @@ function initialize() {
 
 
     let empty16NetworkSlides = new NetworkFrame(
+        state,
         new Network(16),
         defaultNetworkDrawSettings,
         false
@@ -553,7 +554,7 @@ function initialize() {
     slides.push(combineSlides(greenOverlaySlide, redOverlaySlide, empty16NetworkSlides, ...mergeBoxOverlays.slice(0, 7)));
     slides.push(combineSlides(greenOverlaySlide, redOverlaySlide, empty16NetworkSlides, ...mergeBoxOverlays.slice(0, 15)));
 
-    let bitonicMergeNetwork = new NetworkFrame(new Network(16), {
+    let bitonicMergeNetwork = new NetworkFrame(state, new Network(16), {
         ...defaultNetworkDrawSettings,
         drawWireOverlay: true
     }, false);
@@ -632,7 +633,7 @@ function initialize() {
 
     slides.push(combineSlides(bitonicMergeNetwork, ...recOverlay));
 
-    let bitonicMergeNetwork2 = new NetworkFrame(new Network(16), defaultNetworkDrawSettings, false);
+    let bitonicMergeNetwork2 = new NetworkFrame(state, new Network(16), defaultNetworkDrawSettings, false);
 
     for (let i = 0; i < 8; i++) {
         bitonicMergeNetwork2.network.addCompareAndSwap(0.5 + 0.01 * i, i, i + 8)    
@@ -682,7 +683,7 @@ function initialize() {
     slides.push(bitonicMergeNetwork2);
 
     // -----------------  CODE SLIDES  -----------------------
-    let bitonicMergeNetwork3 = new NetworkFrame(new Network(8), {
+    let bitonicMergeNetwork3 = new NetworkFrame(state, new Network(8), {
         ...defaultNetworkDrawSettings,
         wireLength: defaultNetworkDrawSettings.wireLength / 2,
         marginX: w * 0.025

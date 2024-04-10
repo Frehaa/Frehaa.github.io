@@ -79,10 +79,11 @@ class Network {
 // TODO: Implement arrow removal
 // TODO: Show path of values? In different colors and dotted line?
 class NetworkFrame {
-    constructor(network, drawSettings, isInteractable = true) {
+    constructor(state, network, drawSettings, isInteractable = true) {
         if (!network instanceof Network) {
             throw new TypeError("argument has to be instance of Network");
         }
+        this.state = state;
         this.drawSettings = {
             marginX: 25, 
             marginY: 25,
@@ -204,7 +205,7 @@ class NetworkFrame {
         if (this.hoverWireIdx != null) {
             let w = this.wires[this.hoverWireIdx];
             if(this.focusWireIdx == null) {
-                this.arrowStartCircle.x = mousePosition.x;
+                this.arrowStartCircle.x = this.state.mousePosition.x;
                 this.arrowStartCircle.y = w.y;
             } else if (this.hoverWireIdx != this.focusWireIdx) {
                 let wireDiff = w.y - this.wires[this.focusWireIdx].y;
@@ -231,12 +232,12 @@ class NetworkFrame {
     mouseMove() {
         this.hoverWireIdx = null;
         for (let i = 0; i < this.network.size; ++i) {
-            let dist = this.wires[i].distance(mousePosition);
+            let dist = this.wires[i].distance(this.state.mousePosition);
             // Assumption: radius is smaller than the offset between wires
             if (dist <= this.drawSettings.circleRadius * 2) {
                 this.hoverWireIdx = i; 
             }
-            this.leftSquares[i].hover = this.leftSquares[i].isInside(mousePosition);
+            this.leftSquares[i].hover = this.leftSquares[i].isInside(this.state.mousePosition);
         }
     }
 
@@ -252,7 +253,7 @@ class NetworkFrame {
         // Handle square focus
         for (let i = 0; i < this.network.size; ++i) {
             let s = this.leftSquares[i];
-            if (s.isInside(mousePosition)) {
+            if (s.isInside(this.state.mousePosition)) {
                 this.focusSquareIdx = i;
             }
         }
