@@ -19,3 +19,9 @@ Compare algorithms to recipes
 black box which takes some input and produces some output 
 
 First small algorithm can be multiplication? 
+
+
+
+## How to explain what algorithms are
+
+Start with the brain training quiz. Have students think about how to solve do it. 
