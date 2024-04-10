@@ -44,6 +44,10 @@ class Vec3 {
     this[2] = c;
   }
 
+  cross(b/*: Vec3\*/) {
+    return new Vec3(this[1]*b[2] - this[2]*b[1], this[2]*b[0] - a[0]*b[2], this[0]*b[1] - this[1]*b[0]);
+  }
+
   add(b/*:Vec3\*/) {
     return new Vec3(this[0] + b[0], this[1] + b[1], this[2] + b[2]);
   }
@@ -220,39 +224,39 @@ function solveLinearEquations(matrix, vector) {
   // Next, ignore the last row and repeat on the second to last row. 
 
 
-  const rows = [0, 1, 2];
-  const columns = [0, 1, 2];
-  // PHASE 1
-  for (let i = 0; i < m; i++) {
-    // const topLeft = matrix[rows[i]][columns[i]];
-    // if (topLeft === 0) { // TODO
-    //   // Find non-zero row (abort if none)
-    //   // Swap rows
-    //   const noneZeroRow = 1;
-    //   const tmp = rows[i];
-    //   rows[0] = rows[noneZeroRow];
-    //   rows[noneZeroRow] = tmp;
-    // }
-    for (let j = i+1; j < m; j++) {
-      reduceRow(matrix, vector, i, j, i);
-      l(matrix.toString())
-    }
-    // for (let j = i+1; j < m; j++) {
-    //   reduceRow(matrix, vector, rows[i], rows[j], columns[i]);
-    // }
+  // const rows = [0, 1, 2];
+  // const columns = [0, 1, 2];
+  // // PHASE 1
+  // for (let i = 0; i < m; i++) {
+  //   // const topLeft = matrix[rows[i]][columns[i]];
+  //   // if (topLeft === 0) { // TODO
+  //   //   // Find non-zero row (abort if none)
+  //   //   // Swap rows
+  //   //   const noneZeroRow = 1;
+  //   //   const tmp = rows[i];
+  //   //   rows[0] = rows[noneZeroRow];
+  //   //   rows[noneZeroRow] = tmp;
+  //   // }
+  //   for (let j = i+1; j < m; j++) {
+  //     reduceRow(matrix, vector, i, j, i);
+  //     l(matrix.toString())
+  //   }
+  //   // for (let j = i+1; j < m; j++) {
+  //   //   reduceRow(matrix, vector, rows[i], rows[j], columns[i]);
+  //   // }
     
-  }
+  // }
 
-  for (let i = m-1; i >= 0; i--) {
-    reduceSelfRow(matrix, vector, i, i);
+  // for (let i = m-1; i >= 0; i--) {
+  //   reduceSelfRow(matrix, vector, i, i);
 
-    for (let j = 0; j < i; j++) {
-      reduceRow(matrix, vector, i, j, i);
-      l(matrix.toString())
-    }
-  }
+  //   for (let j = 0; j < i; j++) {
+  //     reduceRow(matrix, vector, i, j, i);
+  //     l(matrix.toString())
+  //   }
+  // }
 
-  l('test')
+  // l('test')
 
 
   
@@ -268,6 +272,23 @@ function solveLinearEquations(matrix, vector) {
   // Add 1 row vector to the other until one variable is removed. (if both are removed then an infinite number of solutions exists)
 }
 
+class ImplicitPlane {
+  constructor(point, normalVector) {
+    this.point = point;
+    this.normalVector = normalVector;
+  }
+
+  hit(point, direction) {
+
+  }
+}
+
+// Assuming a, b, and c are given as Vec3
+// Calculates the normal vector of the plane given by the points a, b, and c
+function calculatePlaneNormal(a, b, c) {
+  return b.subtract(a).cross(c.subtract(a));
+}
+
 function pointToBarycentric(point, triangle) { 
     const [xa, ya, xb, yb, xc, yc] = triangle;
     const [x, y] = point;
@@ -281,3 +302,9 @@ function pointToBarycentric(point, triangle) {
     const alpha = 1 - beta - gamma;
     return [alpha, beta, gamma]
 }
+
+function translatePoint(point, direction, distance) {
+    if (!(point instanceof Vec3 && direction instanceof Vec3)) throw Error("Both point and direction should be Vec3");
+    return point + direction.normalize().scale(distance);
+}
+
