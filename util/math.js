@@ -33,6 +33,39 @@ function shuffle(array/*: any[]*/) {
   return array;
 }
 
+class Vec2 {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+    add(b) {
+        return new Vec2(this.x + b.x, this.y + b.y);
+    }
+    subtract(b) {
+        return new Vec2(this.x - b.x, this.y - b.y);
+    }
+    scale(s) {
+        return new Vec2(s * this.x, s * this.y);
+    }
+    dot(b) {
+        return this.x * b.x + this.y * b.y;
+    }
+    // cross(b) { // Probably only used for 3d since it is the vector perpendicular to the two vectors.
+    //     return 1;
+    // }
+    det(b) {
+        return this.x*b.y - this.y*b.x;
+    }
+    length() {
+        return Math.sqrt(this.x * this.x + this.y * this.y);
+    }
+    normalize() {
+        const length = this.length();
+        return this.scale(1/length);
+        // return new Vec2(this.x / length, this.y / length); // TODO: Test accuracy between these two approaches
+    }
+}
+
 class Vec3 {
   // public [0]/*:number\*/;
   // public [1]/*:number\*/;
@@ -45,6 +78,7 @@ class Vec3 {
   }
 
   cross(b/*: Vec3\*/) {
+    // Formula from wikipedia
     return new Vec3(this[1]*b[2] - this[2]*b[1], this[2]*b[0] - a[0]*b[2], this[0]*b[1] - this[1]*b[0]);
   }
 
@@ -279,7 +313,7 @@ class ImplicitPlane {
   }
 
   hit(point, direction) {
-
+    return null;
   }
 }
 
