@@ -50,6 +50,10 @@ class Vec2 {
     dot(b) {
         return this.x * b.x + this.y * b.y;
     }
+    lerp(b, t) {
+      // a + t * (b - a)
+      return this.add(b.subtract(this).scale(t));
+    }
     // cross(b) { // Probably only used for 3d since it is the vector perpendicular to the two vectors.
     //     return 1;
     // }
