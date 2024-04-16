@@ -21,6 +21,19 @@ const drawSettings = {
     bezierEndPointColor: 'black',
     canvas: null,
     canvasContex: null,
+    drawPrimaryCurvePoints: true,
+    drawSecondaryCurvePoints: true,
+    drawTertiaryCurvePoints: true,
+    drawControlPoints: true,
+    drawControlLines: true,
+    drawLerpPointConnections: true,
+    drawLerpPoints: true,
+    controlLineColor: 'black',
+    primaryCurveColor: 'red',
+    secondaryCurveColor: 'green',
+    tertiaryCurveColor: 'blue',
+    curveWidth: 3,
+    controlLineWidth: 2
 };
 
 class BezierPoint {
@@ -57,6 +70,8 @@ class BezierCurve {
         this.points[this.n-1].draw(ctx, drawSettings.bezierEndPointColor);
     }
     drawControlLines(ctx) {
+        ctx.strokeStyle = drawSettings.controlLineColor;
+        ctx.strokeWidth = drawSettings.controlLineWidth; 
         ctx.beginPath();
         let currentPoint = this.points[0];
         ctx.moveTo(currentPoint.position.x, currentPoint.position.y);
@@ -84,6 +99,89 @@ class BezierCurve {
     }
 }
 
+class QubicCurveSpline {
+    constructor(...points) {
+        this.points = points;
+        if (this.points.length < 4) throw new Error('Too few points');
+
+        // Silently remove excessive points
+        while ((this.points.length-4) % 3 !== 0) {
+            this.points.pop();
+        }
+        this.parts = (this.points.length / 3) | 0;
+    }
+    initializeCurvePoints(numberOfPointsToCreate) {
+        this.curvePoints = [];
+        this.secondaryCurvePoints = [];
+        this.tertiaryCurvePoints = [];
+        for (let i = 0; i <= numberOfPointsToCreate-1; i++) {
+            const t = (i * this.parts) / numberOfPointsToCreate;
+            const lerpPoints = this.getLerpPoints(t);
+            this.curvePoints.push(lerpPoints[5]);
+            this.secondaryCurvePoints.push(lerpPoints[3]);
+            this.tertiaryCurvePoints.push(lerpPoints[4]);
+        }
+
+    }
+    drawControlPoints(ctx) {
+        for (let i = 0; i < this.points.length; i++) {
+            let color = drawSettings.bezierControlPointColor;
+            if (i % 3 === 0) {
+                color = drawSettings.bezierEndPointColor;
+            }
+            this.points[i].draw(ctx, color);
+        }
+    }
+    drawControlLines(ctx) {
+        ctx.strokeStyle = 'black'
+        ctx.lineWidth = 4
+        ctx.beginPath();
+        let currentPoint = this.points[0];
+        ctx.moveTo(currentPoint.position.x, currentPoint.position.y);
+        for (let i = 1; i < this.points.length; i++) {
+            currentPoint = this.points[i];
+            ctx.lineTo(currentPoint.position.x, currentPoint.position.y);
+        }
+        ctx.stroke();
+    }
+    getLerpPoints(t) {
+        let i = Math.floor(t);
+        if (t === this.parts) {
+            i = this.parts-1;
+        }
+        const j = i * 3;
+        t = t - i;
+
+        const p0 = this.points[j].position;
+        const p1 = this.points[j+1].position;
+        const p2 = this.points[j+2].position;
+        const p3 = this.points[j+3].position;
+
+        const lerp1 = p0.lerp(p1, t);
+        const lerp2 = p1.lerp(p2, t);
+        const lerp3 = p2.lerp(p3, t);
+
+        const lerp4 = lerp1.lerp(lerp2, t);
+        const lerp5 = lerp2.lerp(lerp3, t);
+        const lerp6 = lerp4.lerp(lerp5, t);
+
+        return [lerp1, lerp2, lerp3, lerp4, lerp5, lerp6]
+    }
+}
+
+const qubicSpline = new QubicCurveSpline(
+    new BezierPoint(new Vec2(100, 400)),
+    new BezierPoint(new Vec2(350, 200)),
+    new BezierPoint(new Vec2(700, 400)),
+    new BezierPoint(new Vec2(800, 500)),
+    new BezierPoint(new Vec2(1000, 200)),
+    new BezierPoint(new Vec2(1200, 800)),
+    new BezierPoint(new Vec2(1500, 500)),
+    new BezierPoint(new Vec2(1600, 200)),
+    new BezierPoint(new Vec2(1700, 600)),
+    new BezierPoint(new Vec2(1800, 500)),
+);
+
 const quadraticCurve = new BezierCurve(
     new BezierPoint(new Vec2(100, 400)),
     new BezierPoint(new Vec2(350, 200)),
@@ -95,6 +193,11 @@ const qubicCurve = new BezierCurve(
     new BezierPoint(new Vec2(1000, 200)),
     new BezierPoint(new Vec2(1200, 800)),
     new BezierPoint(new Vec2(1500, 500))
+);
+
+const line = new BezierCurve(
+    new BezierPoint(new Vec2(100, 300)),
+    new BezierPoint(new Vec2(1500, 500)),
 );
 
 const beyondCurve = new BezierCurve(
@@ -153,6 +256,43 @@ function drawPositionLines(ctx, lerpPositions, howManyConnectedPositionsInARow) 
     }
 }
 
+function drawQubicSpline(ctx, spline) {
+    const lerpPositions = spline.getLerpPoints(drawSettings.slider.state.value * spline.parts);
+
+    if (drawSettings.drawControlLines) {
+        spline.drawControlLines(ctx);
+    }
+
+    if (drawSettings.drawLerpPointConnections){
+        drawPositionLines(ctx, lerpPositions, 3); 
+    }
+    if (drawSettings.drawLerpPoints) {
+        lerpPositions.forEach(position => {
+            drawCircle(ctx, position.x, position.y, 5);
+        });
+    }
+
+    const pointsToDraw = Math.round(drawSettings.slider.state.value * spline.curvePoints.length);
+    for (let i = 0; i < pointsToDraw; i++) {
+        if (drawSettings.drawPrimaryCurvePoints) {
+            const currentPoint = spline.curvePoints[i];
+            drawCircle(ctx, currentPoint.x, currentPoint.y, drawSettings.curveWidth, drawSettings.primaryCurveColor);
+        }
+        if (drawSettings.drawSecondaryCurvePoints) {
+            const secondaryPoint = spline.secondaryCurvePoints[i];
+            drawCircle(ctx, secondaryPoint.x, secondaryPoint.y, drawSettings.curveWidth, drawSettings.secondaryCurveColor);
+        }
+        if (drawSettings.drawTertiaryCurvePoints) {
+            const tertiaryPoint = spline.tertiaryCurvePoints[i];
+            drawCircle(ctx, tertiaryPoint.x, tertiaryPoint.y, drawSettings.curveWidth, drawSettings.tertiaryCurveColor);
+        }
+    }
+
+    if (drawSettings.drawControlPoints) {
+        spline.drawControlPoints(ctx);
+    }
+}
+
 function drawCurve(ctx, curve) {
     const lerpPositions = curve.getLerpPoints(drawSettings.slider.state.value);
     curve.drawControlLines(ctx);
@@ -174,7 +314,9 @@ function draw() {
     const ctx = drawSettings.canvasContex;
     ctx.clearRect(0, 0, drawSettings.canvas.width, drawSettings.canvas.height);
 
-    drawCurve(ctx, beyondCurve);
+    drawQubicSpline(ctx, qubicSpline);
+    // drawCurve(ctx, line)
+    // drawCurve(ctx, beyondCurve);
 
     drawSettings.slider.draw(ctx, 'black')
 }
@@ -233,7 +375,6 @@ function createHorizontalSlider(mouseState, {position, size, lineWidth}) {
         mouseUp: function(e) {
             if (e.button != MOUSE_LEFT_BUTTON) return; 
             this.isDragging = false;
-            draw()
         },
         mouseMove: function(e) {
             if (!this.isDragging) return;
@@ -260,6 +401,8 @@ function initialize() {
     quadraticCurve.initializeCurvePoints(pointsToCreate);
     qubicCurve.initializeCurvePoints(pointsToCreate);
     beyondCurve.initializeCurvePoints(pointsToCreate);
+    qubicSpline.initializeCurvePoints(pointsToCreate);
+    line.initializeCurvePoints(pointsToCreate);
 
 
     // Prevent right click from opening context menu
@@ -292,6 +435,7 @@ function initialize() {
             case MOUSE_MIDDLE_BUTTON: {
             } break;
         }
+        draw();
     }
 
     function keyDown(e) {
