@@ -4,8 +4,6 @@ const MOUSE_LEFT_BUTTON = 0
 const MOUSE_MIDDLE_BUTTON = 1
 const MOUSE_RIGHT_BUTTON = 2
 
-const MAP_TILE_SIZE = 50;
-
 function assert(condition, msg) {
     if (!condition) throw Error(msg)
 }
@@ -33,7 +31,8 @@ const drawSettings = {
     secondaryCurveColor: 'green',
     tertiaryCurveColor: 'blue',
     curveWidth: 3,
-    controlLineWidth: 2
+    controlLineWidth: 2,
+    lerpLinesWidth: 1
 };
 
 class BezierPoint {
@@ -69,9 +68,37 @@ class BezierCurve {
         }
         this.points[this.n-1].draw(ctx, drawSettings.bezierEndPointColor);
     }
+    draw(ctx) {
+        const lerpPositions = this.getLerpPoints(drawSettings.slider.state.value);
+        if (drawSettings.drawControlLines) {
+            this.drawControlLines(ctx);
+        }
+        const pointsToDraw = Math.round(drawSettings.slider.state.value * this.curvePoints.length);
+        for (let i = 1; i < pointsToDraw; i++) {
+            if (drawSettings.drawPrimaryCurvePoints) {
+                const currentPoint = this.curvePoints[i];
+                drawCircle(ctx, currentPoint.x, currentPoint.y, drawSettings.curveWidth, drawSettings.primaryCurveColor);
+            }
+        }
+
+        if (drawSettings.drawLerpPointConnections) {
+            drawPositionLines(ctx, lerpPositions, this.points.length-1);
+        }
+        if (drawSettings.drawLerpPoints) {
+            lerpPositions.forEach(position => {
+                drawCircle(ctx, position.x, position.y, 5);
+            });
+        }
+
+
+
+        if (drawSettings.drawControlPoints) {
+            this.drawControlPoints(ctx);
+        }
+    }
     drawControlLines(ctx) {
         ctx.strokeStyle = drawSettings.controlLineColor;
-        ctx.strokeWidth = drawSettings.controlLineWidth; 
+        ctx.lineWidth = drawSettings.controlLineWidth; 
         ctx.beginPath();
         let currentPoint = this.points[0];
         ctx.moveTo(currentPoint.position.x, currentPoint.position.y);
@@ -123,6 +150,47 @@ class QubicCurveSpline {
         }
 
     }
+    draw(ctx) {
+        const lerpPositions = this.getLerpPoints(drawSettings.slider.state.value * this.parts);
+
+        if (drawSettings.drawControlLines) {
+            this.drawControlLines(ctx);
+        }
+
+        if (drawSettings.drawLerpPointConnections){
+            drawPositionLines(ctx, lerpPositions, 3); 
+        }
+        if (drawSettings.drawLerpPoints) {
+            lerpPositions.forEach(position => {
+                drawCircle(ctx, position.x, position.y, 5);
+            });
+        }
+
+        // TODO: Draw circles one at a time or draw a line between points? This
+        // seems like one of those things where instead of doing research online, it
+        // is better to just experiment and see for myself. What are the performance
+        // characteristics and how does it look.
+        const pointsToDraw = Math.round(drawSettings.slider.state.value * this.curvePoints.length);
+        for (let i = 0; i < pointsToDraw; i++) {
+            if (drawSettings.drawPrimaryCurvePoints) {
+                const currentPoint = this.curvePoints[i];
+                drawCircle(ctx, currentPoint.x, currentPoint.y, drawSettings.curveWidth, drawSettings.primaryCurveColor);
+            }
+            if (drawSettings.drawSecondaryCurvePoints) {
+                const secondaryPoint = this.secondaryCurvePoints[i];
+                drawCircle(ctx, secondaryPoint.x, secondaryPoint.y, drawSettings.curveWidth, drawSettings.secondaryCurveColor);
+            }
+            if (drawSettings.drawTertiaryCurvePoints) {
+                const tertiaryPoint = this.tertiaryCurvePoints[i];
+                drawCircle(ctx, tertiaryPoint.x, tertiaryPoint.y, drawSettings.curveWidth, drawSettings.tertiaryCurveColor);
+            }
+        }
+
+        if (drawSettings.drawControlPoints) {
+            this.drawControlPoints(ctx);
+        }
+
+    }
     drawControlPoints(ctx) {
         for (let i = 0; i < this.points.length; i++) {
             let color = drawSettings.bezierControlPointColor;
@@ -151,6 +219,7 @@ class QubicCurveSpline {
         }
         const j = i * 3;
         t = t - i;
+        assert(j >= 0 && j < this.points.length-3, `getLerpPoints: ${j} was outside expected range of 0 - ${this.points.length-4}`);
 
         const p0 = this.points[j].position;
         const p1 = this.points[j+1].position;
@@ -182,24 +251,6 @@ const qubicSpline = new QubicCurveSpline(
     new BezierPoint(new Vec2(1800, 500)),
 );
 
-const quadraticCurve = new BezierCurve(
-    new BezierPoint(new Vec2(100, 400)),
-    new BezierPoint(new Vec2(350, 200)),
-    new BezierPoint(new Vec2(700, 400))
-);
-
-const qubicCurve = new BezierCurve(
-    new BezierPoint(new Vec2(800, 500)),
-    new BezierPoint(new Vec2(1000, 200)),
-    new BezierPoint(new Vec2(1200, 800)),
-    new BezierPoint(new Vec2(1500, 500))
-);
-
-const line = new BezierCurve(
-    new BezierPoint(new Vec2(100, 300)),
-    new BezierPoint(new Vec2(1500, 500)),
-);
-
 const beyondCurve = new BezierCurve(
     new BezierPoint(new Vec2(100, 300)),
     new BezierPoint(new Vec2(500, 100)),
@@ -211,39 +262,32 @@ const beyondCurve = new BezierCurve(
     new BezierPoint(new Vec2(1500, 500)),
 );
 
-const quadraticBezierCurvePoints = [];
-const qubicBezierCurvePoints = [];
-
-function setLineColor(ctx, howManyConnectedPositionsInARow) {
-    switch (howManyConnectedPositionsInARow) {
-        case 2: {
-            ctx.strokeStyle = 'violet';
-        } break;
-        case 3: {
-            ctx.strokeStyle = 'green';
-        } break;
-        case 4: {
-            ctx.strokeStyle = 'aqua';
-        } break;
-        case 5: {
-            ctx.strokeStyle = 'blue';
-        } break;
-        case 6: {
-            ctx.strokeStyle = 'brown';
-        } break;
-        default: {
-            ctx.strokeStyle = 'black';
-        }
-    }
-}
-
 function drawPositionLines(ctx, lerpPositions, howManyConnectedPositionsInARow) {
-    ctx.lineWidth = 2;
+    ctx.lineWidth = drawSettings.lerpLinesWidth;
     let currentIndex = 0;
     ctx.strokeStyle = 'red'
 
     while (howManyConnectedPositionsInARow > 1) {
-        setLineColor(ctx, howManyConnectedPositionsInARow);
+        switch (howManyConnectedPositionsInARow) {
+            case 2: {
+                ctx.strokeStyle = 'violet';
+            } break;
+            case 3: {
+                ctx.strokeStyle = 'green';
+            } break;
+            case 4: {
+                ctx.strokeStyle = 'aqua';
+            } break;
+            case 5: {
+                ctx.strokeStyle = 'blue';
+            } break;
+            case 6: {
+                ctx.strokeStyle = 'brown';
+            } break;
+            default: {
+                ctx.strokeStyle = 'black';
+            }
+        }        
         ctx.beginPath();
         ctx.moveTo(lerpPositions[currentIndex].x, lerpPositions[currentIndex].y);
         currentIndex++;
@@ -272,6 +316,10 @@ function drawQubicSpline(ctx, spline) {
         });
     }
 
+    // TODO: Draw circles one at a time or draw a line between points? This
+    // seems like one of those things where instead of doing research online, it
+    // is better to just experiment and see for myself. What are the performance
+    // characteristics and how does it look.
     const pointsToDraw = Math.round(drawSettings.slider.state.value * spline.curvePoints.length);
     for (let i = 0; i < pointsToDraw; i++) {
         if (drawSettings.drawPrimaryCurvePoints) {
@@ -293,30 +341,29 @@ function drawQubicSpline(ctx, spline) {
     }
 }
 
-function drawCurve(ctx, curve) {
-    const lerpPositions = curve.getLerpPoints(drawSettings.slider.state.value);
-    curve.drawControlLines(ctx);
-    drawPositionLines(ctx, lerpPositions, curve.points.length-1);
-    lerpPositions.forEach(position => {
-        drawCircle(ctx, position.x, position.y, 5);
-    });
+// function drawCurve(ctx, curve) {
+//     const lerpPositions = curve.getLerpPoints(drawSettings.slider.state.value);
+//     curve.drawControlLines(ctx);
+//     drawPositionLines(ctx, lerpPositions, curve.points.length-1);
+//     lerpPositions.forEach(position => {
+//         drawCircle(ctx, position.x, position.y, 5);
+//     });
 
-    const pointsToDraw = Math.round(drawSettings.slider.state.value * curve.curvePoints.length);
-    for (let i = 1; i < pointsToDraw; i++) {
-        const currentPoint = curve.curvePoints[i];
-        drawCircle(ctx, currentPoint.x, currentPoint.y, 2, 'red');
-    }
+//     const pointsToDraw = Math.round(drawSettings.slider.state.value * curve.curvePoints.length);
+//     for (let i = 1; i < pointsToDraw; i++) {
+//         const currentPoint = curve.curvePoints[i];
+//         drawCircle(ctx, currentPoint.x, currentPoint.y, 2, 'red');
+//     }
 
-    curve.drawControlPoints(ctx);
-}
+//     curve.drawControlPoints(ctx);
+// }
 
 function draw() {
     const ctx = drawSettings.canvasContex;
     ctx.clearRect(0, 0, drawSettings.canvas.width, drawSettings.canvas.height);
 
-    drawQubicSpline(ctx, qubicSpline);
-    // drawCurve(ctx, line)
-    // drawCurve(ctx, beyondCurve);
+    // qubicSpline.draw(ctx)
+    beyondCurve.draw(ctx)
 
     drawSettings.slider.draw(ctx, 'black')
 }
@@ -398,12 +445,8 @@ function initialize() {
 
     // const pointsToCreate = (p2.position.x - p0.position.x) || 0;
     const pointsToCreate = 1000;
-    quadraticCurve.initializeCurvePoints(pointsToCreate);
-    qubicCurve.initializeCurvePoints(pointsToCreate);
     beyondCurve.initializeCurvePoints(pointsToCreate);
     qubicSpline.initializeCurvePoints(pointsToCreate);
-    line.initializeCurvePoints(pointsToCreate);
-
 
     // Prevent right click from opening context menu
     document.addEventListener('contextmenu', e => e.preventDefault());
