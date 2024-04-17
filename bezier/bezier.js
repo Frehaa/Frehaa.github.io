@@ -22,8 +22,8 @@ const drawSettings = {
     canvas: null,
     canvasContex: null,
     drawPrimaryCurvePoints: true,
-    drawSecondaryCurvePoints: true,
-    drawTertiaryCurvePoints: true,
+    drawSecondaryCurvePoints: false,
+    drawTertiaryCurvePoints: false,
     drawControlPoints: true,
     drawControlLines: true,
     drawLerpPointConnections: true,
@@ -437,10 +437,36 @@ function initialize() {
         }
         draw();
     }
-
+    
     function keyDown(e) {
         switch (e.code) {
-            case 'KeyN': {
+            case 'Digit1': {
+                drawSettings.drawPrimaryCurvePoints = !drawSettings.drawPrimaryCurvePoints;
+                draw()
+            } break;
+            case 'Digit2': {
+                drawSettings.drawSecondaryCurvePoints = !drawSettings.drawSecondaryCurvePoints;
+                draw()
+            } break;
+            case 'Digit3': {
+                drawSettings.drawTertiaryCurvePoints = !drawSettings.drawTertiaryCurvePoints;
+                draw()
+            } break;
+            case 'Digit4': {
+                drawSettings.drawControlPoints = !drawSettings.drawControlPoints;
+                draw()
+            } break;
+            case 'Digit5': {
+                drawSettings.drawControlLines = !drawSettings.drawControlLines;
+                draw()
+            } break;
+            case 'Digit6': {
+                drawSettings.drawLerpPointConnections = !drawSettings.drawLerpPointConnections;
+                draw()
+            } break;
+            case 'Digit7': {
+                drawSettings.drawLerpPoints = !drawSettings.drawLerpPoints;
+                draw()
             } break;
             case 'ShiftLeft': {
             }
