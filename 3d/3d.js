@@ -1,68 +1,48 @@
-// import { Vec3 } from "./math/primitives"
+function translateMatrix(x, y, z) {
+    return createMatrix([
+        [1, 0, 0, x],
+        [0, 1, 0, y],
+        [0, 0, 1, z],
+        [0, 0, 0, 1],
+    ]);
+}
 
-// function scalerVectorMult(c, v) {
-//     let res = [];
-//     for (let i = 0; i < v.length; i++) {
-//         const element = v[i];
-//         res.push(c * element);
-//     }
+function rotateXMatrix(rad) {
+    let c = Math.cos(rad);
+    let s = Math.sin(rad);
+    return createMatrix([
+        [1, 0, 0, 0],
+        [0, c,-s, 0],
+        [0, s, c, 0],
+        [0, 0, 0, 1],
+    ]);
+}
 
-//     return res;
-// }
+function rotateYMatrix(rad) {
+    let c = Math.cos(rad);
+    let s = Math.sin(rad);
+    return createMatrix([
+        [c, 0, s, 0],
+        [0, 1, 0, 0],
+        [-s,0, c, 0],
+        [0, 0, 0, 1],
+    ]);
+}
 
-// function matrixVectorMult(m, v) {
-//     let res = [0, 0, 0, 0];
-//     for (let i = 0; i < 4; i++) {
-//         res[i] = m[i][0] * v[0] + m[i][1] * v[1] + m[i][2] * v[2] + m[i][3] * v[3];
-//     }
-//     return res;
-// }
+function rotateZMatrix(rad) {
+    let c = Math.cos(rad);
+    let s = Math.sin(rad);
+    return createMatrix([
+        [c, -s, 0, 0],
+        [s, c, 0, 0],
+        [0, 0, 1, 0],
+        [0, 0, 0, 1],
+    ]);
+}
 
-// function translateMatrix(x, y, z) {
-//     return [
-//         [1, 0, 0, x],
-//         [0, 1, 0, y],
-//         [0, 0, 1, z],
-//         [0, 0, 0, 1],
-//     ]
-// }
-
-// function rotateXMatrix(rad) {
-//     let c = Math.cos(rad);
-//     let s = Math.sin(rad);
-//     return [
-//         [1, 0, 0, 0],
-//         [0, c,-s, 0],
-//         [0, s, c, 0],
-//         [0, 0, 0, 1],
-//     ];
-// }
-
-// function rotateYMatrix(rad) {
-//     let c = Math.cos(rad);
-//     let s = Math.sin(rad);
-//     return [
-//         [c, 0, s, 0],
-//         [0, 1, 0, 0],
-//         [-s,0, c, 0],
-//         [0, 0, 0, 1],
-//     ];
-// }
-
-// function rotateZMatrix(rad) {
-//     let c = Math.cos(rad);
-//     let s = Math.sin(rad);
-//     return [
-//         [c, -s, 0, 0],
-//         [s, c, 0, 0],
-//         [0, 0, 1, 0],
-//         [0, 0, 0, 1],
-//     ];
-// }
-
-// function degreeToRadians(degree) {
-//     return degree * Math.PI / 180;
-// }
+function degreeToRadians(degree) {
+    return degree * Math.PI / 180;
+}
 
 // function calculateHit(origin, ray, objects) {
 //     let results = [];
@@ -80,40 +60,74 @@
 // function hitSphere(ray, sphere) {
 // }
 
+class Ray {
+    constructor(origin, direction) {
+        this.origin = origin;
+        this.direction = direction;
+    }
+}
 
 class Sphere {
     constructor(x, y, z, radius) {
+        this.position = new Vec3(x, y, z);
         this.x = x;
         this.y = y;
         this.z = z;
         this.radius = radius;
     }
+    setPositionV(vec) {
+        this.position = vec;
+        this.x = vec.x;
+        this.y = vec.y;
+        this.z = vec.z;
+    }
+    setPosition(x, y, z) {
+        this.position = new Vec3(x, y, z);
+        this.x = x;
+        this.y = y;
+        this.z = z;
+    }
 
-    hit(ray) {
-        const origin = ray.origin;
-        const direction = ray.direction;
+    // Equation for sphere is x^2 + y^2 + z^2 - r = 0
+    // 1. Replace x, y, and z with the corresponding expressions from the ray (i.e. ox + dx * t)
+    // 2. Simplify to quadratic equation
+    // 3. Solve equation
+    // 4. Return smallest positive result if any
+    hit(ray) { 
+        // TODO: UPDATE SOLUTION TO USE SPHERE COORDINATES. THIS PROBABLY MEANS USING A TRANSLATION MATRIX
+        const [ox, oy, oz] = [ray.origin.x, ray.origin.y, ray.origin.z];
+        const [dx, dy, dz] = [ray.direction.x, ray.direction.y, ray.direction.z];
+        const r = this.radius;
 
-        const xt = origin.x + direction.x * t; // ox + dx * t
-        const yt = origin.y + direction.y * t; // oy + dy * t
-        const zt = origin.z + direction.z * t; // oz + dz * t
+        // Polynomial pa * t^2 + pb * t + pc 
+        const pa = dx*dx + dy*dy + dz*dz;
+        const pb = 2*ox*dx + 2*oy*dy + 2*oz*dz;
+        const pc = ox*ox + oy*oy + oz*oz - r*r;
 
-        // We want to know for which t 
-        // (xt - xc)^2 + (yt - yc)^2 + (zt - zc)^2 - R^2 = 0
-        // Expanding:
-        // xt^2            + xc^2  - 2*xt*xc                + yt^2            + yc^2 - 2 * yt * yc            + zt^2             + zc^2 - 2*zt*zc                - R^2 = 0
-        // (ox + dx * t)^2 + xc^2  - 2 * (ox + dx * t) * xc + (oy + dy * t)^2 + yc^2 - 2 * (oy + dy * t) * yc + (oz + dz * t)^2  + zc^2 - 2 * (oz + dz * t) * zc - R^2 = 0
-        // (ox + dx * t)^2                     + xc^2  - 2 * (ox + dx * t) * xc       + (oy + dy * t)^2                      + yc^2 - 2 * (oy + dy * t) * yc       + (oz + dz * t)^2                  + zc^2  - 2 * (oz + dz * t) * zc         - R^2 = 0
-        // ox^2   +   dx^2*t^2   +   2*ox*dx*t   +   xc^2   -   2*ox*xc   +   2*dx*xc*t   +   oy^2   +   dy^2*t^2   +   2*oy*dy*t   +   yc^2   -   2*oy*yc   +   2*dy*yz*t   +   oz^2   +   dz^2*t^2   +   2*oz*dz   +   zc^2   -   2*oz*zc   +   2*dz*zc*t   -   R^2 = 0
-        // Simplifying:
-        // 2*ox*dx*t  +   2*dx*xc*t   +   2*oy*dy*t   +   2*dy*yz*t   + 2*dz*zc*t   
-        // dx^2*t^2d + y^2*t^2 + dz^2*t^2
+        const result = solveQuadraticEquation(pa, pb, pc);
 
+        if (result.length === 2) { // Two solutions
+            if (result[0] >= 0 && result[1] >= 0) { // Both positive, return smallest
+                return result[0] <= result[1]? result[0] : result[1];
+            }
+            // First is positive
+            if (result[0] >= 0) {
+                return result[0];
+            }
+            // Second is positive
+            if (result[1] >= 0) {
+                return result[1];
+            }
+            // None are positive
+        }
 
+        // Only one positive solution
+        if (result.length === 1 && result[0] >= 0) {
+            return result[0];
+        }
 
-        // (a + bc)^2 = (a + bc) * (a + bc) = aa + abc + abc + bcbc = a^2 + (bc)^2 + abc
-
-
-
+        // No positive solutions
+        return null;
     }
 }
 
@@ -156,13 +170,10 @@ function initialize() {
         for (let i = 0; i < nx; ++i) {
             // const u = v3add(l, v3smult(1/nx, v3smult(i + 0.5, v3sub(r, l))));
             // const v = v3add(b, v3smult(1/ny, v3smult(j + 0.5, v3sub(t, b))));
-            const x = l + (r - l)*(i + 0.5)/nx;
-            const y = b + (t - b)*(j + 0.5)/ny;
+            // const x = l + (r - l)*(i + 0.5)/nx;
+            // const y = b + (t - b)*(j + 0.5)/ny;
 
-            const ray = {
-                direction: w.scale(-1), 
-                origin: e.add(u.scale(x)).add(v.scale(y))
-            };
+            // const ray = new Ray(e.add(u.scale(x)).add(v.scale(y)), w.scale(-1));
 
             // let dist = hitSphere(ray, sphere);
             if (true) {
@@ -171,7 +182,6 @@ function initialize() {
                 imageData.data[4 * idx + 1] = 0; // G
                 imageData.data[4 * idx + 2] = 0; // B
                 imageData.data[4 * idx + 3] = 255; // A
-
             }
         }
     }
