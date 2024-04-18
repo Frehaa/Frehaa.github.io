@@ -35,6 +35,9 @@ function shuffle(array/*: any[]*/) {
 
 class Vec2 {
     constructor(x, y) {
+        this.size = 2;
+        this[0] = x;
+        this[1] = y;
         this.x = x;
         this.y = y;
     }
@@ -54,9 +57,6 @@ class Vec2 {
       // a + t * (b - a)
       return this.add(b.subtract(this).scale(t));
     }
-    // cross(b) { // Probably only used for 3d since it is the vector perpendicular to the two vectors.
-    //     return 1;
-    // }
     det(b) {
         return this.x*b.y - this.y*b.x;
     }
@@ -70,20 +70,68 @@ class Vec2 {
     }
 }
 
+class Vec4 {
+  // public [0]/*:number\*/;
+  // public [1]/*:number\*/;
+  // public [2]/*:number\*/;
+
+  constructor(a, b, c, d) {
+    this.size = 4;
+    this[0] = a;
+    this[1] = b;
+    this[2] = c;
+    this[3] = d;
+    this.x = a;
+    this.y = b;
+    this.z = z;
+    this.r = z;
+  }
+
+  add(b) {
+    return new Vec4(this[0] + b[0], this[1] + b[1], this[2] + b[2], this[3] + b[3]);
+  }
+
+  subtract(b) {
+    return new Vec4(this[0] - b[0], this[1] - b[1], this[2] - b[2], this[3] - b[3]);
+  }
+
+  dot(b) {
+    return this[0] * b[0] + this[1] * b[1] + this[2] * b[2] + this[3] * b[3];
+  }
+
+  scale(s) {
+    return new Vec4(s * this[0], s * this[1], s * this[2], s * this[3]);
+  }
+  length() {
+    return Math.sqrt(this.x*this.x + this.y*this.y + this.z*this.z + this.r*this.r);
+  }
+
+  normalize() {
+    const l = this.length();
+    return new Vec4(this[0]/l, this[1]/l, this[2]/l, this[3]/l);
+  }
+
+}
+
 class Vec3 {
   // public [0]/*:number\*/;
   // public [1]/*:number\*/;
   // public [2]/*:number\*/;
 
   constructor(a/*:number\*/, b/*:number\*/, c/*:number\*/) {
+    this.size = 3;
     this[0] = a;
     this[1] = b;
     this[2] = c;
+    this.x = a;
+    this.y = b;
+    this.z = z;
   }
 
   cross(b/*: Vec3\*/) {
     // Formula from wikipedia
     return new Vec3(this[1]*b[2] - this[2]*b[1], this[2]*b[0] - a[0]*b[2], this[0]*b[1] - this[1]*b[0]);
+    // return new Vec3(this[1]*b[2] - this[2]*b[1], a[0]*b[2] - this[2]*b[0], this[0]*b[1] - this[1]*b[0]); // Flip Y (i.e. second coordinate)
   }
 
   add(b/*:Vec3\*/) {
@@ -101,10 +149,14 @@ class Vec3 {
   scale(s/*:number\*/) {
     return new Vec3(s * this[0], s * this[1], s * this[2]);
   }
-
-  normalize() {
-    return new Vec3(0,0,0);
+  length() {
+    return Math.sqrt(this.x*this.x + this.y*this.y + this.z*this.z);
   }
+  normalize() {
+    const l = this.length();
+    return new Vec3(this[0]/l, this[1]/l, this[2]/l,);
+  }
+
 }
 
 function solveQuadraticEquation(a/*:number\*/, b/*:number\*/, c/*:number\*/) {
@@ -134,9 +186,11 @@ class Matrix {
         row.push(0);
       }
       this.values.push(row);
+      this[i] = row;
     }
   }
   setValue(row, column, value) {
+    if (!(0 <= row && row < this.rows && 0 <= column && column < this.columns)) throw new Error('Illegal argument: index outside bounds');
     this.values[row][column] = value;
   }
   setRow(row, values) {
@@ -149,10 +203,22 @@ class Matrix {
       this.values[i][column] = values[i];
     }
   }
+  transpose() {
+    const result = new Matrix(this.columns, this.rows);
+    for (let i = 0; i < this.rows; i++) {
+      for (let j = 0; j < this.columns; j++) {
+        result[j][i] = this[i][j];
+      }
+    }
+    return result;
+  }
   getValue(row, column) {
     return this.values[row][column];
   }
-  toString() {
+  // TODO: Handle bigger numbers. (Should numbers be left or right aligned?)
+  // For each column, find its length
+  // Pad values such that they are equally long in the column
+  toString() { 
     const output = [];
     for (let i = 0; i < this.rows; i++) {
       output.push("| ");
@@ -163,6 +229,60 @@ class Matrix {
     }
     return output.join("");
   }
+  mult(b) {
+    if (this.columns === b.rows) throw new Error('Invalid size: Argument does not have as many rows as this matrix has columns.');
+    const result = new Matrix(this.rows, b.columns);
+    for (let i = 0; i < this.rows; i++) {
+      for (let j = 0; j < b.columns; j++) {
+          let val = 0;
+          for (let k = 0; k < this.columns; k++) {
+            val += this.getValue(i, k) * b.getValue(k, j);
+          }
+          result.setValue(i, j, val);
+      }
+    }
+    return result;
+  }
+  multv3(b) {
+    if (this.columns !== 3) throw new Error('Invalid size: Matrix has invalid size.');
+    const result = new Matrix(this.rows, 1);
+    for (let i = 0; i < this.rows; i++) {
+      result.setValue(i, 0, this.getValue(i, 0) * b[0] + this.getValue(i, 1) * b[1] + this.getValue(i, 2) * b[2]); 
+    }
+    return result;
+  }
+  multv2(b) {
+    if (this.columns !== 2) throw new Error('Invalid size: Matrix has invalid size.');
+    const result = new Matrix(this.rows, 1);
+    for (let i = 0; i < this.rows; i++) {
+      result.setValue(i, 0, this.getValue(i, 0) * b.x + this.getValue(i, 1) * b.y); 
+    }
+    return result;
+  }
+  scale(s) {
+    const result = new Matrix(this.rows, this.columns);
+    for (let i = 0; i < this.rows; i++) {
+      for (let j = 0; j < this.columns; j++) {
+        const val = this.getValue(i, j); 
+        result.setValue(i, j, val * s);
+      }
+    }
+    return result;
+  }
+}
+
+function createMatrix(nestedList) {
+  const n = nestedList.length;
+  if (n === 0) return new Matrix(0,0);
+  const m = nestedList[0].length;
+  const result = new Matrix(n, m);
+  for (let i = 0; i < n; ++i) {
+    for (let j = 0; j < m; ++j) {
+      // TODO: Verify that inserted values are numbers?
+      result.setValue(i, j, nestedList[i][j]);
+    }
+  }
+  return result;
 }
 
 function reduceRow(matrix, vector, baseRow, targetRow, column) {
