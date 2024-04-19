@@ -125,12 +125,12 @@ class Vec3 {
     this[2] = c;
     this.x = a;
     this.y = b;
-    this.z = z;
+    this.z = c;
   }
 
   cross(b/*: Vec3\*/) {
     // Formula from wikipedia
-    return new Vec3(this[1]*b[2] - this[2]*b[1], this[2]*b[0] - a[0]*b[2], this[0]*b[1] - this[1]*b[0]);
+    return new Vec3(this[1]*b[2] - this[2]*b[1], this[2]*b[0] - this[0]*b[2], this[0]*b[1] - this[1]*b[0]);
     // return new Vec3(this[1]*b[2] - this[2]*b[1], a[0]*b[2] - this[2]*b[0], this[0]*b[1] - this[1]*b[0]); // Flip Y (i.e. second coordinate)
   }
 
