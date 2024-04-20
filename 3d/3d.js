@@ -148,6 +148,9 @@ class Camera {
         this.u = up.cross(this.w);
         this.sideDirection = this.u;
     }
+    isOrthonormal() {
+        return this.v.length() === 1 && this.w.length() === 1 && this.u.length() === 1;
+    }
 }
 
 class Viewport {
@@ -185,6 +188,18 @@ class Viewport {
             }
         }
     }
+    *calculatePerspectiveRays(focalLength) {
+        const {e, u, v, viewDirection } = this.camera;
+        for (let y = 0; y < this.ny; y++) {
+            for (let x = 0; x < this.nx; x++) {
+                const coordinates = this.getPixelCoordinatesRelativeToCamera(x, y);
+                const rayOrigin = e;
+                const rayDirection = viewDirection.scale(focalLength).add(u.scale(coordinates.x)).add(v.scale(coordinates.y));
+                const ray = new Ray(rayOrigin, rayDirection);
+                yield {x, y, ray};
+            }
+        }
+    }
 }
 
 const state = {
@@ -201,7 +216,8 @@ function draw() {
     const {nx, ny} = state.viewport;
 
     const imageData = new ImageData(nx, ny); // Pixel / frame buffer
-    for (const {x, y, ray} of state.viewport.calculateOrthographicRays()) {
+    // for (const {x, y, ray} of state.viewport.calculateOrthographicRays()) {
+    for (const {x, y, ray} of state.viewport.calculatePerspectiveRays(5)) {
         const idx = y * nx + x;
         const hit = state.sphere.hit(ray);
         if (hit === null) {
@@ -235,12 +251,14 @@ function initialize() {
     const camera = new Camera(cameraPosition, upVector, cameraDirection);
     state.camera = camera;
 
+    assert(camera.isOrthonormal(), `Camera was not orthonormal.`);
+
     // NOTE: IF VIEWPORT IS SQUARE THEN NX AND NY SHOULD BE EQUAL TO AVOID DISTORTION
     const [nx, ny] = [canvas.width, canvas.height];
     const viewportWidth = 4;
     const viewportHeight = viewportWidth * (ny/nx);
-    const viewportLeft = -2.5;
-    const viewportTop = -1;
+    const viewportLeft = -2;
+    const viewportTop = -2;
     const viewport = new Viewport(camera, viewportLeft, viewportLeft + viewportWidth, viewportTop, viewportTop + viewportHeight, nx, ny);
     state.viewport = viewport;
 
