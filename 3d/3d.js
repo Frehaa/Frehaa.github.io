@@ -1,3 +1,9 @@
+'using strict';
+const l = console.log;
+function assert(condition, msg) {
+    if (!condition) throw Error(msg)
+}
+
 function translateMatrix(x, y, z) {
     return createMatrix([
         [1, 0, 0, x],
@@ -131,14 +137,182 @@ class Sphere {
     }
 }
 
+class Camera {
+    constructor(position, up, direction) {
+        this.position = position; // Viewepoint of camera
+        this.e = position; // Viewepoint of camera
+        this.up = up; // Up vector, perpendicular to the view direction
+        this.viewDirection = direction; // View direction
+        this.v = up; // Why the fuck is the up vector named v and not u? 
+        this.w = direction.scale(-1);
+        this.u = up.cross(this.w);
+        this.sideDirection = this.u;
+    }
+}
+
+class Viewport {
+    constructor(camera, left, right, top, bottom, widthInPixels, heightInPixels) {
+        this.camera = camera;
+        this.l = left;
+        this.r = right;
+        this.t = top;
+        this.b = bottom;
+        this.nx = widthInPixels;
+        this.ny = heightInPixels;
+    }
+    
+    getPixelCoordinatesRelativeToCamera(i, j) {
+        const {l, r, t, b, nx, ny} = this;
+        const u = l + (r - l) * (i + 0.5) / nx
+        const v = b + (t - b) * (j + 0.5) / ny;
+        return new Vec2(u, v);
+    }
+
+    getPixelCoordinatesRelativeToWorld(i, j) {
+        const cameraCoordinates = this.getPixelCoordinatesRelativeToCamera(i, j);
+        // ???? 
+        return new Vec2(0,0);
+    }
+
+    *calculateOrthographicRays() {
+        const {e, u, v, viewDirection } = this.camera;
+        for (let y = 0; y < this.ny; y++) {
+            for (let x = 0; x < this.nx; x++) {
+                const coordinates = this.getPixelCoordinatesRelativeToCamera(x, y);
+                const rayOrigin = e.add(u.scale(coordinates.x)).add(v.scale(coordinates.y));
+                const ray = new Ray(rayOrigin, viewDirection);
+                yield {x, y, ray};
+            }
+        }
+    }
+}
+
+const state = {
+    camera: null,
+    viewport: null,
+    sphere: null
+};
+
+function draw() {
+    const canvas = document.getElementById('canvas');// as HTMLCanvasElement;
+    const ctx = canvas.getContext('2d');// as CanvasRenderingContext2D;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const {nx, ny} = state.viewport;
+
+    const imageData = new ImageData(nx, ny); // Pixel / frame buffer
+    for (const {x, y, ray} of state.viewport.calculateOrthographicRays()) {
+        const idx = y * nx + x;
+        const hit = state.sphere.hit(ray);
+        if (hit === null) {
+            imageData.data[4 * idx + 0] = 0; // R
+            imageData.data[4 * idx + 1] = 0; // G
+            imageData.data[4 * idx + 2] = 0; // B
+            imageData.data[4 * idx + 3] = 255; // A
+        } else {
+            imageData.data[4 * idx + 0] = 255; // R
+            imageData.data[4 * idx + 1] = 0; // G
+            imageData.data[4 * idx + 2] = 0; // B
+            imageData.data[4 * idx + 3] = 255; // A
+        }
+    }
+    ctx.putImageData(imageData, 0, 0);
+}
+
+const settings = {
+    cameraStepMovement: 0.5,
+}
 
 function initialize() {
     const canvas = document.getElementById('canvas');// as HTMLCanvasElement;
     const ctx = canvas.getContext('2d');// as CanvasRenderingContext2D;
 
-    const ny = 100;
-    const nx = 100;
+
+    const cameraPosition = new Vec3(0, 0, -5);
+    const upVector = new Vec3(0, 1, 0);
+    const cameraDirection = new Vec3(0, 0, 1);
+
+    const camera = new Camera(cameraPosition, upVector, cameraDirection);
+    state.camera = camera;
+
+    // NOTE: IF VIEWPORT IS SQUARE THEN NX AND NY SHOULD BE EQUAL TO AVOID DISTORTION
+    const [nx, ny] = [canvas.width, canvas.height];
+    const viewportWidth = 4;
+    const viewportHeight = viewportWidth * (ny/nx);
+    const viewportLeft = -2.5;
+    const viewportTop = -1;
+    const viewport = new Viewport(camera, viewportLeft, viewportLeft + viewportWidth, viewportTop, viewportTop + viewportHeight, nx, ny);
+    state.viewport = viewport;
+
+
+    // TODO: Oblique view when we can see the difference
+
     const imageData = new ImageData(nx, ny); // Pixel / frame buffer
+
+    l(imageData)
+    const sphere = new Sphere(0, 0, 0, 1);
+    state.sphere = sphere;
+    draw()
+
+
+
+    document.addEventListener('keydown', e => {
+        switch (e.key) {
+            case "ArrowUp": {
+                const newPosition = state.camera.position.add(new Vec3(0, settings.cameraStepMovement, 0));
+                state.camera.position = newPosition;
+                state.camera.e = newPosition;
+                draw()
+            } break;
+            case "ArrowDown": {
+                const newPosition = state.camera.position.add(new Vec3(0, -settings.cameraStepMovement, 0));
+                state.camera.position = newPosition;
+                state.camera.e = newPosition;
+                draw()
+
+            } break;
+            case "ArrowLeft": {
+                const newPosition = state.camera.position.add(new Vec3(-settings.cameraStepMovement, 0, 0));
+                state.camera.position = newPosition;
+                state.camera.e = newPosition;
+                draw()
+
+            } break;
+            case "ArrowRight": {
+                const newPosition = state.camera.position.add(new Vec3(settings.cameraStepMovement, 0, 0));
+                state.camera.position = newPosition;
+                state.camera.e = newPosition;
+                draw()
+
+            } break;
+        }
+    })
+
+
+
+    // for (const {x, y, ray} of viewport.calculateOrthographicRays()) {
+    //     const idx = y * nx + x;
+    //     const hit = sphere.hit(ray);
+    //     if (hit === null) {
+    //         imageData.data[4 * idx + 0] = 0; // R
+    //         imageData.data[4 * idx + 1] = 0; // G
+    //         imageData.data[4 * idx + 2] = 0; // B
+    //         imageData.data[4 * idx + 3] = 255; // A
+    //     } else {
+    //         imageData.data[4 * idx + 0] = 255; // R
+    //         imageData.data[4 * idx + 1] = 0; // G
+    //         imageData.data[4 * idx + 2] = 0; // B
+    //         imageData.data[4 * idx + 3] = 255; // A
+    //     }
+    // }
+    // ctx.putImageData(imageData, 100, 100);
+
+
+
+
+
+    return
+    
 
     // const w = new Vec3(0, 0, 1);
     // const e = new Vec3(0, 0, -5); // Eye / origin 
@@ -160,11 +334,6 @@ function initialize() {
 
 
     // const imagePlane = []; // The set of pixel points to project onto
-
-    const sphere = {
-        c : [0, 0, 5],
-        R: 10
-    };
 
     for (let j = 0; j < ny; ++j) {
         for (let i = 0; i < nx; ++i) {
