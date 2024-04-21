@@ -137,6 +137,7 @@ class Sphere {
     }
 }
 
+// For some reason, the x plane is flipped
 class Camera {
     constructor(position, up, direction) {
         this.position = position; // Viewepoint of camera
@@ -205,7 +206,7 @@ class Viewport {
 const state = {
     camera: null,
     viewport: null,
-    sphere: null
+    objects: []
 };
 
 function draw() {
@@ -219,20 +220,84 @@ function draw() {
     // for (const {x, y, ray} of state.viewport.calculateOrthographicRays()) {
     for (const {x, y, ray} of state.viewport.calculatePerspectiveRays(5)) {
         const idx = y * nx + x;
-        const hit = state.sphere.hit(ray);
-        if (hit === null) {
+        let currentObject = null;
+        let currentDistance = Infinity;
+        for (const object of state.objects) {
+            const hit = object.hit(ray);
+            if (hit !== null && hit < currentDistance) {
+                currentObject = object;
+                currentDistance = hit;
+            }
+        }
+
+        if (currentObject === null) {
             imageData.data[4 * idx + 0] = 0; // R
             imageData.data[4 * idx + 1] = 0; // G
             imageData.data[4 * idx + 2] = 0; // B
             imageData.data[4 * idx + 3] = 255; // A
-        } else {
+        } else if (currentObject instanceof Sphere) {
             imageData.data[4 * idx + 0] = 255; // R
             imageData.data[4 * idx + 1] = 0; // G
             imageData.data[4 * idx + 2] = 0; // B
             imageData.data[4 * idx + 3] = 255; // A
+        } else {
+            imageData.data[4 * idx + 0] = 0; // R
+            imageData.data[4 * idx + 1] = 255; // G
+            imageData.data[4 * idx + 2] = 0; // B
+            imageData.data[4 * idx + 3] = 255; // A
+
         }
     }
     ctx.putImageData(imageData, 0, 0);
+}
+
+class Triangle {
+    constructor(a, b, c) {
+        this.a = a;
+        this.b = b;
+        this.c = c;
+    }
+    hit(ray) {
+        const [d, e] = [ray.direction, ray.origin];
+        const {a, b, c} = this;
+        const A = createMatrix([
+            [a.x - b.x, a.x - c.x, d.x],
+            [a.y - b.y, a.y - c.y, d.y],
+            [a.z - b.z, a.z - c.z, d.z],
+        ]);
+        const M = A.determinant();
+
+        const T = createMatrix([
+            [a.x - b.x, a.x - c.x, a.x - e.x], 
+            [a.y - b.y, a.y - c.y, a.y - e.y],
+            [a.z - b.z, a.z - c.z, a.z - e.z],
+        ]);
+        const TD = T.determinant();
+        const t = TD / M;
+        if (t < 0) return null;
+
+        const G = createMatrix([
+            [a.x - b.x, a.x - e.x, d.x], 
+            [a.y - b.y, a.y - e.y, d.y], 
+            [a.z - b.z, a.z - e.z, d.z], 
+        ]);
+        const GD = G.determinant();
+        const gamma = GD / M;
+        if (gamma < 0 || gamma > 1) return null;
+
+
+        const B = createMatrix([
+            [a.x - e.x, a.x - c.x, d.x],
+            [a.y - e.y, a.y - c.y, d.y],
+            [a.z - e.z, a.z - c.z, d.z],
+        ])
+        const BD = B.determinant();
+        const beta = BD / M;
+        if (beta < 0 || beta > 1 - gamma) return null;
+
+        // l(t, beta, gamma)
+        return t;
+    }
 }
 
 const settings = {
@@ -263,13 +328,21 @@ function initialize() {
     state.viewport = viewport;
 
 
-    // TODO: Oblique view when we can see the difference
+    // TODO: Oblique parallel view when we can see the difference
+    // TODO: oblique perspective 
 
     const imageData = new ImageData(nx, ny); // Pixel / frame buffer
 
     l(imageData)
     const sphere = new Sphere(0, 0, 0, 1);
-    state.sphere = sphere;
+    state.objects.push(sphere);
+
+    const triangle = new Triangle(
+        new Vec3(0, 0, -1),
+        new Vec3(-1, 1, -1),
+        new Vec3(2, 0, -1),
+    )
+    state.objects.push(triangle)
     draw()
 
 

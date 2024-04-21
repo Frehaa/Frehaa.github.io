@@ -131,7 +131,7 @@ class Vec3 {
   cross(b/*: Vec3\*/) {
     // Formula from wikipedia
     return new Vec3(this[1]*b[2] - this[2]*b[1], this[2]*b[0] - this[0]*b[2], this[0]*b[1] - this[1]*b[0]);
-    // return new Vec3(this[1]*b[2] - this[2]*b[1], a[0]*b[2] - this[2]*b[0], this[0]*b[1] - this[1]*b[0]); // Flip Y (i.e. second coordinate)
+    // return new Vec3(this[1]*b[2] - this[2]*b[1], this[0]*b[2] - this[2]*b[0], this[0]*b[1] - this[1]*b[0]); // Flip Y (i.e. second coordinate)
   }
 
   add(b/*:Vec3\*/) {
@@ -228,6 +228,42 @@ class Matrix {
       output.push("|\n");
     }
     return output.join("");
+  }
+  _calculateDeterminantSubmatrix(column) {
+      const submatrix = new Matrix(this.columns-1, this.columns-1);
+      let columnIndex = 0;
+      for (let j = 0; j < this.columns-1; j++) {
+        if (columnIndex === column) columnIndex++;
+        for (let i = 0; i < this.rows-1; i++) {
+          submatrix[i][j] = this[i+1][columnIndex];
+        }
+        columnIndex++;
+      }
+      return submatrix;
+  }
+  determinant() {
+    if (this.columns !== this.rows) throw new Error('Invalid size: Determinants are only defined for square matrices.')
+    if (this.columns === 2) return this._determinant2();
+    if (this.columns === 3) return this._determinant3();
+    let sum = 0;
+    let sign = 1;
+    for (let i = 0; i < this.columns; i++) {
+      const submatrix = this._calculateDeterminantSubmatrix(i);
+      sum += sign * this[0][i] * submatrix.determinant();
+      sign = sign * -1;
+    }
+    return sum;
+  }
+  _determinant2() {
+    return this[0][0] * this[1][1] - this[0][1] * this[1][0];
+  }
+  _determinant3() {
+    return this[0][0] * this[1][1] * this[2][2] + 
+           this[0][1] * this[1][2] * this[2][0] + 
+           this[0][2] * this[1][0] * this[2][1] - 
+           this[0][2] * this[1][1] * this[2][0] - 
+           this[0][1] * this[1][0] * this[2][2] - 
+           this[0][0] * this[1][2] * this[2][1];
   }
   mult(b) {
     if (this.columns === b.rows) throw new Error('Invalid size: Argument does not have as many rows as this matrix has columns.');
@@ -464,5 +500,75 @@ function pointToBarycentric(point, triangle) {
 function translatePoint(point, direction, distance) {
     if (!(point instanceof Vec3 && direction instanceof Vec3)) throw Error("Both point and direction should be Vec3");
     return point + direction.normalize().scale(distance);
+}
+
+function testDeterminantFunction() {
+  testDeterminantFunction1();
+  testDeterminantFunction2();
+  testDeterminantFunction3();
+  testDeterminantFunction4();
+  testDeterminantFunction5();
+}
+
+function testDeterminantFunction1() {
+  const m = createMatrix([
+    [1, 2, 6, 6],
+    [4, 7, 3, 2],
+    [0, 0, 0, 0],
+    [1, 2, 2, 9],
+  ]);
+
+  const result = m.determinant();
+  if (result !== 0) console.log('Expected ', m, 'to have determinant 0, but was', result)
+}
+
+function testDeterminantFunction2() {
+  const m = createMatrix([
+    [2, 1, 2, 3],
+    [6, 7, 6, 9],
+    [0, 6, 0, 0],
+    [1, 2, 1, 4],
+  ]);
+
+  const result = m.determinant();
+  if (result !== 0) console.log('Expected ', m, 'to have determinant 0, but was', result)
+}
+
+function testDeterminantFunction3() {
+  const m = createMatrix([
+    [1, 2, 3, 4],
+    [2, 5, 7, 3],
+    [4, 10, 14, 6],
+    [3, 4, 2, 7],
+  ]);
+
+  const result = m.determinant();
+  if (result !== 0) console.log('Expected ', m, 'to have determinant 0, but was', result)
+}
+
+function testDeterminantFunction4() {
+  const m = createMatrix([
+    [4, 3, 2, 2],
+    [0, 1, -3, 3],
+    [0, -1, 3, 3],
+    [0, 3, 1, 1],
+  ]);
+
+  const result = m.determinant();
+  if (result !== -240) console.log('Expected ', m, 'to have determinant -240, but was', result)
+}
+
+
+function testDeterminantFunction5() {
+  const m = createMatrix([
+    [1, 4, 2, 1],
+    [-1, -1, 3, 2],
+    [0, 5, 7, -4],
+    [2, 1, -3, 2],
+  ]);
+
+  const result = m.determinant();
+  const expected = 98;
+  if (result !== expected) console.log('Expected ', m, 'to have determinant', expected, ', but was', result)
 }
 
