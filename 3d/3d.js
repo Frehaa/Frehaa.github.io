@@ -69,7 +69,9 @@ function degreeToRadians(degree) {
 class Ray {
     constructor(origin, direction) {
         this.origin = origin;
+        this.e = origin;
         this.direction = direction;
+        this.d = direction;
     }
 }
 
@@ -222,6 +224,7 @@ function draw() {
         const idx = y * nx + x;
         let currentObject = null;
         let currentDistance = Infinity;
+
         for (const object of state.objects) {
             const hit = object.hit(ray);
             if (hit !== null && hit < currentDistance) {
@@ -240,7 +243,7 @@ function draw() {
             imageData.data[4 * idx + 1] = 0; // G
             imageData.data[4 * idx + 2] = 0; // B
             imageData.data[4 * idx + 3] = 255; // A
-        } else {
+        } else if (currentObject instanceof Triangle) {
             imageData.data[4 * idx + 0] = 0; // R
             imageData.data[4 * idx + 1] = 255; // G
             imageData.data[4 * idx + 2] = 0; // B
@@ -258,6 +261,41 @@ class Triangle {
         this.c = c;
     }
     hit(ray) {
+        const [[a, d, g],
+               [b, e, h],
+               [c, f, i]]  = [
+            [this.a.x - this.b.x, this.a.x - this.c.x, ray.d.x],
+            [this.a.y - this.b.y, this.a.y - this.c.y, ray.d.y],
+            [this.a.z - this.b.z, this.a.z - this.c.z, ray.d.z],
+        ];
+        const [j, k, l] = [this.a.x - ray.e.x, this.a.y - ray.e.y, this.a.z - ray.e.z];
+
+        //  a d g     x      j
+        //  b e h  *  y   =  k
+        //  c f i     z      l
+
+        const eiMinushf = e*i - h*f; // A[1][1] * A[2][2] - A[1][2] * A[2][1];
+        const gfMinusdi = g*f - d*i; // A[0][2] * A[2][1] - A[0][1] * A[2][2];
+        const dhMinuseg = d*h - e*g; // A[0][1] * A[1][2] - A[1][1] * A[0][2];
+        const akMinusjb = a*k - j*b; // A[0][0] * B[1]    - B[0]    * A[1][0];
+        const jcMinusal = j*c - a*l; // B[0]    * A[2][0] - A[0][0] * B[2];
+        const blMinuskc = b*l - k*c; // A[1][0] * B[2]    - B[1]    * A[2][0]; 
+        const M = a*eiMinushf + b*gfMinusdi + c*dhMinuseg; // A[0][0] * eiMinushf + A[1][0] * gfMinusdi + A[2][0] * dhMinuseg;
+
+        const t = -(f*akMinusjb + e*jcMinusal + d*blMinuskc) / M;
+        if (t < 0) return null;
+
+        const gamma = (i*akMinusjb + h*jcMinusal + g*blMinuskc) / M;
+        if (gamma < 0 || gamma > 1) return null;
+
+        
+        const beta = (j* eiMinushf  + k*gfMinusdi + l*dhMinuseg) / M;
+        if (beta < 0 || beta > 1 - gamma) return null;
+    
+        return t;
+
+    }
+    slowHit(ray) {
         const [d, e] = [ray.direction, ray.origin];
         const {a, b, c} = this;
         const A = createMatrix([
@@ -338,9 +376,9 @@ function initialize() {
     state.objects.push(sphere);
 
     const triangle = new Triangle(
-        new Vec3(0, 0, -1),
-        new Vec3(-1, 1, -1),
-        new Vec3(2, 0, -1),
+        new Vec3(0.5, 0, -1),
+        new Vec3(-1, 0, -1),
+        new Vec3(0, -1, -1),
     )
     state.objects.push(triangle)
     draw()
