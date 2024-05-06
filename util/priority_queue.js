@@ -40,14 +40,14 @@ class IndexedMinPriorityQueue {
         this._swim(this._size);
     }
     change(index, value, priority) {
-        // Implement the basic operations in the
-        // index priority-queue API on page 320 by modifying Algorithm 2.6 as follows: Change
-        // pq[] to hold indices, add an array keys[] to hold the key values, and add an array qp[]
-        // that is the inverse of pq[] — qp[i] gives the position of i in pq[] (the index j such that
-        // pq[j] is i). Then modify the code in Algorithm 2.6 to maintain these data structures.
-        // Use the convention that qp[i] = -1 if i is not on the queue, and include a method
-        // contains() that tests this condition. You need to modify the helper methods exch()
-        // and less() but not sink() or swim().
+        if (!this.contains(index)) throw new Error('The index does not have an item assigned.')
+        
+        this._items[index].value = value;
+        this._items[index].priority = priority;
+
+        const itemIndex = this._qp[index];
+        this._swim(itemIndex);
+        this._sink(itemIndex);
     }
     removeMin() {
         if (this._size === 0) return null;
@@ -161,17 +161,6 @@ class MinPriorityQueue {
         this._items[index1] = this._items[index2];
         this._items[index2] = tmp;
     }
-    change(item, value) {
-        // Implement the basic operations in the
-        // index priority-queue API on page 320 by modifying Algorithm 2.6 as follows: Change
-        // pq[] to hold indices, add an array keys[] to hold the key values, and add an array qp[]
-        // that is the inverse of pq[] — qp[i] gives the position of i in pq[] (the index j such that
-        // pq[j] is i). Then modify the code in Algorithm 2.6 to maintain these data structures.
-        // Use the convention that qp[i] = -1 if i is not on the queue, and include a method
-        // contains() that tests this condition. You need to modify the helper methods exch()
-        // and less() but not sink() or swim().
-
-    }
 }
 
 function testMinPriorityQueue() {
@@ -261,7 +250,12 @@ function testIndexedMinPriorityQueue() {
     test_IMPQ_add_positive_outside_index_bound_makes_error,
     test_IMPQ_add_same_index_makes_error,
     test_IMPQ_add_same_priority_items_maintains_order,
-    test_IMPQ_removeMin_left_vs_right
+    test_IMPQ_removeMin_left_vs_right,
+    test_IMPQ_change_item_to_min_expect_new_min_on_removal,
+    test_IMPQ_change_non_existing_element_index_expect_error,
+    test_IMPQ_change_out_of_bound_index_expect_error,
+    test_IMPQ_change_min_expect_new_value_on_removal,
+    test_IMPQ_add_remove_random_tests,
     ];
     for (let i = 0; i < tests.length; i++) {
         try {
@@ -457,7 +451,78 @@ function test_IMPQ_removeMin_left_vs_right() {
     assertEqual(pq.removeMin(), 'd', functionName +' failed');
 }
 
+function test_IMPQ_change_out_of_bound_index_expect_error() {
+    const functionName = 'test_IMPQ_change_out_of_bound_index_expect_error';
+    const pq = new IndexedMinPriorityQueue(7);
 
+    assertError(() => {
+        pq.change(-1, 1, 1);
+    }, (e) => true, functionName + ' failed');
+    assertError(() => {
+        pq.change(7, 1, 1);
+    }, (e) => true, functionName + ' failed');
+}
+
+function test_IMPQ_change_non_existing_element_index_expect_error() {
+    const functionName = 'test_IMPQ_change_non_existing_element_index_expect_error';
+    const pq = new IndexedMinPriorityQueue(7);
+    pq.add(3, 3, 3);
+
+    assertError(() => {
+        pq.change(1, 1, 1);
+    }, (e) => true, functionName + ' failed');
+    assertError(() => {
+        pq.change(5, 1, 1);
+    }, (e) => true, functionName + ' failed');
+}
+
+function test_IMPQ_change_item_to_min_expect_new_min_on_removal() {
+    const functionName = 'test_IMPQ_change_item_to_min_expect_new_min_on_removal';
+    const pq = new IndexedMinPriorityQueue(7);
+    pq.add(3, 3, 3);
+    pq.add(2, 2, 2);
+    pq.add(4, 4, 4);
+    pq.add(5, 5, 5);
+    pq.change(5, 5, 1);
+
+    assertEqual(pq.removeMin(), 5, functionName +' failed');
+    assertEqual(pq.removeMin(), 2, functionName +' failed');
+}
+
+function test_IMPQ_change_min_expect_new_value_on_removal() {
+    const functionName = 'test_IMPQ_change_min_expect_new_value_on_removal';
+    const pq = new IndexedMinPriorityQueue(7);
+    pq.add(1, 1, 1);
+    pq.add(2, 2, 2);
+    pq.add(3, 3, 3);
+    pq.add(4, 4, 4);
+    pq.change(1, 5, 1)
+
+    assertEqual(pq.removeMin(), 5, functionName +' failed');
+}
+
+function test_IMPQ_add_remove_random_tests() {
+    const priorityQueueSize = 100;
+    const numberOfTests = 1000;
+    const functionName = 'test_IMPQ_add_remove_random_tests';
+
+    for (let t = 0; t < numberOfTests; t++) {
+        const pq = new IndexedMinPriorityQueue(priorityQueueSize);
+        const values = []
+        for (let i = 0; i < priorityQueueSize; i++) {
+            values.push(i);
+        }
+        shuffle(values); // shuffle depends on math.js
+        for (let i = 0; i < priorityQueueSize; i++) {
+            pq.add(i, values[i], values[i]);
+        }
+
+        for (let i = 0; i < priorityQueueSize; i++) {
+            assertEqual(pq.removeMin(), i, functionName + ' failed on input [' + values + ']');
+        }
+    }
+ 
+}
 
 function drawPriorityQueueArray(ctx, leftX, topY, width, height, array) {
     // TODO: Center Text
