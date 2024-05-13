@@ -45,9 +45,9 @@ class IndexedMinPriorityQueue {
         this._items[index].value = value;
         this._items[index].priority = priority;
 
-        const itemIndex = this._qp[index];
-        this._swim(itemIndex);
-        this._sink(itemIndex);
+        const pqIndex = this._qp[index];
+        this._swim(pqIndex);
+        this._sink(pqIndex);
     }
     removeMin() {
         if (this._size === 0) return null;
@@ -55,14 +55,14 @@ class IndexedMinPriorityQueue {
         const minItemIndex = this._pq[1];
         const returnResult = this._items[minItemIndex].value; // Keep reference to item to return
 
+       // Take the item at the last position in the priority queue and put it in position 1
+        this._swap(1, this._size);
+
         // remove old item's bookkeeping 
         this._items[minItemIndex] = null;
         this._qp[minItemIndex] = -1;
-        this._pq[1] = null;
-
-        // Take the item at the last position in the priority queue and put it in position 1
-        this._swap(1, this._size);
-
+        this._pq[this._size] = null;
+ 
         // Update size and sink the swapped element
         this._size -= 1
         this._sink(1);
@@ -141,20 +141,7 @@ class MinPriorityQueue {
 
     }
     _sink(index) {
-        const item = this._items[index];
-        const left = this._items[index * 2];
-        if (left === undefined) return;
-        if (item.compareTo(left) === 1) {
-            this._swap(index, index * 2);
-            return this._sink(index * 2);
-        }         
-
-        const right = this._items[index * 2 + 1];
-        if (right === undefined) return;
-        if (item.compareTo(right) === 1) {
-            this._swap(index, index * 2 + 1);
-            return this._sink(index * 2 + 1);
-        }
+        // TODO: FIX if needed
     }
     _swap(index1, index2) {
         const tmp = this._items[index1];
@@ -251,6 +238,7 @@ function testIndexedMinPriorityQueue() {
     test_IMPQ_add_same_index_makes_error,
     test_IMPQ_add_same_priority_items_maintains_order,
     test_IMPQ_removeMin_left_vs_right,
+    test_IMPQ_removeMin_then_change_swapped_element,
     test_IMPQ_change_item_to_min_expect_new_min_on_removal,
     test_IMPQ_change_non_existing_element_index_expect_error,
     test_IMPQ_change_out_of_bound_index_expect_error,
@@ -260,6 +248,7 @@ function testIndexedMinPriorityQueue() {
     for (let i = 0; i < tests.length; i++) {
         try {
             tests[i]();
+            console.log(tests[i].name + " success");
         } catch (e) {
             console.log(e);
         }
@@ -449,6 +438,19 @@ function test_IMPQ_removeMin_left_vs_right() {
     assertEqual(pq.removeMin(), 'b', functionName +' failed');
     assertEqual(pq.removeMin(), 'c', functionName +' failed');
     assertEqual(pq.removeMin(), 'd', functionName +' failed');
+}
+
+function test_IMPQ_removeMin_then_change_swapped_element() {
+    const pq = new IndexedMinPriorityQueue(7);
+    pq.add(0, 'a', 0)
+    pq.add(1, 'c', 2)
+    pq.add(2, 'b', 1)
+    pq.add(3, 'd', 5)
+    pq.removeMin(); // The previous error happened after a removeMin where _qp was not updated properly 
+
+    pq.change(2, 'cc', 0);
+
+    assertEqual(pq.removeMin(), 'cc', '');
 }
 
 function test_IMPQ_change_out_of_bound_index_expect_error() {
