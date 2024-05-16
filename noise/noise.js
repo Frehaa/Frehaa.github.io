@@ -2,7 +2,7 @@
 
 const DEFAULT_SAMPLE_COUNT = 100;
 function hash(str) {
-    let [a, b, c] = [1048573, 2097143, 134217689];
+    const [a, b, c] = [1048573, 2097143, 134217689];
     let result = a;
     for (let i = 0; i < str.length; i++) {
         result = (result + b * str.charCodeAt(i)) % c;
@@ -71,26 +71,62 @@ function whiteNoiseUpdate(count, seed) {
     }
 }
 
-function blueNoiseUpdate(count, seed) {
+const blueNoiseState = {
+    points: [],
+    previousSeed: 0,
+}
+
+function blueNoiseUpdate(count, seed, forceUpdate = false) {
+    console.log('blue noise update')
     let canvas = document.getElementById('blue-noise-canvas');
     let width = canvas.width;
     let height = canvas.height;
     let ctx = canvas.getContext('2d');
     seed = hash(seed);
     
-    ctx.font = "bold 32px serif"
-    ctx.fillText("TODO: Implement blue noise", 50, 100);
+    if (seed !== blueNoiseState.previousSeed) {
+        blueNoiseState.points = [];
+        blueNoiseState.previousSeed = seed;
+    }
 
+    const points = blueNoiseState.points;
+    if (count > blueNoiseState.points.length) { // 
+        console.log('regenerate', blueNoiseState, count)
+        let minimumDistanceSquared = 625;
+        const decayRate = 1/8;
+        const repeatCountBeforeDecay = 25;
+        
+        let repeats = 0;
+        for (let rand of document.random(seed)) {
+            if (points.length >= count) break
+            let pos = width * height * rand;
+            let x = pos % width; 
+            let y = pos / width;
+            let newPointFound = true;
+            for (const [Px, Py] of points) {
+                const dx = Px - x;
+                const dy = Py - y;
+                if (dx*dx + dy*dy <= minimumDistanceSquared) {
+                    newPointFound = false;
+                    break;
+                }
+            }
+            if (newPointFound) {
+                points.push([x, y]);
+                repeats = 0;
+            } else if (repeats > repeatCountBeforeDecay) {
+                minimumDistanceSquared = minimumDistanceSquared - minimumDistanceSquared * decayRate;
+                // console.log('Too many repeats', minimumDistanceSquared);
+                repeats = 0;
+            }else {
+                repeats++;
+            }
+        }
+    }
 
-    return;
-
-    let i = 0
     ctx.clearRect(0, 0, width, height);
-    for (let rand of document.random(seed)) {
-        if (++i > count) break
-        let pos = width * height * rand;
-        let x = pos % width; 
-        let y = pos / width;
+    for (let i = 0; i < count; i++) {
+        const [x,y] = points[i];
         drawDot(ctx, x, y);
     }
 }
