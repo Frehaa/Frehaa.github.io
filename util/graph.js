@@ -60,6 +60,17 @@ class Graph {
             yield edge
         }
     }
+
+    // Return a set for now
+    edges() {
+        const result = new Set();
+        this.adjacencyMaps.forEach(map => {
+            for (const edge of map.values()) {
+                result.add(edge);
+            }
+        })
+        return result;
+    }
 }
 
 // REQUIRES priority_queue.js: MinPriorityQueue
