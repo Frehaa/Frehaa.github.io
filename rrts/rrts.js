@@ -11,8 +11,10 @@ function assert(condition, msg) {
 }
 // TODO: Translate screen space to canvas space
 
-function clamp(min, max, v) {
-    return Math.min(max, Math.max(min, v));
+const settings = {
+    cameraSpeedDrag: 2,
+    cameraSpeedArrow: 2,
+    mouseSpeed: 1
 }
 
 const mouseState = {
@@ -23,7 +25,12 @@ const mouseState = {
 
 const camera = {
     position: {x: 0, y: 0},
-    viewPort: {width: 1920, height: 1080}
+    moveDirection: [0, 0],
+    viewPort: {width: 1920, height: 1080},
+    updatePosition(dt) {
+        this.position.x += this.moveDirection[0] * settings.cameraSpeedArrow * dt;
+        this.position.y += this.moveDirection[1] * settings.cameraSpeedArrow * dt;
+    }
 }
 
 const gameState = {
@@ -140,6 +147,7 @@ function pointInTriangle(point, triangle) {
     return alpha >= 0 && beta >= 0 && gamma >= 0;
 }
 
+// TODO: Selection box should have world positions, not camera positions
 function drawSelectionBox(ctx, start, end) {
     const width = end.x - start.x;
     const height = end.y - start.y;
@@ -161,41 +169,19 @@ function drawCursor(ctx, mouseState) {
 }
 
 function pathfind() {
+    // DONE: 
+    // DIJKSTRA
+
     // TODO:
-
-    // Maybe the trick is just that the shortest path will by definition be the one which cuts the corner the most optimally
-    // The tricky part still seems to be to find 
+    // 
 
 
-    // How to deal with a group of units? Maybe think of the center as what needs to reach the target? (This seems like it would very easily lead to bugs. What if the units are spread out?)
+    // How to deal with a group of units? Maybe think of the center as what needs to reach the target? (This seems like it would very easily lead to bugs. What if the units are spread out?) First we need to figure out which units are clumped.
     // We do euclidian distance (i.e. sqrt(x^2 + y^2), maybe ignore sqrt), and then we compress the path by checking if there is no obstacle between the start and the end
 
     // NAV MESHES
     // Simple Stupid Funnel Algorithm 
 }
-
-
-// function drawWorld(ctx, world, camera) {
-//     const squarePixelSize = MAP_TILE_SIZE;
-//     ctx.strokeStyle = 'black'
-//     for (let x = 0; x < world.width; x++) {
-//         for (let y = 0; y < world.height; y++) {
-//             switch (world.map[y][x]) {
-//                 case 0: {
-//                     ctx.fillStyle = 'grey';
-//                 } break;
-//                 case 1: {
-//                     ctx.fillStyle = 'white';
-//                 } break;
-//                 default: {
-//                     l('Unknown map square', world.map[y][x])
-//                 }
-//             }
-//             ctx.fillRect(x * squarePixelSize - camera.position.x, y * squarePixelSize - camera.position.y, squarePixelSize, squarePixelSize);
-//             // ctx.strokeRect(x * squarePixelSize - camera.position.x, y * squarePixelSize - camera.position.y, squarePixelSize, squarePixelSize);
-//         }
-//     }
-// }
 
 function drawWorld(ctx, world, camera) {
     ctx.strokeStyle = 'black'
@@ -215,26 +201,6 @@ function drawWorld(ctx, world, camera) {
         ctx.closePath();
         ctx.fill();
     }
-
-
-
-    // for (let x = 0; x < world.width; x++) {
-    //     for (let y = 0; y < world.height; y++) {
-    //         switch (world.map[y][x]) {
-    //             case 0: {
-    //                 ctx.fillStyle = 'grey';
-    //             } break;
-    //             case 1: {
-    //                 ctx.fillStyle = 'white';
-    //             } break;
-    //             default: {
-    //                 l('Unknown map square', world.map[y][x])
-    //             }
-    //         }
-    //         ctx.fillRect(x * squarePixelSize - camera.position.x, y * squarePixelSize - camera.position.y, squarePixelSize, squarePixelSize);
-    //         // ctx.strokeRect(x * squarePixelSize - camera.position.x, y * squarePixelSize - camera.position.y, squarePixelSize, squarePixelSize);
-    //     }
-    // }
 }
 
 
@@ -349,18 +315,26 @@ function drawBottomThingy(ctx, gameState) {
 }
 
 function drawWaypointGraph(ctx, camera) {
-    ctx.fillStyle = 'red'
-    for (const point of waypointGraph) {
-        ctx.beginPath();
-        ctx.arc(point.x - camera.position.x, point.y - camera.position.y, 10, 0, 2 * Math.PI);
-        ctx.fill()
 
-        for (const otherPoint of point.connected) {
-            ctx.moveTo(point.x - camera.position.x, point.y - camera.position.y);
-            ctx.lineTo(otherPoint.x - camera.position.x, otherPoint.y - camera.position.y);
-        } 
+    ctx.beginPath(); 
+    for (const edge of waypointGraph.graph.edges()) {
+        const eitherIndex = edge.either();
+        const p1 = waypointGraph.waypoints[eitherIndex]
+        const p2 = waypointGraph.waypoints[edge.other(eitherIndex)];
+        ctx.moveTo(p1.x - camera.position.x, p1.y - camera.position.y);
+        ctx.lineTo(p2.x - camera.position.x, p2.y - camera.position.y);
+    }
+    ctx.stroke();
+
+    for (const waypoint of waypointGraph.waypoints) {
+        ctx.fillStyle = waypoint.color;
+        ctx.beginPath(); 
+        ctx.arc(waypoint.x - camera.position.x, waypoint.y - camera.position.y, 10, 0, 2 * Math.PI);
+        ctx.fill()
         ctx.stroke();
     }
+
+
 }
 
 let lastTime = 0;
@@ -369,6 +343,8 @@ let lastTime = 0;
 function draw(time) {
     const dt = time - lastTime;
     lastTime = time;
+
+    camera.updatePosition(dt);
 
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
@@ -594,7 +570,7 @@ class Waypoint {
     constructor(x,y) {
         this.x = x;
         this.y = y;
-        this.connected = [];
+        this.color = 'red';
     }
 
     isCloseTo(other, distanceSq) {
@@ -602,39 +578,110 @@ class Waypoint {
         const dy = other.y - this.y;
         return (dx*dx + dy*dy) <= distanceSq;
     }
+    distance(other) {
+        const dx = this.x - other.x;
+        const dy = this.y - other.y;
+        return Math.sqrt(dx*dx + dy*dy);
+    }
+}
 
-    connect(otherPoint) {
-        this.connected.push(otherPoint);
-        otherPoint.connected.push(this);
+class WorldGraph {
+    constructor(waypointCount, world) {
+        this.waypoints = []
+        this.graph = new Graph(waypointCount);
+        this._addWaypoints(world);
+    }
+    _addWaypoints(world) {
+        const points = this.graph.size;
+
+        const worldSeed = 153216987;
+        const randomGenerator = customRandom(worldSeed);
+        const repeatCountBeforeDecay = 25;
+        const decayRate = 1/8;
+
+        let minimumDistanceSquared = 100*100
+        let repeat = 0;
+        // DANGER OF INFINITE LOOP IF EVERYTHING IS A BLOCKADE
+        while (this.waypoints.length < points) { 
+            const x = randomGenerator.next().value * world.width;
+            const y = randomGenerator.next().value * world.height;
+            const newPoint = new Waypoint(x,y);
+
+            const isPointBlocked = world.blockades.findIndex(b => b.contains(newPoint)) >= 0;
+            if (isPointBlocked) {
+                continue;
+            }
+
+            const isCloseToOtherPoint = this.waypoints.findIndex(p => newPoint.isCloseTo(p, minimumDistanceSquared)) >= 0;
+            if (isCloseToOtherPoint) { // A close point
+                repeat++;
+                if (repeat >= repeatCountBeforeDecay) {
+                    minimumDistanceSquared = minimumDistanceSquared - minimumDistanceSquared * decayRate;
+                    repeat = 0;
+                }
+                continue;
+            }
+
+            const connectDistanceSquared = 175 * 175
+            // Connect point to other points
+            for (let i = 0; i < this.waypoints.length; i++) {
+                const otherPoint = this.waypoints[i];
+                if (newPoint.isCloseTo(otherPoint, connectDistanceSquared) && doesPointsHaveNoObstructionsBetweenThem(newPoint, otherPoint, world)) {
+                    this.graph.addEdge(new Edge(this.waypoints.length, i, newPoint.distance(otherPoint)));
+                } 
+            }
+            this.waypoints.push(newPoint);
+        }
+
+
+    }
+}
+
+function* customRandom(seed) {
+    // Linear congruential generator (https://en.wikipedia.org/wiki/Linear_congruential_generator)
+    let state = seed;
+    let a = 1664525;
+    let c = 1013904223;
+    let m = 2**32;
+    while (true) {
+        state = (a * state + c) % m
+        yield state / m;
     }
 }
 
 function createWaypointGraph(world, entity, points) {
-    // Is this a place where regular sampling could be useful? 
-    // How do we connect to waypoints? There needs to be nothing between them
-    // I can do nearest neighbour to figure out if they are close to other points, but how do I determine that no object is between them?
-    // I loop through all obstacles and check. Since obstacles are a series of points, it should(?) surfice to check if the line between the waypoints intersects the line between polygon points. How do we check if two lines intersect? 
-
+    let minimumDistanceSquared = 100*100
+    const repeatCountBeforeDecay = 25;
+    const decayRate = 1/8;
+    let repeat = 0;
+    const worldSeed = 153216987;
+    const randomGenerator = customRandom(worldSeed);
     const result = [];
-    for (let i = 0; i < points; i++) {
-        const x = Math.random() * world.width;
-        const y = Math.random() * world.height;
+    // DANGER OF INFINITE LOOP IF EVERYTHING IS A BLOCKADE
+    while (result.length < points) { 
+        const x = randomGenerator.next().value * world.width;
+        const y = randomGenerator.next().value * world.height;
         const newPoint = new Waypoint(x,y);
 
-        let isBlocked = false;
-        for (const blockade of world.blockades) {
-            if (blockade.contains(newPoint)) {
-                isBlocked = true;
-                break;
-            }
+        const isPointBlocked = world.blockades.findIndex(b => b.contains(newPoint)) >= 0;
+        if (isPointBlocked) {
+            continue;
         }
-        if (isBlocked) continue;
-        // if (canEntityOccupyArea(x, y, world, entity)) {
 
-        // }
+        const isCloseToOtherPoint = result.findIndex(p => newPoint.isCloseTo(p, minimumDistanceSquared)) >= 0;
+        if (isCloseToOtherPoint) { // A close point
+            repeat++;
+            if (repeat >= repeatCountBeforeDecay) {
+                minimumDistanceSquared = minimumDistanceSquared - minimumDistanceSquared * decayRate;
+                repeat = 0;
+            }
+            continue;
+        }
+
+        const connectDistanceSquared = 175 * 175
         // Connect point to other points
         for (const otherPoint of result) {
-            if (newPoint.isCloseTo(otherPoint, 40000) && doesPointsHaveNoObstructionsBetweenThem(newPoint, otherPoint, world)) {
+            if (newPoint.isCloseTo(otherPoint, connectDistanceSquared) && doesPointsHaveNoObstructionsBetweenThem(newPoint, otherPoint, world)) {
                 newPoint.connect(otherPoint);
             }
         }
@@ -654,7 +701,7 @@ function doesPointsHaveNoObstructionsBetweenThem(pointA, pointB, world) {
     return true
 }
 
-const waypointGraph = createWaypointGraph(world, null, 800);
+const waypointGraph = new WorldGraph(1000, world); // createWaypointGraph(world, null, 1000);
 
 
 function initialize() {
@@ -662,6 +709,19 @@ function initialize() {
     camera.canvas = canvas;
 
 
+    const shortestPath = dijkstraShortestPath(waypointGraph.graph, 0, 1);
+    shortestPath.forEach(idx => {
+        waypointGraph.waypoints[idx].color = 'blue';
+    })
+    const shortestPath2 = dijkstraShortestPath(waypointGraph.graph, 3, 4);
+    shortestPath2.forEach(idx => {
+        waypointGraph.waypoints[idx].color = 'green';
+    })
+
+    const shortestPath3 = dijkstraShortestPath(waypointGraph.graph, 8, 10);
+    shortestPath3.forEach(idx => {
+        waypointGraph.waypoints[idx].color = 'pink';
+    })
 
     const entity = new Entity(250, 100, 400, 20, 20)
     entities.push(entity)
@@ -817,11 +877,7 @@ function initialize() {
     // l(findEntitiesInBox(entities, {x: 0, y: 0}, {x:1000, y: 1000}))
     // l(findEntitiesInBox(entities, {x: 500, y: 500}, {x:1000, y: 1000}))
 
-    const settings = {
-        cameraSpeedDrag: 2,
-        cameraSpeedArrow: 10,
-        mouseSpeed: 1
-    }
+
     
     var highestXDiff = 0;
     var highestYDiff = 0;
@@ -843,8 +899,8 @@ function initialize() {
         } else {
             highestXDiff = Math.max(highestXDiff, Math.abs(e.movementX));
             highestYDiff = Math.max(highestYDiff, Math.abs(e.movementY));
-            mouseState.position.x = clamp(0, cameraWidth, mouseState.position.x + e.movementX * settings.mouseSpeed);
-            mouseState.position.y = clamp(0, cameraHeight, mouseState.position.y + e.movementY * settings.mouseSpeed);
+            mouseState.position.x = clamp(mouseState.position.x + e.movementX * settings.mouseSpeed, 0, cameraWidth);
+            mouseState.position.y = clamp(mouseState.position.y + e.movementY * settings.mouseSpeed, 0, cameraHeight);
         }
 
         if (mouseState.dragStartPosition !== null) {
@@ -873,22 +929,40 @@ function initialize() {
 
     }
 
+    const keyset = new Set();
     document.addEventListener('keydown', function(e) {
+        if (keyset.has(e.key)) return;
+
         if (e.key === "ArrowRight") {
-            camera.position.x += settings.cameraSpeedArrow;
+            camera.moveDirection[0] += 1;
         }
         else if (e.key === "ArrowLeft") {
-            camera.position.x -= settings.cameraSpeedArrow;
+            camera.moveDirection[0] -= 1;
         }
         else if (e.key === "ArrowUp") {
-            camera.position.y -= settings.cameraSpeedArrow;
+            camera.moveDirection[1] -= 1;
         }
         else if (e.key === "ArrowDown") {
-            camera.position.y += settings.cameraSpeedArrow;
+            camera.moveDirection[1] += 1;
         }
+        keyset.add(e.key);
+    });
+    document.addEventListener('keyup', function(e) {
+        keyset.delete(e.key);
 
-    })
-
+        if (e.key === "ArrowRight") {
+            camera.moveDirection[0] -= 1;
+        }
+        else if (e.key === "ArrowLeft") {
+            camera.moveDirection[0] += 1;
+        }
+        else if (e.key === "ArrowUp") {
+            camera.moveDirection[1] += 1;
+        }
+        else if (e.key === "ArrowDown") {
+            camera.moveDirection[1] -= 1;
+        }
+    });
 
     requestAnimationFrame(time => {
         lastTime = time;
