@@ -53,6 +53,12 @@ class Vec2 {
     dot(b) {
         return this.x * b.x + this.y * b.y;
     }
+    perp_dot(b) {
+      return -this.y * b.x + this.x * b.y;
+    }
+    perp_scale(s) {
+      return new Vec2(s * -this.y, s * this.x);
+    }
     lerp(b, t) {
       // a + t * (b - a)
       return this.add(b.subtract(this).scale(t));
@@ -67,6 +73,16 @@ class Vec2 {
         const length = this.length();
         return this.scale(1/length);
         // return new Vec2(this.x / length, this.y / length); // TODO: Test accuracy between these two approaches
+    }
+    rotate_around(B, Degrees) { // TODO
+      const radius = B.subtract(this).length();
+      return new Vec2(0, 0);
+    }
+    equal(b) {
+      return this.x === b.x && this.y === b.y;
+    }
+    toString() {
+      return `(${this.x}, ${this.y})`;
     }
 }
 
