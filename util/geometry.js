@@ -35,7 +35,6 @@ class Polygon {
             xMax,
             yMax
         };
-        console.log(this.points, this.boundingBox)
     }
 
     contains(point) {
