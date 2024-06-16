@@ -14,22 +14,31 @@ function assert(condition, msg) {
 const settings = {
     cameraSpeedDrag: 2,
     cameraSpeedArrow: 2,
-    mouseSpeed: 1
+    mouseSpeed: 1,
+    gameSpeedModifier: 1, // TODO,
+    ui: {
+        bottomThingyHeight: 200
+    }
 }
 
 const mouseState = {
     dragStartPosition: null, // 
-    position: {x: 0, y: 0},
+    position: new Vec2(0, 0),
     cameraDrag: null
 }
 
 const camera = {
     position: {x: 0, y: 0},
-    moveDirection: [0, 0],
+    moveDirection: new Vec2(0, 0),
     viewPort: {width: 1920, height: 1080},
     updatePosition(dt) {
-        this.position.x += this.moveDirection[0] * settings.cameraSpeedArrow * dt;
-        this.position.y += this.moveDirection[1] * settings.cameraSpeedArrow * dt;
+        this.move(this.moveDirection.scale(settings.cameraSpeedArrow * dt))
+    },
+    move(direction) { // Camera movement is isolated to this function
+        // TODO: Clamp based on world boundaries (Is )
+        const buffer = 100;
+        this.position.x = clamp(camera.position.x + direction.x, 0, world.width - this.viewPort.width);
+        this.position.y = clamp(camera.position.y + direction.y, 0, world.height - this.viewPort.height + settings.ui.bottomThingyHeight);
     }
 }
 
@@ -37,10 +46,14 @@ const gameState = {
     selectedEntities: [],
     keys: {
         shiftDown: false
-    }
+    },
+    paused: false,
+    elapsedTime: 0,
+    collisions: []
 }
 
 const entities = [];
+const enemies = [];
 
 // const world = {
 //     // How can we quickly represent a simple 2 dimensional world? (How should we extend this to 3D? Should we even do that? Why? Let us put in the maybe)
@@ -299,7 +312,7 @@ function polygonContainsPoint(polygon, point) {
 
 function drawBottomThingy(ctx, gameState) {
     const bottom = ctx.canvas.height;
-    const height = 200;
+    const height = settings.ui.bottomThingyHeight;
     const width = ctx.canvas.width;
     ctx.fillStyle = 'rgba(50, 50, 50)'
     ctx.fillRect(0, bottom - height, width, height);
@@ -333,27 +346,119 @@ function drawWaypointGraph(ctx, camera) {
         ctx.fill()
         ctx.stroke();
     }
-
-
 }
 
-let lastTime = 0;
+
+
+function updateEntityPositions(dt) {
+    // Move entities while handling collision
+    for (const entity of entities) {
+        entity.computeNewPosition(dt);
+    }
+
+    const result = [];
+    // For every pair. Check for overlap. 
+    for (let i = 0; i < entities.length; i++) {
+        const a = entities[i];
+        for (let j = i+1; j < entities.length; j++) {
+            const b = entities[j];
+
+            // First we assume everything is just a circle
+            const v = a.newPosition.subtract(b.newPosition); // Vector from b to a 
+            const distance = v.length();
+            if (distance < a.size.width + b.size.width) { // Collision
+                // TODO: CALCULATE CONTACT POINT
+                const contactPoint = b.position.add(v.scale(b.size.width / v.length()));
+                result.push([i, j, contactPoint]);
+            }
+        }
+    }
+    if (result.length > 0){
+        l(result.length, result)
+    }
+
+    // We only do collision of two things now. We try to handle more later
+    for (let i = 0; i < result.length; i++) {
+        const a = entities[result[i][0]];
+        const b = entities[result[i][1]];
+
+        // if (a.dire)
+        // Clearly bad if they are moving in the same direction
+        a.newPosition = a.position; // NAIVE: NOBODY MOVES
+        b.newPosition = b.position; // NAIVE: NOBODY MOVES
+
+        assert(a.direction.length() > 0 || b.direction.length() > 0, 'One of the entities have to move for there to be a collision');
+        if (a.direction.length() === 0) {
+
+        } else if (b.direction.length() === 0) {
+
+        } else {
+            l(a.direction.dot(b.direction))
+        }
+        
+
+        // HOW TO FIGURE OUT WHETHER THEY ARE MOVING IN SIMILAR DIRECTION AND WHICH IS IN FRONT OF THE OTHER?
+
+        // TODO: Calculate the directions in terms of degrees angle to [1, 0] vector.
+        // Split into 4 general cases, NW, NE, SW, SE
+        // Consider which xy-quadrant the entities are in (Maybe it is easier if 0,0 is bottom left (or top left) such that we are always in the same quadrant)  
+        // Determine which is in front of the other by calculating their length
+        // 
+
+        // TODO: Draw different scenarios 
+
+
+        // b.newPosition.subtract(a.position).length()
+
+        // If direction are the same, and a is further back than b, then move a as much as possible until it hits b
+        // If directions are opposite, then met in the middle and slide a bit against each other
+        // If one is stationary, then push a bit (depend on unit size and mass? Should a zergling be able to push a ultralisk?)
+
+        
+    }
+
+    gameState.collisions = result;
+
+    for (const entity of entities) {
+        entity.position = entity.newPosition;
+    }
+
+
+    // 1. Update positions based on velocity (This needs to check for )
+    // 2. Detect collision
+    // 3. Handle collision: When a collision is found, between two entities, check the velocity of
+    // the two entities and move them away from each other in a way which makes
+    // sense according to their velocity. (e.g. if moving against each other, we
+    // can move them a little back, and maybe to the side such that they pass
+    // each other. If moving the same direction, move the on behind a little
+    // back, as if it is blocked.)
+    // 4. Go to step 2
+}
+
+
 // TODO: Draw map
 // We first ignore camera and just say that 
-function draw(time) {
-    const dt = time - lastTime;
-    lastTime = time;
+function handleAnimationFrame(time) {
+    const dt = time - handleAnimationFrame.lastTime;
+    handleAnimationFrame.lastTime = time;
+
+    const modifiedDt = dt * settings.gameSpeedModifier;
 
     camera.updatePosition(dt);
+
+    if (!gameState.paused) { // DO NOT UPDATE STATE
+        updateEntityPositions(modifiedDt);
+    } else {
+        gameState.elapsedTime += modifiedDt;
+
+    }
+
 
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
-    for (const entity of entities) {
-        entity.step(dt);
-    }
-
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
     ctx.fillStyle = 'black'
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.save()
@@ -367,6 +472,9 @@ function draw(time) {
     ctx.translate(-camera.position.x, -camera.position.y)
 
     for (const entity of entities) {
+        entity.draw(ctx);
+    }
+    for (const entity of enemies) {
         entity.draw(ctx);
     }
 
@@ -383,46 +491,30 @@ function draw(time) {
     }
 
 
-    requestAnimationFrame(draw);
+    ctx.fillStyle = 'red'
+    for (const collision of gameState.collisions) {
+        const collisionPoint = collision[2];
+        ctx.beginPath();
+        ctx.arc(collisionPoint.x, collisionPoint.y, 2, 0, 2 * Math.PI);
+        ctx.fill();
+    }
+
+
+    requestAnimationFrame(handleAnimationFrame);
 }
 
+// Should we care about the inefficiency of creating new vectors every time we
+// make do something? No. The goal of the javascript project is to get some
+// ground work going to test ideas and understand the math. After that we can improve by doing
+// everything in an engine or C++ or something.
+
+// TODO: MICRO OPTIMIZATION. Store the ratio between width and clientWidth, and height and clientHeight, and only update it when it changes.
 function mouseEventToCanvasCoordinates(e, canvas) {
-    return {
-        x: e.pageX * (canvas.width / canvas.clientWidth),
-        y: e.pageY * (canvas.height / canvas.clientHeight)
-    };
+    return new Vec2(e.pageX * (canvas.width / canvas.clientWidth), e.pageY * (canvas.height / canvas.clientHeight));
 }
 
 function canvasCoordinatesToWorldCoordinates(coords, camera) {
-    return {
-        x: coords.x + camera.position.x,
-        y: coords.y + camera.position.y
-    };
-}
-
-function lengthVec2({x, y}) {
-    return Math.sqrt(x*x + y*y);
-}
-
-function addVec2(a, b) {
-    return {
-        x: a.x+b.x,
-        y: a.y+b.y
-    }
-}
-
-function subtractVec2(a, b) {
-    return {
-        x: a.x-b.x,
-        y: a.y-b.y
-    }
-}
-
-function scaleVec2(s, v) {
-    return {
-        x: s * v.x,
-        y: s * v.y,
-    };
+    return new Vec2(coords.x + camera.position.x, coords.y + camera.position.y);
 }
 
 function pointBetween(point, a, b) {
@@ -431,14 +523,6 @@ function pointBetween(point, a, b) {
     if (point.y < a.y && point.y < b.y) return false;
     if (point.y < a.y && point.y < b.y) return false;
     return true;
-}
-
-function normalizeVec2({x, y}) {
-    const length = lengthVec2({x, y});
-    return {
-        x: x/length,
-        y: y/length
-    };
 }
 
 function positionToTile(position) {
@@ -450,6 +534,10 @@ function positionToTile(position) {
 }
 
 function isPositionInPolygon(polygon, position) {
+    // Get the bounding box of the polygon. 
+    // Create a line from the given position, to some point just outside the bounding box.
+    // Count how many lines of the polygon the created line intersects. 
+    // If odd number, then we are inside, otherwise we are outside.
     return true;
 }
 
@@ -461,12 +549,14 @@ function isPositionInPolygon(polygon, position) {
 
 class Entity {
     constructor(x, y, speed, width, height) {
-        this.position = {x, y};
+        this.position = new Vec2(x, y);
         this.selected = false;
         this.hovered = false;
         this.speed = speed;
         this.moveTarget = [];
         this.size = { width, height };
+        this.direction = new Vec2(0, 0);
+        this.newPosition = new Vec2(x, y);
         
         this.currentNavMeshTileIndex = null;
         for (let i = 0; i < navigationMesh.faces.length; i++) {
@@ -499,6 +589,7 @@ class Entity {
             ctx.lineWidth = 3
             ctx.stroke();
         }
+        ctx.lineWidth = 2
 
         this.drawHitbox(ctx);
     }
@@ -533,36 +624,30 @@ class Entity {
 
         ctx.fillStyle = 'green';
         ctx.strokeStyle = 'blue';
-        ctx.strokeRect(leftX, topY, this.size.width, this.size.height);
-        ctx.fillRect(leftX, topY, this.size.width, this.size.height);
+        ctx.beginPath();
+        ctx.arc(this.position.x, this.position.y, this.size.width, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.stroke();
+        // ctx.strokeRect(leftX, topY, this.size.width, this.size.height);
+        // ctx.fillRect(leftX, topY, this.size.width, this.size.height);
     }
 
-    step(dt) {
-        if (this.moveTarget.length === 0) return;
+    computeNewPosition(dt) {
+        if (this.moveTarget.length === 0) return; // TODO: Handle different actions than just moving
 
-        l(gameState.keys.shiftDown, this.moveTarget.length)
         const nextMove = this.moveTarget[0];
-        
-        const direction = normalizeVec2({
-            x: nextMove.x - this.position.x,
-            y: nextMove.y - this.position.y
-        });
+        this.direction =  nextMove.subtract(this.position).normalize();
+        this.newPosition = this.direction.scale((dt/1000) * this.speed).add(this.position);
 
-        // l(dt, this.position, direction)
-        const newPosition = addVec2(scaleVec2((dt/1000) * this.speed, direction), this.position);
-
-
-        // TODO: Properly handle the multimove
+        // TODO: Properly handle the multimove. Right now we don't move the full
+        // distance we could. So we need to calculate how much we moved and how
+        // much movement is left
         // Make sure target stops exactly where we click and no longer tries to move after
-        if (pointBetween(nextMove, this.position, newPosition)) {
-            this.position = nextMove;
-            // TODO: use a queue instead or something
+        if (pointBetween(nextMove, this.position, this.newPosition)) {
+            this.newPosition = new Vec2(nextMove.x, nextMove.y);
+            // TODO: OPTIMIZATION: use a queue instead or something
             this.moveTarget.shift(); // REMOVE THE NEXT MOVE
-        } else {
-            this.position = newPosition;
         }
-
-        // this.moveTarget = null;
     }
 }
 
@@ -589,9 +674,9 @@ class WorldGraph {
     constructor(waypointCount, world) {
         this.waypoints = []
         this.graph = new Graph(waypointCount);
-        this._addWaypoints(world);
+        this._generateGraphPoints(world);
     }
-    _addWaypoints(world) {
+    _generateGraphPoints(world) {
         const points = this.graph.size;
 
         const worldSeed = 153216987;
@@ -727,50 +812,87 @@ function initialize() {
     entities.push(entity)
 
 
-    // Prevent right click from opening context menu
-    document.addEventListener('contextmenu', e => e.preventDefault());
-
-    // Enter mouse lock mode when clicking on canvas
-    canvas.addEventListener('click', async (e) => {
-        if (document.pointerLockElement === null) {
-            mouseState.position = mouseEventToCanvasCoordinates(e, canvas);
-            await canvas.requestPointerLock({ unajustedMovement: true });
-        }
-    });
-
-    // Add mouse event handlers when in mouse lock mode
-    document.addEventListener("pointerlockchange", () => {
-        if (document.pointerLockElement === canvas) {
-            document.addEventListener("mousemove", mouseMove);
-            document.addEventListener("mousedown", mouseDown);
-            document.addEventListener("mouseup", mouseUp);
-            document.addEventListener("keydown", keyDown);
-            document.addEventListener("keyup", keyUp);
-
+    const enemy = new Entity(300, 300, 500, 30, 30);
+    enemy.hitpoint = 30;
+    enemy.draw = function(ctx) {
+        if (this.moveTarget.length === 0) {
+            ctx.fillStyle = 'rgba(50, 50, 250, 1)';
         } else {
-            document.removeEventListener("mousemove", mouseMove);
-            document.removeEventListener("mousedown", mouseDown);
-            document.removeEventListener("mouseup", mouseUp);
-            document.removeEventListener("keydown", keyUp);
+            ctx.fillStyle = 'rgba(10, 20, 150, 1)';
+            // TODO: Draw movement points
         }
-    });
+        ctx.beginPath();
+        ctx.arc(this.position.x, this.position.y, 30, 0, 2 * Math.PI);
+        ctx.fill()
+        if (this.selected) {
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 3
+            ctx.stroke();
+        }
+        else if (this.hovered) {
+            ctx.strokeStyle = 'green';
+            ctx.lineWidth = 3
+            ctx.stroke();
+        }
+
+        this.drawHitbox(ctx);
+    }
+    enemies.push(enemy);
+
+
+    // Prevent right click from opening context menu
+    canvas.addEventListener('contextmenu', e => {e.preventDefault(); return false;});
+
+    // Use native cursor
+    document.addEventListener("mousemove", mouseMoveNative);
+    document.addEventListener("mousedown", mouseDown);
+    document.addEventListener("mouseup", mouseUp);
+    document.addEventListener("keydown", keyDown);
+    document.addEventListener("keyup", keyUp);
+
+
+    // USE Point lock cursor
+    // // Enter mouse lock mode when clicking on canvas
+    // canvas.addEventListener('click', async (e) => {
+    //     if (document.pointerLockElement === null) {
+    //         mouseState.position = mouseEventToCanvasCoordinates(e, canvas);
+    //         await canvas.requestPointerLock({ unajustedMovement: true });
+    //     }
+    // });
+
+    // // Add mouse event handlers when in mouse lock mode
+    // document.addEventListener("pointerlockchange", () => {
+    //     if (document.pointerLockElement === canvas) {
+    //         document.addEventListener("mousemove", mouseMove);
+    //         document.addEventListener("mousedown", mouseDown);
+    //         document.addEventListener("mouseup", mouseUp);
+    //         document.addEventListener("keydown", keyDown);
+    //         document.addEventListener("keyup", keyUp);
+
+    //     } else {
+    //         document.removeEventListener("mousemove", mouseMove);
+    //         document.removeEventListener("mousedown", mouseDown);
+    //         document.removeEventListener("mouseup", mouseUp);
+    //         document.removeEventListener("keydown", keyUp);
+    //     }
+    // });
 
     // Non interactive when do not have pointer lock
     // We click, get pointerlock, add all our event listeners, update to custom mouse (should new mouse be at location? If it is easy sure)
     // 
 
     function mouseDown(e) {
-        l(e)
+        // l(e)
         switch(e.button) {
             case MOUSE_LEFT_BUTTON: { // TODO: Movement should be done every frame after pressing down, not until it starts repeating
-                mouseState.dragStartPosition = { ...mouseState.position };
+                mouseState.dragStartPosition = mouseState.position.copy(); //{ ...mouseState.position };
 
 
-                l(mouseState.position)
+                l('mouseDown - mouse position:', mouseState.position)
 
             } break;
             case MOUSE_MIDDLE_BUTTON: {
-               mouseState.cameraDrag = { ...mouseState.position };
+               mouseState.cameraDrag = mouseState.position.copy(); //{ ...mouseState.position };
                e.preventDefault()
             } break;
             case MOUSE_RIGHT_BUTTON: {
@@ -806,15 +928,18 @@ function initialize() {
     //     }
     // }
 
+    // TODO: Unit hover and click select
+    // TODO: Stop mouse capture and just use mouse position (This means scrolling is weird, but that is fine. We don't have scrolling anyway right now, it also ruins middle mouse scroll ... not sure what to do about that) 
     function mouseUp(e) {
         l(e)
         switch(e.button) {
             case MOUSE_LEFT_BUTTON: {
+                if (mouseState.dragStartPosition === null) break
                 entities.forEach(entity => { entity.selected = false; })
                 const selectionBoxCornerA = canvasCoordinatesToWorldCoordinates(mouseState.position, camera);
                 const selectionBoxCornerB = canvasCoordinatesToWorldCoordinates(mouseState.dragStartPosition, camera);
                 const r = findEntitiesInBox(entities, selectionBoxCornerA, selectionBoxCornerB);
-                l('lift', r)
+                l('Entities in selection box', r)
                 r.forEach(entity => {
                     entity.hovered = false;
                     entity.selected = true;
@@ -839,7 +964,19 @@ function initialize() {
             } break;
             case 'ShiftLeft': {
                 gameState.keys.shiftDown = true;
-            }
+            } break;
+            case 'KeyP': {
+                gameState.paused = !gameState.paused;
+            } break;
+            case 'NumpadAdd': {
+                l('Increase game speed modifier');
+                settings.gameSpeedModifier += 0.1;
+            } break;
+            case 'NumpadSubtract': {
+                l('Decrease game speed modifier');
+                settings.gameSpeedModifier = Math.max(0, settings.gameSpeedModifier - 0.1);
+            } break;
+
         }
     }
 
@@ -878,27 +1015,55 @@ function initialize() {
     // l(findEntitiesInBox(entities, {x: 500, y: 500}, {x:1000, y: 1000}))
 
 
-    
-    var highestXDiff = 0;
-    var highestYDiff = 0;
-    function mouseMove(e) {
+   function mouseMoveNative(e) { 
+        if (mouseState.cameraDrag !== null) {
+            camera.move(new Vec2(e.movementX * settings.cameraSpeedDrag, e.movementY * settings.cameraSpeedDrag));
+        } else {
+            mouseState.position.x = e.pageX * (canvas.width / canvas.clientWidth), 
+            mouseState.position.y = e.pageY * (canvas.height / canvas.clientHeight)
+        }
+
+        if (mouseState.dragStartPosition !== null) {
+            // Find all entities in area
+                const selectionBoxCornerA = canvasCoordinatesToWorldCoordinates(mouseState.position, camera);
+                const selectionBoxCornerB = canvasCoordinatesToWorldCoordinates(mouseState.dragStartPosition, camera);
+                const r = findEntitiesInBox(entities, selectionBoxCornerA, selectionBoxCornerB);
+                entities.forEach(entity => {
+                    entity.hovered = false;
+                })
+                r.forEach(entity => {
+                    entity.hovered = true;
+                });
+
+            // l('start',mouseState.dragStartPosition.x, mouseState.dragStartPosition.y, 'current', mouseState.position.x, mouseState.position.y)
+        }
+
+        // if (mouseState.cameraDrag !== null) { // TODO: mouse position should not move
+        //     const diffX = mouseState.position.x - mouseState.cameraDrag.x;
+        //     const diffY = mouseState.position.y - mouseState.cameraDrag.y;
+        //     camera.position.x += diffX * settings.cameraSpeedDrag;
+        //     camera.position.y += diffY * settings.cameraSpeedDrag;
+
+        //     mouseState.cameraDrag = mouseState.position;
+        // }
+
+    } 
+    function mouseMoveLockCursor(e) { 
         // Weird bug fix for problem when mouse suddenly moves too fast. 
-        if (Math.abs(e.movementX) > 100) {l('too fast', e); return}
-        if (Math.abs(e.movementY) > 100) {l('too fast', e); return}
+        // if (Math.abs(e.movementX) > 200) {l('too fast', e); return}
+        // if (Math.abs(e.movementY) > 200) {l('too fast', e); return}
 
         const cameraWidth = 1920;
         const cameraHeight = 1080;
         const cameraBuffer = 100
+        const bottomThingyHeight = 200
 
         // TODO: Handle things with a locked curser and MovementX / MovementY mouse event properties
         if (mouseState.cameraDrag !== null) {
             // TODO: Clamp based on world boundaries
-            camera.position.x = clamp(-cameraBuffer, world.width - cameraWidth + cameraBuffer, camera.position.x + e.movementX * settings.cameraSpeedDrag);
-            const bottomThingyHeight = 200
-            camera.position.y = clamp(-cameraBuffer, world.height - cameraHeight + cameraBuffer + bottomThingyHeight, camera.position.y + e.movementY * settings.cameraSpeedDrag);
+            camera.position.x = clamp(camera.position.x + e.movementX * settings.cameraSpeedDrag, -cameraBuffer, world.width - cameraWidth + cameraBuffer);
+            camera.position.y = clamp(camera.position.y + e.movementY * settings.cameraSpeedDrag, -cameraBuffer, world.height - cameraHeight + cameraBuffer + bottomThingyHeight);
         } else {
-            highestXDiff = Math.max(highestXDiff, Math.abs(e.movementX));
-            highestYDiff = Math.max(highestYDiff, Math.abs(e.movementY));
             mouseState.position.x = clamp(mouseState.position.x + e.movementX * settings.mouseSpeed, 0, cameraWidth);
             mouseState.position.y = clamp(mouseState.position.y + e.movementY * settings.mouseSpeed, 0, cameraHeight);
         }
@@ -934,16 +1099,16 @@ function initialize() {
         if (keyset.has(e.key)) return;
 
         if (e.key === "ArrowRight") {
-            camera.moveDirection[0] += 1;
+            camera.moveDirection.x += 1;
         }
         else if (e.key === "ArrowLeft") {
-            camera.moveDirection[0] -= 1;
+            camera.moveDirection.x -= 1;
         }
         else if (e.key === "ArrowUp") {
-            camera.moveDirection[1] -= 1;
+            camera.moveDirection.y -= 1;
         }
         else if (e.key === "ArrowDown") {
-            camera.moveDirection[1] += 1;
+            camera.moveDirection.y += 1;
         }
         keyset.add(e.key);
     });
@@ -951,21 +1116,21 @@ function initialize() {
         keyset.delete(e.key);
 
         if (e.key === "ArrowRight") {
-            camera.moveDirection[0] -= 1;
+            camera.moveDirection.x -= 1;
         }
         else if (e.key === "ArrowLeft") {
-            camera.moveDirection[0] += 1;
+            camera.moveDirection.x += 1;
         }
         else if (e.key === "ArrowUp") {
-            camera.moveDirection[1] += 1;
+            camera.moveDirection.y += 1;
         }
         else if (e.key === "ArrowDown") {
-            camera.moveDirection[1] -= 1;
+            camera.moveDirection.y -= 1;
         }
     });
 
     requestAnimationFrame(time => {
-        lastTime = time;
-        draw(time);
+        handleAnimationFrame.lastTime = time;
+        handleAnimationFrame(time);
     });
 }
