@@ -84,6 +84,9 @@ class Vec2 {
     toString() {
       return `(${this.x}, ${this.y})`;
     }
+    copy() {
+      return new Vec2(this.x, this.y);
+    }
 }
 
 class Vec4 {
