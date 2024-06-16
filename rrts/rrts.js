@@ -1,5 +1,13 @@
 'use strict';
 const l = console.log;
+const d = m => {
+    if (settings.debugLogging) l(m);
+}
+
+[].__proto__.clear = function() {
+    while (this.length > 0) {this.pop()}
+}
+
 const MOUSE_LEFT_BUTTON = 0
 const MOUSE_MIDDLE_BUTTON = 1
 const MOUSE_RIGHT_BUTTON = 2
@@ -18,7 +26,8 @@ const settings = {
     gameSpeedModifier: 1, // TODO,
     ui: {
         bottomThingyHeight: 200
-    }
+    },
+    debugLogging: false
 }
 
 const mouseState = {
@@ -36,7 +45,6 @@ const camera = {
     },
     move(direction) { // Camera movement is isolated to this function
         // TODO: Clamp based on world boundaries (Is )
-        const buffer = 100;
         this.position.x = clamp(camera.position.x + direction.x, 0, world.width - this.viewPort.width);
         this.position.y = clamp(camera.position.y + direction.y, 0, world.height - this.viewPort.height + settings.ui.bottomThingyHeight);
     }
@@ -107,8 +115,8 @@ const world = {
     height: 3000,
     wallThickness: 20,
     blockades: [
-        blockade1,
-        blockade2
+        // blockade1,
+        // blockade2
     ]
 }
 
@@ -195,6 +203,9 @@ function pathfind() {
     // NAV MESHES
     // Simple Stupid Funnel Algorithm 
 }
+
+// TODO: Design a map with an interesting layout
+// TODO: How to handle keybindings? If I want to be able to rebind everything, then how should that be done?
 
 function drawWorld(ctx, world, camera) {
     ctx.strokeStyle = 'black'
@@ -349,6 +360,19 @@ function drawWaypointGraph(ctx, camera) {
 }
 
 
+function radiansToDegrees(radians) {
+    return radians * 180/Math.PI;
+}
+
+function degreesToRadians(degrees) {
+    return degrees/180 * Math.PI;
+}
+
+// TODO: Set up framework for collision tests
+
+// TODO: Collision test. Have a big slow unit, move the same direction as a fast
+// small unit. The small fast unit should be somewhat blocked behind the big
+// unit, but should be able to move around it. 
 
 function updateEntityPositions(dt) {
     // Move entities while handling collision
@@ -373,9 +397,6 @@ function updateEntityPositions(dt) {
             }
         }
     }
-    if (result.length > 0){
-        l(result.length, result)
-    }
 
     // We only do collision of two things now. We try to handle more later
     for (let i = 0; i < result.length; i++) {
@@ -389,11 +410,20 @@ function updateEntityPositions(dt) {
 
         assert(a.direction.length() > 0 || b.direction.length() > 0, 'One of the entities have to move for there to be a collision');
         if (a.direction.length() === 0) {
-
+            // HOW TO MOVE AROUND EACH OTHER
         } else if (b.direction.length() === 0) {
-
+            // HOW TO MOVE AROUND EACH OTHER
         } else {
-            l(a.direction.dot(b.direction))
+            const dot = a.direction.dot(b.direction);
+            const rads = Math.acos(dot);
+            const degrees = radiansToDegrees(rads);
+            if (degrees < 90) {
+                // l("Same direction")
+                // WHICH IS IN FRONT? 
+            } else {
+                // l("opposite directions")
+                // HOW TO MOVE AROUND EACH OTHER
+            }
         }
         
 
@@ -467,7 +497,7 @@ function handleAnimationFrame(time) {
 
     // drawNavigationMesh(ctx, camera)
 
-    drawWaypointGraph(ctx, camera);
+    // drawWaypointGraph(ctx, camera);
 
     ctx.translate(-camera.position.x, -camera.position.y)
 
@@ -549,6 +579,7 @@ function isPositionInPolygon(polygon, position) {
 
 class Entity {
     constructor(x, y, speed, width, height) {
+        // TODO: Implement acceleration to move. The unit should have some acceleration which is used to change the velocity up till the units max velocity.
         this.position = new Vec2(x, y);
         this.selected = false;
         this.hovered = false;
@@ -566,7 +597,7 @@ class Entity {
                 break;
             }
         }
-        l("Entity is in nav mesh with index: ", this.currentNavMeshTileIndex, navigationMesh.faces[this.currentNavMeshTileIndex]);
+        d("Entity is in nav mesh with index: ", this.currentNavMeshTileIndex, navigationMesh.faces[this.currentNavMeshTileIndex]);
     }
 
     draw(ctx) {
@@ -882,13 +913,12 @@ function initialize() {
     // 
 
     function mouseDown(e) {
-        // l(e)
+        d(e);
         switch(e.button) {
             case MOUSE_LEFT_BUTTON: { // TODO: Movement should be done every frame after pressing down, not until it starts repeating
                 mouseState.dragStartPosition = mouseState.position.copy(); //{ ...mouseState.position };
 
-
-                l('mouseDown - mouse position:', mouseState.position)
+                d('mouseDown - mouse position:', mouseState.position)
 
             } break;
             case MOUSE_MIDDLE_BUTTON: {
@@ -931,7 +961,7 @@ function initialize() {
     // TODO: Unit hover and click select
     // TODO: Stop mouse capture and just use mouse position (This means scrolling is weird, but that is fine. We don't have scrolling anyway right now, it also ruins middle mouse scroll ... not sure what to do about that) 
     function mouseUp(e) {
-        l(e)
+        d(e)
         switch(e.button) {
             case MOUSE_LEFT_BUTTON: {
                 if (mouseState.dragStartPosition === null) break
@@ -939,7 +969,7 @@ function initialize() {
                 const selectionBoxCornerA = canvasCoordinatesToWorldCoordinates(mouseState.position, camera);
                 const selectionBoxCornerB = canvasCoordinatesToWorldCoordinates(mouseState.dragStartPosition, camera);
                 const r = findEntitiesInBox(entities, selectionBoxCornerA, selectionBoxCornerB);
-                l('Entities in selection box', r)
+                d('Entities in selection box', r)
                 r.forEach(entity => {
                     entity.hovered = false;
                     entity.selected = true;
@@ -955,7 +985,7 @@ function initialize() {
     }
 
     function keyDown(e) {
-        l(e)
+        d(e);
         switch (e.code) {
             case 'KeyN': {
                 const position = canvasCoordinatesToWorldCoordinates(mouseState.position, camera);
@@ -969,12 +999,15 @@ function initialize() {
                 gameState.paused = !gameState.paused;
             } break;
             case 'NumpadAdd': {
-                l('Increase game speed modifier');
+                d('Increase game speed modifier');
                 settings.gameSpeedModifier += 0.1;
             } break;
             case 'NumpadSubtract': {
-                l('Decrease game speed modifier');
+                d('Decrease game speed modifier');
                 settings.gameSpeedModifier = Math.max(0, settings.gameSpeedModifier - 0.1);
+            } break;
+            case 'KeyD': {
+                settings.debugLogging = !settings.debugLogging;
             } break;
 
         }
@@ -1129,8 +1162,65 @@ function initialize() {
         }
     });
 
+    setup_enemy_melee_aggro_range();
+
     requestAnimationFrame(time => {
         handleAnimationFrame.lastTime = time;
         handleAnimationFrame(time);
     });
+}
+
+
+function setup_collision_test_head_on_collision() {
+    entities.clear();
+    enemies.clear();
+
+    const rightMovingEntity = new Entity(300, 200, 300, 30, 30);
+    rightMovingEntity.moveTarget.push(new Vec2(500, 200));
+    const leftMovingEntity = new Entity(500, 200, 300, 30, 30);
+    leftMovingEntity.moveTarget.push(new Vec2(200, 200));
+    entities.push(
+        rightMovingEntity,
+        leftMovingEntity
+    );
+}
+
+function setup_collision_test_same_direction() {
+    entities.clear();
+    enemies.clear();
+
+    const rightMovingEntity = new Entity(300, 200, 300, 30, 30);
+    rightMovingEntity.moveTarget.push(new Vec2(600, 200));
+    const leftMovingEntity = new Entity(400, 200, 100, 30, 30);
+    leftMovingEntity.moveTarget.push(new Vec2(600, 200));
+    entities.push(
+        rightMovingEntity,
+        leftMovingEntity
+    );
+}
+
+function setup_collision_test_same_direction_huge() {
+    entities.clear();
+    enemies.clear();
+
+    const rightMovingEntity = new Entity(100, 200, 300, 20, 20);
+    rightMovingEntity.moveTarget.push(new Vec2(700, 200));
+    const leftMovingEntity = new Entity(400, 200, 100, 150, 300);
+    leftMovingEntity.moveTarget.push(new Vec2(700, 200));
+    entities.push(
+        rightMovingEntity,
+        leftMovingEntity
+    );
+}
+
+function setup_enemy_melee_aggro_range() {
+    entities.clear();
+    enemies.clear();
+
+    const friend = new Entity(100, 200, 300, 30, 20);
+    friend.moveTarget.push(new Vec2(400, 200));
+    const foe = new Entity(800, 200, 100, 30, 300); // TODO: Implement AI. Aggro. Etc.
+    entities.push(friend);
+    enemies.push(foe);
+
 }
