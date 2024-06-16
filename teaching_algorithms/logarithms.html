@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Intro to Algorithms and Data Structures</title>
+  <style>
+
+  </style>
+ <script>
+    function onbodyload() {
+      const canvas = document.getElementById('logarithm-canvas');
+      const ctx = canvas.getContext('2d');
+
+      const axisLineLeftX = 30;
+      const axisLineTopY = 10;
+      const width = 500;
+      const height = 500;
+      const axisLineBottomY = axisLineTopY + height;
+      const axisLineRightX = axisLineLeftX + width;
+
+
+      const minX = 0;
+      const maxX = 10;
+      const minY = 0;
+      const maxY = 10;
+      
+      // MAIN AXIS LINES
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'black';
+      ctx.beginPath();
+      ctx.moveTo(axisLineLeftX, axisLineTopY);
+      ctx.lineTo(axisLineLeftX, axisLineBottomY);
+      ctx.lineTo(axisLineRightX, axisLineBottomY);
+      ctx.stroke();
+
+      // SMAL TICKS
+      ctx.lineWidth = 2;
+      const tickCountYAxis = 11;
+      const tickCountXAxis = 11;
+      const tickLength = 10;
+      const halfTickLength = tickLength/2;
+      const offsetY = height / (tickCountYAxis-1);
+      for (let i = 0; i < tickCountYAxis; i++) {
+        const y = axisLineTopY + i * offsetY;
+        ctx.moveTo(axisLineLeftX + halfTickLength, y);
+        ctx.lineTo(axisLineLeftX - halfTickLength, y);
+      }
+      const offsetx = width / (tickCountXAxis-1);
+      for (let i = 0; i < tickCountXAxis; i++) {
+        const x = axisLineLeftX + i * offsetY;
+        ctx.moveTo(x, axisLineBottomY + halfTickLength);
+        ctx.lineTo(x, axisLineBottomY - halfTickLength);
+      }
+      ctx.stroke();
+
+
+      const f1 = x => Math.E**x;
+      const f2 = x => Math.log(x);
+
+      const steps = 5000;
+      const stepSize = width/steps;
+
+      ctx.moveTo(axisLineLeftX, axisLineBottomY - (height * (f1(0) / (maxY - minY))));
+      for (let i = stepSize; i < steps; i+=stepSize) {
+        const y = f1(i);
+        const yPos = height * (y / (maxY - minY));
+        const xPos = width * (i / (maxX - minX))
+        // TODO: Translate x to x position
+        // TODO: Translate y to y position
+        ctx.lineTo(axisLineLeftX + xPos, axisLineBottomY - yPos);
+      }
+      ctx.stroke();
+
+      ctx.beginPath()
+      ctx.moveTo(axisLineLeftX, axisLineBottomY - f2(1));
+      for (let i = 1; i < steps; i+=stepSize) {
+        const y = f2(i);
+        const yPos = height * (y / (maxY - minY));
+        const xPos = width * (i / (maxX - minX))
+        console.log(xPos, yPos)
+        ctx.lineTo(axisLineLeftX + xPos, axisLineBottomY - yPos);
+      }
+      ctx.stroke();
+
+
+
+    }
+
+ </script> 
+</head>
+<body onload="onbodyload()">
+<h1>Logarithms</h1>
+Not to be confused with algorithms, logarithms can be seen as operations in the same was as subtraction and division. 
+(Usually logarithms are treated as functions instead of operations, but I don't think the distinction is really important)
+
+Whereas subtraction is the inverse (opposite) of addition, and division the inverse of multiplication, logarithms are the inverses 
+of exponentiation. 
+
+So comparing to division, the expression 15 / 3, essentially asks the question,
+what number $X$ satisfies $X * 3 = 15$. I.e. what do we need to multiply the 3
+with, in order to get the 15. 
+
+Logarithms, for example the natural logarithm (denoted ln), for the expression ln(532), 
+it essentially asks the question, what number $X$ satisfies $e^X = 532$. So the same 
+way that division takes the result of a multiplication and one of the factor, and asks 
+what the other factor is, logarithms takes the base of the exponent and the result, and 
+asks what the power is. So similar to the way that $a/a = 1$, $ln(e) = 1$, or $a*a/a = a$, 
+$ln(e^a) = a$. 
+
+<!-- TODO: DRAW GRAPHS -->
+<!-- TODO: JUST USE AN IMAGE INSTEAD OF A SCRIPT IF IT IS STATIC -->
+<br>
+<canvas id="logarithm-canvas" width="540" height="540"></canvas>
+</body>
+</html>

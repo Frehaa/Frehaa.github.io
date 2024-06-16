@@ -4,10 +4,199 @@
   <meta charset="UTF-8">
   <title>Intro to Algorithms and Data Structures</title>
   <style>
-
+    /* html, body {
+      width: 100%;
+    } */
+    canvas {
+      display: block;
+      outline: 1px solid black;
+      margin:auto;
+      /* width: 50%; */
+    }
   </style>
+  <script src="../util/math.js"></script>
+  <script src="find_missing_number_matrix_game.js"></script>
+  <script>
+    function main() {
+      startGame()
+      
+
+    }
+  </script>
 </head>
 <body onload="main()">
+  <div>
+<h1>What are algorithms?</h1>
+  Below is a brain training game I learned about when I was helping out at an
+  elder care center. The game consists of a grid with 9 rows and 10 columns, with
+  numbers from 1 to 100. 10 numbers are missing, and the goal of the game is to
+  write the ten missing numbers in the empty cells of the bottom row. Try to take
+  some time to find at least one missing number, and write down instructions of
+  how a resident at such an elder care center could solve the game. (Feel free to
+  find all the missing numbers if you want.)
 
+  <br>
+  <canvas id="canvas" width="1200" height="540"></canvas> <!-- Add an explanation to the game. "Click me" -> "Write" -> "Delete" -->
+  <br>
+
+  <span style="background-color: grey;font-weight: bold;">So what does any of this have to do with algorithms? </span>
+
+  Simply put, an algorithm is a series of instructions to solve a
+  problem(FOOTNOTE: How the term "algorithm" is used online and on TV). If you
+  wrote down instructions to follow in order to solve the game above, then you
+  made an algorithm. One useful way to think of algorithms is the following
+  figure. Given some input to the algorithm, the algorithm gives some output.
+  Taking the above game as an example, the 9 by 10 grid of numbers is the input,
+  the algorithm is the instructions to follow to solve the game, and the output
+  is the 10 missing numbers. Algorithms can also be compared to food recipies. A
+  recipe takes some ingredients, and following the instructions of the recipe
+  you (hopefully) get a delicious meal as output. 
+  
+  <br>
+  <!-- Visual abstract representation of an algorithm -->
+  <image>Input -> Black box (Algorithm) -> Output</image>
+
+  <br>
+  Knowing what an algorithm is, is probably the least interesting part of
+  learning about algorithms. In the following sections we will go into more
+  depth about about the more interesting parts of studying algorithms.
+
+<h1>Why are algorithms?</h1>
+    <!-- I am not really sure what to write here? How do I start this section? The
+    other section jumped right into the actual meat of the matter. So maybe I 
+    should do the same here? -->
+    If you understand that algorithms are just a series of instructions to solve
+    a problem, and you agree that the world has many problems to be solved, then
+    it may be unclear what more there is to say in this section. Still, I will
+    go into some more details about the importance of study of algorithms.
+
+    There are three important aspects of algorithms which were not mentioned in the 
+    introduction. The first is rather obvious which is that we want our algorithms 
+    to be correct. <b>Correctness</b> is the quality of an algorithm to not give
+    wrong answers. This is probably the most important thing you could want,
+    and people will go through great lengths to prove that their algorithm is correct,
+    but in some situations (e.g. for some Randomized Algorithms) we allow algorithms 
+    to give wrong answers in order to be faster.
+
+    Another related property of algorithms is that they are <b>sound</b>, meaning that 
+    the algorithm should work should not just give up on some problems. (Is this what soundness means?)
+
+    The final important aspect is <b>growth</b> which may take a bit more effort
+    to explain that the other aspects. Simply put, the growth of an algorithm is
+    about how much slower an algorithm becomes as the size of the problem
+    increases. 
+    
+    Taking the brain training game as an example, the algorithm that elderly
+    resident used to solve it, was a very naive one. The algorithm goes as
+    follows: Starting at the number 1, look through every cell in the matrix to
+    see if you can find it anywhere, if you cannot, write it an empty cell in
+    the bottom row. Do this for every number from 1 to 100 until every number is
+    found.
+
+    So why is this algorithm naive? It is both correct and sound (I would encourage 
+    you to explain why), but the issue is that it is incredibly slow. If you try 
+    following this on the 9 by 10 grid, you can probably finish it in a reasonable 
+    amount of time. It may feel like it takes a bit of time, but nothing unmanagable. 
+    But try imagining a 29 by 30 grid instead. There are only around 9 times more numbers 
+    to deal with, but you may think the problem feels a lot more time consuming than just 
+    solving 9, 9 by 10 grid. Which it does, because it is. This is one of the key observations 
+    about growth.   (This kind of "naive", but correct algorithm, is often
+    called a brute force algorithm. What is meant by brute force is that the
+    problem is solved by computation power rather than any clever techniques. 
+    A brute force algorithm often just tries everything untill it finds the correct 
+    solution, which makes them easy to think of and implement, and also good to test 
+    against a more sophisticated algorithm which may have non-obvious errors.)
+
+    The issue with the naive algorithm is that for every number we check, we
+    might have to look through most, or all the numbers in the grid in order to
+    determine if it the number is there or not. This means that we may look at
+    each of the 90 cells in the grid, close to 100 times. This is known as a 
+    quadratic growth, because the time spend is proportional to the number of 
+    cells in the grid, times the number of numbers to check. That is, even
+    though there are only 90 cells in the grid, we may have looked at check
+    close to 9000 cells in total when we are finished with our algorithm. You
+    can argue that a lot of the times you do not look through all 90 cells in
+    the grid before you find the number you are looking at, but even if you
+    found every number in around half, or maybe even only one fourth of the 90
+    cells, we are still looking at thousands of cells checked. Now imagine what 
+    happens when there are 9 times more numbers? Suddenly, the problem becomes
+    close to 100 times worse. 
+
+    This is where the most fun part of algorithm comes in. Because now that we 
+    understand the problem with the naive algorithm, we can ask ourselves, "Can
+    we do better?". And the answer to that question is, "Yes, and by a lot". I would 
+    encourage you to try to come up with a faster algorithm before reading further on. 
+    When you are ready, continue to the final part of this section. 
+
+    <!--INSERT HIDE SPOILER BLOCK -->
+    So how can we make a better algorithm to solve the problem? 
+
+    The issue is that we keep having to look at the same cells many times in
+    order to find the missing numbers, but what if instead of looking after the
+    missing numbers, we instead make sense of the numbers we have? 
+
+    Instead of checking every number to see if it is there, it would be more
+    efficient if we could organize the existing numbers in a way which made it
+    clear which numbers were missing. 
+
+    To do this, we can create another 10 by 10 grid, with the numbers from 1 to
+    100 in sorted order. Now, we can just look at each cell in our 9 by 10 grid
+    once, and cross it out in our 10 by 10 grid. When we are finished with every
+    cell in the 9 by 10 grid, we look through the 10 by 10 grid to see which
+    numbers are not crossed out. These are the 10 missing numbers. 
+    
+    So, how much faster is this new method? 
+
+<!-- Correctness, soundness, growth,  -->
+
+<!-- To explain growth, go back to the brain training game and compare the naive solution to the smart solution.  -->
+
+<!-- The idea that some solutions are not just slower, but also becomes even worse as the input increases is a key takeaway. -->
+
+
+<h1>How are algorithms?</h1>
+
+<!-- Big O notation? -->
+
+
+<h1>Notes and thoughts (TO BE DELETED)</h1>
+So what are the learning outcomes of reading this?
+
+General goal of understanding what algorithms are.
+This is essentially a side goal, since understanding what algorithms are best comes from seeing a lot of algorithms (Ithink?).
+<!-- Does it even make sense to understand the concept of algorithms without understanding algorithms? I do not really think so.  -->
+
+So to understand algorithms, I want to show algorithms to people. 
+
+Algorithms can be on various degrees of specificity. 
+Quicksort can be explained in a single sentence, or it can be described in like 100 lines of code. 
+
+My goal is to have people understand the grand picture instead of the nitty gritty. 
+I want to build intuition and directly applicable skills, rather than learning how the partition of quicksort works. 
+Going into the detail of the partition step may be useful to train some set of skills, but I am not really sure what those skills are. 
+Until I understand the reason to go into detail, I don't think it is worth doing that. 
+
+I want people to be able to describe algorithms in different levels of specificity.  
+
+Very general broad descriptions, down to very nitty gritty taking care of all edge cases levels. 
+The nitty gritty is important if you want to actually implement algorithms. So maybe nitty gritty is  
+left as a bonus? But on the other hand. If you don't have the skills to create it, do you really understand it? 
+Maybe it is possible to have a good understanding, but not the coding skills to program it. 
+Can we somehow test for the algorithmic skills without the coding skills? Maybe following the steps of the algorithm is enough?
+
+
+The 
+
+
+Core principles for learning.
+1. Visual learning (related to 3)
+2. Doing instead of just reading
+3. Building upon existing knowledge
+4. Reflection (related to 2)
+5. Women seem to be more engaged by problems involving people
+6. 
+
+
+  </div>
 </body>
 </html>
