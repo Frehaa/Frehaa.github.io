@@ -16,11 +16,10 @@
   </style>
   <script src="../util/math.js"></script>
   <script src="find_missing_number_matrix_game.js"></script>
+  <script src="big_o_game.js"></script>
   <script>
     function main() {
       startGame()
-      
-
     }
   </script>
 </head>
@@ -67,8 +66,9 @@
     should do the same here? -->
     If you understand that algorithms are just a series of instructions to solve
     a problem, and you agree that the world has many problems to be solved, then
-    it may be unclear what more there is to say in this section. Still, I will
-    go into some more details about the importance of study of algorithms.
+    you may not need more motivation about why algorithms are interesting.
+    Still, I will go into some more details about the importance of study of
+    algorithms.
 
     There are three important aspects of algorithms which were not mentioned in the 
     introduction. The first is rather obvious which is that we want our algorithms 
@@ -79,7 +79,7 @@
     to give wrong answers in order to be faster.
 
     Another related property of algorithms is that they are <b>sound</b>, meaning that 
-    the algorithm should work should not just give up on some problems. (Is this what soundness means?)
+    the algorithm should not just give up on some problems. (Is this what soundness means?)
 
     The final important aspect is <b>growth</b> which may take a bit more effort
     to explain that the other aspects. Simply put, the growth of an algorithm is
@@ -99,7 +99,7 @@
     amount of time. It may feel like it takes a bit of time, but nothing unmanagable. 
     But try imagining a 29 by 30 grid instead. There are only around 9 times more numbers 
     to deal with, but you may think the problem feels a lot more time consuming than just 
-    solving 9, 9 by 10 grid. Which it does, because it is. This is one of the key observations 
+    solving 9 additional, 9 by 10 grid. Which it does, because it is. This is one of the key observations 
     about growth.   (This kind of "naive", but correct algorithm, is often
     called a brute force algorithm. What is meant by brute force is that the
     problem is solved by computation power rather than any clever techniques. 
@@ -128,7 +128,7 @@
     encourage you to try to come up with a faster algorithm before reading further on. 
     When you are ready, continue to the final part of this section. 
 
-    <!--INSERT HIDE SPOILER BLOCK -->
+    <!--INSERT HIDE SPOILER BLOCK. NOTE: Let javascript hide it such that if somebody has javascript disabled they don't notice -->
     So how can we make a better algorithm to solve the problem? 
 
     The issue is that we keep having to look at the same cells many times in
@@ -145,8 +145,66 @@
     cell in the 9 by 10 grid, we look through the 10 by 10 grid to see which
     numbers are not crossed out. These are the 10 missing numbers. 
     
-    So, how much faster is this new method? 
+    So, how much faster is this new method?
 
+    We can split the time spent on this new algorithm into three parts. (1)
+    looking at cells in the 9 by 10 grid, (2) crossing cells out in the 10 by 10
+    grid, and (3) looking through the 10 by 10 grid to find the missing numbers.
+    Notice how (1) and (3) only requires looking at each cell once because we
+    can just scan over the numbers, a remarkable improvement over the naive
+    algorithm. (2) is a bit harder to analyse because finding the right cell in
+    the 10 by 10 grid to cross out is not instant but since the numbers are
+    sorted it is a lot faster. There is a number of ways we could do this, but
+    for simplicity, we will assume that we actually can find it instantly. This 
+    may seem like cheating (and it is), but it is very close to reality if a 
+    computer were to do it, because a computer can calculate the position of the
+    cell and look exactly where it is. {FOOTNOTE: The only minor error we aren't
+    taking into consideration for a computer has to do with cache and
+    cache-misses, but this is outside the scope of an introduction. } Given this
+    simplification, we can see that we at most look at each number from 1 to
+    100, three times. Two times to look at the number in the 9 by 10 grid and
+    cross it out in the 10 by 10 grid, and one extra time to find the missing
+    numbers. 
+
+    Let us compare. The naive algorithm had a quadratic growth, meaning that the
+    number of times we looked at each number in the grid grew the larger the
+    grid was. In contrast, this new algorithm only requires looking at each
+    number at most three times. This is known as a linear growth, meaning that 
+    if the size of the problem doubles, so does the time to solve it, whereas 
+    for the quadratic algorith, if the problem doubled, the time to solve it
+    quadrubles. 
+
+    [TODO: INSERT GRAPH]
+
+    EXERCISE: 
+    [One thing is to read an explanation, but it better if you can experience it 
+    for yourself. Try to solve the grid problem using the naive and the faster
+    method. You can also try to increase the size of the problem to feel how 
+    much slower the naive algorithm becomes when the size increases. 
+
+    [TODO: Insert grid with toggable help, with resizing, and reset]
+
+    ]
+    
+    EXERCISE: [
+    If you know how to program, you can try to write a program which 
+    solves the grid problem using the naive technique and the faster technique. 
+    Try to compare how long it takes to solve the problem for the two algorithms 
+    on different sized grids. 
+    ]
+    
+    The key takeaway of this section is that the difference between a fast and a
+    slow algorithm is not just that one takes "longer" than the other, but
+    rather that one <b>grows</b> faster than another. When designing algorithms,
+    the goal is (most often) to design an algorithm which grows the slowest,
+    meaning that even if a problem size is hundreds of billions elements, the
+    algorithm minimizes how many times it needs to look at each, with the ideal
+    being not even looking at an element unless it is absolutely required. 
+
+    In future sections we will see example of algorithms with different growth
+    rate. In the next section we will cover some of the notation and techniques
+    used when analyzing algorithm.
+    
 <!-- Correctness, soundness, growth,  -->
 
 <!-- To explain growth, go back to the brain training game and compare the naive solution to the smart solution.  -->
@@ -155,9 +213,75 @@
 
 
 <h1>How are algorithms?</h1>
+    As the final part of this introduction, we will go into some details about 
+    how algorithms and their performance are described and analyzed in general. 
+    This will involve some simple (but maybe confusing) mathematical modeling.
+
+    <!-- This section is quite shit I feel like -->
+    <!-- Maybe just make some graphs and point out it out from those -->
+    Let us first consider an issue we have when comparing the performance of
+    algorithm. We can describe the time it takes to run an algorithm on some
+    input size $n$, using some function $f(n)$. So for the naive algorithm for
+    the grid problem, a function which describes the time time it takes could be
+    something like $f(n) = (1/2)n^2 + 5n + 104$, don't think too deeply about
+    the choice of constants, the point is that it might be best described as
+    some kind of polynomial function. Now, there isn't really any issues with
+    this per say, but we might notice that already when $n$ becomes 15, the
+    biggest term of the polynomial is the term including the $n^2$, and it will
+    continue to be so. So the terms $5n$ and $104$ aren't very important to 
+    understand the growth of the algorithm. If we just know that the biggest 
+    term is $(1/2)n^2$, then we already have a solid idea of how fast the 
+    algorithm is. Furhermore, if we consider another algorithm with a running 
+    time described as $g(n) = 3n^2 + 50n + 1$, we can again notice the biggest 
+    term is $3n^2$, but furthermore, we can see that $f(n)$ and $g(n)$, has 
+    the same growth, since both are quadratic. This is a bit unclear due to 
+    all the factors and constants, which is why the <b>Big O</b> notation exists.
+
+    
+    The Big O notation is used to describe the growth of an algorithm, in terms
+    of a "family" of functions. The idea behind the notation, is that if we only
+    care about the "growth" of an algorithm, then we can ignore constants and
+    slower growing terms. The Big O notation gets its name from the fact that we
+    write $f(n) \in O(h(n))$ to say that the function $f(n)$ is in the family of
+    functions with growth described by $h(n)$. To give some examples, our naive
+    algorithm for the grid problem has growth $O(n^2)$, and our fast algorithm
+    has growth $O(n)$. I.e., whatever function $f(n)$ which describes the
+    running time of the naive algorithm is in the family of functions $O(n^2)$. 
+    Here, $O(n^2)$ essentially means any function where $n^2$ is the biggest term, 
+    and whatever factor $n^2$ may be multiplied with is ignored.  
+    
+
+    <!-- TODO: Big O tests -->
+    <!-- What kind of test? 
+    1. Simple Yes/No questions of whether f(n) \in O(g(n))  
+    2. Ordering some functions 
+    3. More tricky niche stuff like: Is there some $k$ such that log(n)^k is not O(n)?
+    4. Match a graph curve to a function
+    5. More advanced. Look at code and give Big O?
+    6. Simplify an expression to the simplest Big O (Few terms, no constants)
+    7. Read a description and give a Big O? (E.g. looks at half a list 3 times to calculate X, what is Big O?)
+   
+    A lot of understanding, not much applied. How can we apply?
+    -->
+
+    <!-- 
+    This seems like a lot of work. It also seems kind of fun. If it seems fun, then why not just do it?
+      How do we internally model the relationship between functions? We first need to model the functions and then we can simply sort them. 
+      How do we model functions? 
+      What functions do we want?
+      1. constant
+      2. logarithmic + constant
+      3. logarithmic^k + logarithmic^{l} + logarithmic^{m} + ... + constant (where l < k, m < k, ...)
+      4. linear
+      5. linearithmic
+      6. polynomial (quadratic, qubic, etc.)
+      7. exponential
+      8. factorial
+    -->
 
 <!-- Big O notation? -->
-
+<!-- Math -->
+<!-- Proofs -->
 
 <h1>Notes and thoughts (TO BE DELETED)</h1>
 So what are the learning outcomes of reading this?
