@@ -69,15 +69,31 @@ class Vec2 {
     length() {
         return Math.sqrt(this.x * this.x + this.y * this.y);
     }
+    angle(b) {
+      const a = this.normalize();
+      b = b.normalize();
+      return Math.acos(a.dot(b));
+    }
+  // Returns a signed angle, such that for any pair of non-null vectors a.signedAngle(b) = - b.signedAngle(a)
+    // signedAngle(b) {
+    //   const a = this.normalize();
+    //   b = b.normalize();
+    //   return Math.acos(a.dot(b));
+    // }
     normalize() {
         const length = this.length();
         return this.scale(1/length);
         // return new Vec2(this.x / length, this.y / length); // TODO: Test accuracy between these two approaches
     }
-    rotate_around(B, Degrees) { // TODO
-      const radius = B.subtract(this).length();
-      return new Vec2(0, 0);
-    }
+    // rotate(degrees) { // TODO
+    //   const normalized = this.normalize();
+    //   return new Vec2(0, 0);
+
+    // }
+    // rotate_around(B, Degrees) { // TODO
+    //   const radius = B.subtract(this).length();
+    //   return new Vec2(0, 0);
+    // }
     equal(b) {
       return this.x === b.x && this.y === b.y;
     }
