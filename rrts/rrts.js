@@ -1,11 +1,11 @@
 'use strict';
 const l = console.log;
-const d = m => {
-    if (settings.debugLogging) l(m);
+function d(...m) {
+    if (settings.debugLogging) l(...m);
 }
 
 [].__proto__.clear = function() {
-    while (this.length > 0) {this.pop()}
+    this.splice(0, this.length);
 }
 
 const MOUSE_LEFT_BUTTON = 0
@@ -161,14 +161,8 @@ const navigationMesh = {
 // TODO: To test function, loop over all positions in area of navigation mesh
 
 // TODO: Customizable selection box
-
-function pointInTriangle(point, triangle) {
-    // TODO: check bounding box first
-    const [alpha, beta, gamma] = pointToBarycentric(point, triangle)
-    return alpha >= 0 && beta >= 0 && gamma >= 0;
-}
-
 // TODO: Selection box should have world positions, not camera positions
+
 function drawSelectionBox(ctx, start, end) {
     const width = end.x - start.x;
     const height = end.y - start.y;
@@ -176,32 +170,6 @@ function drawSelectionBox(ctx, start, end) {
     ctx.strokeStyle = `rgba(128, 0, 0, 0.9)`
     ctx.fillRect(start.x, start.y, width, height);
     ctx.strokeRect(start.x, start.y, width, height);
-}
-
-function drawCursor(ctx, mouseState) {
-    const {x, y} = mouseState.position;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x, y+20);
-    ctx.lineTo(x+10, y+15);
-    ctx.closePath();
-    ctx.fillStyle = 'black';
-    ctx.fill()
-}
-
-function pathfind() {
-    // DONE: 
-    // DIJKSTRA
-
-    // TODO:
-    // 
-
-
-    // How to deal with a group of units? Maybe think of the center as what needs to reach the target? (This seems like it would very easily lead to bugs. What if the units are spread out?) First we need to figure out which units are clumped.
-    // We do euclidian distance (i.e. sqrt(x^2 + y^2), maybe ignore sqrt), and then we compress the path by checking if there is no obstacle between the start and the end
-
-    // NAV MESHES
-    // Simple Stupid Funnel Algorithm 
 }
 
 // TODO: Design a map with an interesting layout
@@ -359,7 +327,6 @@ function drawWaypointGraph(ctx, camera) {
     }
 }
 
-
 function radiansToDegrees(radians) {
     return radians * 180/Math.PI;
 }
@@ -368,12 +335,7 @@ function degreesToRadians(degrees) {
     return degrees/180 * Math.PI;
 }
 
-// TODO: Set up framework for collision tests
-
-// TODO: Collision test. Have a big slow unit, move the same direction as a fast
-// small unit. The small fast unit should be somewhat blocked behind the big
-// unit, but should be able to move around it. 
-
+// TODO: How does fluid animation work? Any resources on doing multi-agent movement?
 function updateEntityPositions(dt) {
     // Move entities while handling collision
     for (const entity of entities) {
@@ -402,29 +364,128 @@ function updateEntityPositions(dt) {
     for (let i = 0; i < result.length; i++) {
         const a = entities[result[i][0]];
         const b = entities[result[i][1]];
-
-        // if (a.dire)
-        // Clearly bad if they are moving in the same direction
-        a.newPosition = a.position; // NAIVE: NOBODY MOVES
-        b.newPosition = b.position; // NAIVE: NOBODY MOVES
+        const contactPoint = result[i][2];
 
         assert(a.direction.length() > 0 || b.direction.length() > 0, 'One of the entities have to move for there to be a collision');
         if (a.direction.length() === 0) {
             // HOW TO MOVE AROUND EACH OTHER
+            // We want to push a bit if the other isn't an enemy / isn't on hold position
+            b.newPosition = b.position; // NAIVE: NOBODY MOVES
+
         } else if (b.direction.length() === 0) {
             // HOW TO MOVE AROUND EACH OTHER
+            // We want to push a bit if the other isn't an enemy / isn't on hold position
+            a.newPosition = a.position; // NAIVE: NOBODY MOVES
         } else {
             const dot = a.direction.dot(b.direction);
             const rads = Math.acos(dot);
             const degrees = radiansToDegrees(rads);
+            const distance = a.position.subtract(b.position).length();
             if (degrees < 90) {
-                // l("Same direction")
+                let debugMessage = 'Entities moving same direction';
                 // WHICH IS IN FRONT? 
+
+                // Which is in front is a bad way to look at it. They can be "in front" of each other.
+                // i.e. when moving in a cross, they can block each other from moving forward. 
+                // WHAT THE FUCK SHOULD BE DONE ABOUT THAT? HOW SHOULD I DETERMINE WHO MOVES HOW?
+
+                const test = a.position.add(a.direction).subtract(b.position).length();
+                if (test > distance) {
+                    debugMessage += ' - Entity a is in front';
+                    // TODO: This is a bit too simple because a bigger entity can have a position behind another, but still be "in front"
+
+                    // TODO: Now we want to know how b should try to move past a
+                    // step 1: How close to a can we get?
+                    // step 2: which way should we move around a?
+
+                    
+                    // Compare angle to contact point
+                    const other = contactPoint.subtract(b.position).normalize();
+
+                    // THIS IS COOL, BUT WE STILL NEED TO RESPECT COLLISIONS. 
+                        // If I walk into a wall at an angle, how can we understand the movement behavior?
+                        // If the wall is parallel to me, then I walk at full speed parallel to it. 
+                        // If the wall is orthogonal to me, then I can't move at all
+                        // If the wall is at a 45 degree angle, then I slide against the wall, which means that 
+                    // RIGHT NOW WE CAN PHASE THROUGH THE OTHER OBJECT
+                    const determinant = b.direction.det(other);
+                    let perpOther;
+                    if (determinant > 0) {
+                        debugMessage += ' - move left around';
+                        perpOther = new Vec2(other.y, -other.x); // So we rotate 90 degrees  ??
+                    } else {
+                        debugMessage += ' - move right around';
+                        perpOther = new Vec2(-other.y, other.x); // So we rotate 90 degrees  ??
+                    }
+                    const newVelocity = perpOther.scale(b.velocity.length());
+                    b.newPosition = b.position.add(newVelocity);
+
+                    a.newPosition = a.position; // NAIVE: Doesn't move
+                    b.newPosition = b.position; // NAIVE: Doesn't move
+                } else {
+                    debugMessage += ' - Entity b is in front';
+
+                    // COPY PASTE FROM ABOVE
+                    const aToContact = contactPoint.subtract(a.position).normalize();
+
+                    // THIS IS COOL, BUT WE STILL NEED TO RESPECT COLLISIONS. 
+                    // RIGHT NOW WE CAN PHASE THROUGH THE OTHER OBJECT
+                    const determinant = b.direction.det(aToContact);
+                    let perpOther;
+                    if (determinant > 0) {
+                        debugMessage += ' - move left around';
+                        perpOther = new Vec2(aToContact.y, -aToContact.x); // So we rotate 90 degrees  ??
+                    } else {
+                        debugMessage += ' - move right around';
+                        perpOther = new Vec2(-aToContact.y, aToContact.x); // So we rotate 90 degrees  ??
+                    }
+                    const newVelocity = perpOther.scale(a.velocity.length());
+                    a.newPosition = a.position.add(newVelocity);
+                    
+                    a.newPosition = a.position; // NAIVE: Doesn't move
+                    b.newPosition = b.position; // NAIVE: Doesn't move
+                }
+                d(debugMessage)
             } else {
-                // l("opposite directions")
                 // HOW TO MOVE AROUND EACH OTHER
+                a.newPosition = a.position; // NAIVE: NOBODY MOVES
+                b.newPosition = b.position; // NAIVE: NOBODY MOVES
+
+                let debugMessage = 'Entities moving opposite direction';
+
+                const aToContact = contactPoint.subtract(a.position).normalize();
+                const determinantA = a.direction.det(aToContact);
+                if (determinantA > 0) {
+                    debugMessage += " - A moves left around";
+                    const perpAToContact = new Vec2(aToContact.y, -aToContact.x); // So we rotate 90 degrees  ??
+                    const newVelocityA = perpAToContact.scale(a.velocity.length());
+                    a.newPosition = a.position.add(newVelocityA);
+                } else {
+                    debugMessage += " - A moves right around";
+                    const perpAToContact = new Vec2(-aToContact.y, aToContact.x); // So we rotate 90 degrees  ??
+                    const newVelocityA = perpAToContact.scale(a.velocity.length());
+                    a.newPosition = a.position.add(newVelocityA);
+                }
+
+                const bToContact = contactPoint.subtract(b.position).normalize();
+                const determinantB = b.direction.det(bToContact);
+                if (determinantB > 0) {
+                    debugMessage += " - B moves left around";
+                    const perpBToContact = new Vec2(bToContact.y, -bToContact.x); // So we rotate 90 degrees  ??
+                    const newVelocityB = perpBToContact.scale(a.velocity.length());
+                    b.newPosition = b.position.add(newVelocityB);
+                } else {
+                    debugMessage += " - B moves right around";
+                    const perpBToContact = new Vec2(-bToContact.y, bToContact.x); // So we rotate 90 degrees  ??
+                    const newVelocityB = perpBToContact.scale(b.velocity.length());
+                    b.newPosition = b.position.add(newVelocityB);
+                }
+
+                d(debugMessage)
             }
         }
+
+
         
 
         // HOW TO FIGURE OUT WHETHER THEY ARE MOVING IN SIMILAR DIRECTION AND WHICH IS IN FRONT OF THE OTHER?
@@ -467,7 +528,6 @@ function updateEntityPositions(dt) {
 
 
 // TODO: Draw map
-// We first ignore camera and just say that 
 function handleAnimationFrame(time) {
     const dt = time - handleAnimationFrame.lastTime;
     handleAnimationFrame.lastTime = time;
@@ -525,11 +585,16 @@ function handleAnimationFrame(time) {
     for (const collision of gameState.collisions) {
         const collisionPoint = collision[2];
         ctx.beginPath();
-        ctx.arc(collisionPoint.x, collisionPoint.y, 2, 0, 2 * Math.PI);
+        ctx.arc(collisionPoint.x - camera.position.x, collisionPoint.y - camera.position.y, 2, 0, 2 * Math.PI);
         ctx.fill();
     }
 
-
+    // NOTE: I don't think that perfectly handling a big delta time should be a
+    // priority, but I think it gives some insight into things which may be a
+    // bit funky 
+    // setTimeout(()=> {
+    //     requestAnimationFrame(handleAnimationFrame);
+    // }, 100);
     requestAnimationFrame(handleAnimationFrame);
 }
 
@@ -588,12 +653,14 @@ class Entity {
         this.size = { width, height };
         this.direction = new Vec2(0, 0);
         this.newPosition = new Vec2(x, y);
+        this.velocity = new Vec2(0, 0);
         
         this.currentNavMeshTileIndex = null;
         for (let i = 0; i < navigationMesh.faces.length; i++) {
             const convex = navigationMesh.faces[i];
             if (isPositionInPolygon(convex, this.position)) {
                 this.currentNavMeshTileIndex = i;
+                l(i)
                 break;
             }
         }
@@ -602,13 +669,13 @@ class Entity {
 
     draw(ctx) {
         if (this.moveTarget.length === 0) {
-            ctx.fillStyle = 'rgba(50, 50, 250, 1)';
-        } else {
             ctx.fillStyle = 'rgba(10, 20, 150, 1)';
+        } else {
+            ctx.fillStyle = 'rgba(150, 150, 250, 1)';
             // TODO: Draw movement points
         }
         ctx.beginPath();
-        ctx.arc(this.position.x, this.position.y, 30, 0, 2 * Math.PI);
+        ctx.arc(this.position.x, this.position.y, this.size.width, 0, 2 * Math.PI);
         ctx.fill()
         if (this.selected) {
             ctx.strokeStyle = 'black';
@@ -616,7 +683,7 @@ class Entity {
             ctx.stroke();
         }
         else if (this.hovered) {
-            ctx.strokeStyle = 'green';
+            ctx.strokeStyle = 'white';
             ctx.lineWidth = 3
             ctx.stroke();
         }
@@ -647,17 +714,11 @@ class Entity {
     // Do we want a wait command? E.g. a command which says waits some number of seconds and then does something? Then we could do something like, move there, wait 3 times, and then attack there?
     // Seems kind of fun and interesting 
 
-
-
     drawHitbox(ctx) {
-        const leftX = this.position.x - this.size.width / 2;
-        const topY = this.position.y - this.size.height / 2;
-
-        ctx.fillStyle = 'green';
-        ctx.strokeStyle = 'blue';
+        ctx.lineWidth = 5
+        ctx.strokeStyle = 'green';
         ctx.beginPath();
-        ctx.arc(this.position.x, this.position.y, this.size.width, 0, 2 * Math.PI);
-        ctx.fill();
+        ctx.arc(this.position.x, this.position.y, this.size.width-ctx.lineWidth, 0, 2 * Math.PI);
         ctx.stroke();
         // ctx.strokeRect(leftX, topY, this.size.width, this.size.height);
         // ctx.fillRect(leftX, topY, this.size.width, this.size.height);
@@ -668,7 +729,8 @@ class Entity {
 
         const nextMove = this.moveTarget[0];
         this.direction =  nextMove.subtract(this.position).normalize();
-        this.newPosition = this.direction.scale((dt/1000) * this.speed).add(this.position);
+        this.velocity = this.direction.scale((dt/1000) * this.speed);
+        this.newPosition = this.velocity.add(this.position);
 
         // TODO: Properly handle the multimove. Right now we don't move the full
         // distance we could. So we need to calculate how much we moved and how
@@ -678,7 +740,15 @@ class Entity {
             this.newPosition = new Vec2(nextMove.x, nextMove.y);
             // TODO: OPTIMIZATION: use a queue instead or something
             this.moveTarget.shift(); // REMOVE THE NEXT MOVE
+            // TODO: If there is some collision and a bit delta time, then the
+            // entity can think it can reach all the way to the moveTarget and
+            // removes it from the queue, but it stops due to the collision
         }
+        if (this.moveTarget.length === 0) {
+            // MICRO OPTIMIZATION: Use a stored static 0 vector instead of creating a new all the time
+            this.direction = new Vec2(0, 0); //TODO: Reset direction when finished moving
+        } 
+
     }
 }
 
@@ -817,59 +887,12 @@ function doesPointsHaveNoObstructionsBetweenThem(pointA, pointB, world) {
     return true
 }
 
-const waypointGraph = new WorldGraph(1000, world); // createWaypointGraph(world, null, 1000);
+const waypointGraph = new WorldGraph(1000, world);
 
 
 function initialize() {
     const canvas = document.getElementById('canvas');
     camera.canvas = canvas;
-
-
-    const shortestPath = dijkstraShortestPath(waypointGraph.graph, 0, 1);
-    shortestPath.forEach(idx => {
-        waypointGraph.waypoints[idx].color = 'blue';
-    })
-    const shortestPath2 = dijkstraShortestPath(waypointGraph.graph, 3, 4);
-    shortestPath2.forEach(idx => {
-        waypointGraph.waypoints[idx].color = 'green';
-    })
-
-    const shortestPath3 = dijkstraShortestPath(waypointGraph.graph, 8, 10);
-    shortestPath3.forEach(idx => {
-        waypointGraph.waypoints[idx].color = 'pink';
-    })
-
-    const entity = new Entity(250, 100, 400, 20, 20)
-    entities.push(entity)
-
-
-    const enemy = new Entity(300, 300, 500, 30, 30);
-    enemy.hitpoint = 30;
-    enemy.draw = function(ctx) {
-        if (this.moveTarget.length === 0) {
-            ctx.fillStyle = 'rgba(50, 50, 250, 1)';
-        } else {
-            ctx.fillStyle = 'rgba(10, 20, 150, 1)';
-            // TODO: Draw movement points
-        }
-        ctx.beginPath();
-        ctx.arc(this.position.x, this.position.y, 30, 0, 2 * Math.PI);
-        ctx.fill()
-        if (this.selected) {
-            ctx.strokeStyle = 'black';
-            ctx.lineWidth = 3
-            ctx.stroke();
-        }
-        else if (this.hovered) {
-            ctx.strokeStyle = 'green';
-            ctx.lineWidth = 3
-            ctx.stroke();
-        }
-
-        this.drawHitbox(ctx);
-    }
-    enemies.push(enemy);
-
 
     // Prevent right click from opening context menu
     canvas.addEventListener('contextmenu', e => {e.preventDefault(); return false;});
@@ -881,48 +904,15 @@ function initialize() {
     document.addEventListener("keydown", keyDown);
     document.addEventListener("keyup", keyUp);
 
-
-    // USE Point lock cursor
-    // // Enter mouse lock mode when clicking on canvas
-    // canvas.addEventListener('click', async (e) => {
-    //     if (document.pointerLockElement === null) {
-    //         mouseState.position = mouseEventToCanvasCoordinates(e, canvas);
-    //         await canvas.requestPointerLock({ unajustedMovement: true });
-    //     }
-    // });
-
-    // // Add mouse event handlers when in mouse lock mode
-    // document.addEventListener("pointerlockchange", () => {
-    //     if (document.pointerLockElement === canvas) {
-    //         document.addEventListener("mousemove", mouseMove);
-    //         document.addEventListener("mousedown", mouseDown);
-    //         document.addEventListener("mouseup", mouseUp);
-    //         document.addEventListener("keydown", keyDown);
-    //         document.addEventListener("keyup", keyUp);
-
-    //     } else {
-    //         document.removeEventListener("mousemove", mouseMove);
-    //         document.removeEventListener("mousedown", mouseDown);
-    //         document.removeEventListener("mouseup", mouseUp);
-    //         document.removeEventListener("keydown", keyUp);
-    //     }
-    // });
-
-    // Non interactive when do not have pointer lock
-    // We click, get pointerlock, add all our event listeners, update to custom mouse (should new mouse be at location? If it is easy sure)
-    // 
-
     function mouseDown(e) {
         d(e);
         switch(e.button) {
-            case MOUSE_LEFT_BUTTON: { // TODO: Movement should be done every frame after pressing down, not until it starts repeating
-                mouseState.dragStartPosition = mouseState.position.copy(); //{ ...mouseState.position };
-
+            case MOUSE_LEFT_BUTTON: { 
+                mouseState.dragStartPosition = mouseState.position.copy();
                 d('mouseDown - mouse position:', mouseState.position)
-
             } break;
             case MOUSE_MIDDLE_BUTTON: {
-               mouseState.cameraDrag = mouseState.position.copy(); //{ ...mouseState.position };
+               mouseState.cameraDrag = mouseState.position.copy();
                e.preventDefault()
             } break;
             case MOUSE_RIGHT_BUTTON: {
@@ -933,37 +923,16 @@ function initialize() {
                     } 
                     e.moveTarget.push(position);
                 });
-
-                // Manual test
-                // navigationMesh.faces.forEach((triangle, index) => {
-                //     if (pointInTriangle([position.x, position.y], triangle.flatMap(a => a))) {
-                //         l("Mouse click in triangle", index)
-                //     }
-                // });
-
             } break;
             default: {}
         }
     }
 
-    // for (let y = 40; y <= 1000; y++) {
-    //     for (let x = 40; x <= 1000; x++) {
-    //         const result = navigationMesh.faces.findIndex(triangle => {
-    //             return pointInTriangle([x, y], triangle.flat());
-    //         })
-    //         if (result < 0) {
-    //             l(x, y, result)
-    //         }
-
-    //     }
-    // }
-
     // TODO: Unit hover and click select
-    // TODO: Stop mouse capture and just use mouse position (This means scrolling is weird, but that is fine. We don't have scrolling anyway right now, it also ruins middle mouse scroll ... not sure what to do about that) 
     function mouseUp(e) {
         d(e)
         switch(e.button) {
-            case MOUSE_LEFT_BUTTON: {
+            case MOUSE_LEFT_BUTTON: { // TODO: Maybe we don't need to recalculate the entities in the box if this event always happens after a mouse move?
                 if (mouseState.dragStartPosition === null) break
                 entities.forEach(entity => { entity.selected = false; })
                 const selectionBoxCornerA = canvasCoordinatesToWorldCoordinates(mouseState.position, camera);
@@ -995,7 +964,7 @@ function initialize() {
             case 'ShiftLeft': {
                 gameState.keys.shiftDown = true;
             } break;
-            case 'KeyP': {
+            case 'Space': {
                 gameState.paused = !gameState.paused;
             } break;
             case 'NumpadAdd': {
@@ -1021,6 +990,8 @@ function initialize() {
         }
     }
 
+    // TODO: Check a bigger area than just the entity position. 
+    // This is the same as collision detection between circle and rectangle
     function findEntitiesInBox(entities, topLeft, bottomRight) {
         if (topLeft.x > bottomRight.x) {
             const tmp = topLeft.x;
@@ -1044,10 +1015,6 @@ function initialize() {
         return result;
     }
 
-    // l(findEntitiesInBox(entities, {x: 0, y: 0}, {x:1000, y: 1000}))
-    // l(findEntitiesInBox(entities, {x: 500, y: 500}, {x:1000, y: 1000}))
-
-
    function mouseMoveNative(e) { 
         if (mouseState.cameraDrag !== null) {
             camera.move(new Vec2(e.movementX * settings.cameraSpeedDrag, e.movementY * settings.cameraSpeedDrag));
@@ -1057,75 +1024,17 @@ function initialize() {
         }
 
         if (mouseState.dragStartPosition !== null) {
-            // Find all entities in area
-                const selectionBoxCornerA = canvasCoordinatesToWorldCoordinates(mouseState.position, camera);
-                const selectionBoxCornerB = canvasCoordinatesToWorldCoordinates(mouseState.dragStartPosition, camera);
-                const r = findEntitiesInBox(entities, selectionBoxCornerA, selectionBoxCornerB);
-                entities.forEach(entity => {
-                    entity.hovered = false;
-                })
-                r.forEach(entity => {
-                    entity.hovered = true;
-                });
-
-            // l('start',mouseState.dragStartPosition.x, mouseState.dragStartPosition.y, 'current', mouseState.position.x, mouseState.position.y)
+            const selectionBoxCornerA = canvasCoordinatesToWorldCoordinates(mouseState.position, camera);
+            const selectionBoxCornerB = canvasCoordinatesToWorldCoordinates(mouseState.dragStartPosition, camera);
+            const r = findEntitiesInBox(entities, selectionBoxCornerA, selectionBoxCornerB);
+            entities.forEach(entity => { // TODO: Maybe implement this with a set of hovered elements to avoid looping over all entities?
+                entity.hovered = false;
+            })
+            r.forEach(entity => {
+                entity.hovered = true;
+            });
         }
-
-        // if (mouseState.cameraDrag !== null) { // TODO: mouse position should not move
-        //     const diffX = mouseState.position.x - mouseState.cameraDrag.x;
-        //     const diffY = mouseState.position.y - mouseState.cameraDrag.y;
-        //     camera.position.x += diffX * settings.cameraSpeedDrag;
-        //     camera.position.y += diffY * settings.cameraSpeedDrag;
-
-        //     mouseState.cameraDrag = mouseState.position;
-        // }
-
     } 
-    function mouseMoveLockCursor(e) { 
-        // Weird bug fix for problem when mouse suddenly moves too fast. 
-        // if (Math.abs(e.movementX) > 200) {l('too fast', e); return}
-        // if (Math.abs(e.movementY) > 200) {l('too fast', e); return}
-
-        const cameraWidth = 1920;
-        const cameraHeight = 1080;
-        const cameraBuffer = 100
-        const bottomThingyHeight = 200
-
-        // TODO: Handle things with a locked curser and MovementX / MovementY mouse event properties
-        if (mouseState.cameraDrag !== null) {
-            // TODO: Clamp based on world boundaries
-            camera.position.x = clamp(camera.position.x + e.movementX * settings.cameraSpeedDrag, -cameraBuffer, world.width - cameraWidth + cameraBuffer);
-            camera.position.y = clamp(camera.position.y + e.movementY * settings.cameraSpeedDrag, -cameraBuffer, world.height - cameraHeight + cameraBuffer + bottomThingyHeight);
-        } else {
-            mouseState.position.x = clamp(mouseState.position.x + e.movementX * settings.mouseSpeed, 0, cameraWidth);
-            mouseState.position.y = clamp(mouseState.position.y + e.movementY * settings.mouseSpeed, 0, cameraHeight);
-        }
-
-        if (mouseState.dragStartPosition !== null) {
-            // Find all entities in area
-                const selectionBoxCornerA = canvasCoordinatesToWorldCoordinates(mouseState.position, camera);
-                const selectionBoxCornerB = canvasCoordinatesToWorldCoordinates(mouseState.dragStartPosition, camera);
-                const r = findEntitiesInBox(entities, selectionBoxCornerA, selectionBoxCornerB);
-                entities.forEach(entity => {
-                    entity.hovered = false;
-                })
-                r.forEach(entity => {
-                    entity.hovered = true;
-                });
-
-            // l('start',mouseState.dragStartPosition.x, mouseState.dragStartPosition.y, 'current', mouseState.position.x, mouseState.position.y)
-        }
-
-        // if (mouseState.cameraDrag !== null) { // TODO: mouse position should not move
-        //     const diffX = mouseState.position.x - mouseState.cameraDrag.x;
-        //     const diffY = mouseState.position.y - mouseState.cameraDrag.y;
-        //     camera.position.x += diffX * settings.cameraSpeedDrag;
-        //     camera.position.y += diffY * settings.cameraSpeedDrag;
-
-        //     mouseState.cameraDrag = mouseState.position;
-        // }
-
-    }
 
     const keyset = new Set();
     document.addEventListener('keydown', function(e) {
@@ -1162,7 +1071,25 @@ function initialize() {
         }
     });
 
-    setup_enemy_melee_aggro_range();
+    const tests = [
+        setup_collision_test_cross_movement,
+        setup_collision_test_head_on_collision,
+        setup_collision_test_head_on_collision_huge,
+        setup_collision_test_same_direction,
+        setup_collision_test_same_direction_huge,
+        setup_collision_test_same_direction_huge_next_to_each_other,
+        setup_collision_test_same_location_next_to_each_other,
+        setup_enemy_test_melee_aggro_range
+    ]
+
+    // Setup tests keybind
+    document.addEventListener('keydown', function(e) {
+        if (!isNaN(parseInt(e.key))) {
+            tests[e.key]();
+        }
+    });
+
+    tests[0]();
 
     requestAnimationFrame(time => {
         handleAnimationFrame.lastTime = time;
@@ -1171,13 +1098,34 @@ function initialize() {
 }
 
 
+// Should they try to move around each other in some way? 
+// How do we program this? They should move right around each other? Change direction to the perpendicular vector. 
+// Can we calculate the force they hit each other, use some of the force to move them to the right and continue as is?
+// SUCCESS?
+// Right now it is very smooth, and the units maintain their speed when moving around each other, which looks a bit weird.
+// If the units "bumb" into each other, then it might make more sense to have them slow down to some degree
+// Also,  maybe they need to hug each other a bit more? If the delta time increases, then they move around each other in a larger circle
 function setup_collision_test_head_on_collision() {
     entities.clear();
     enemies.clear();
 
-    const rightMovingEntity = new Entity(300, 200, 300, 30, 30);
+    const rightMovingEntity = new Entity(300, 200, 100, 30, 30);
     rightMovingEntity.moveTarget.push(new Vec2(500, 200));
-    const leftMovingEntity = new Entity(500, 200, 300, 30, 30);
+    const leftMovingEntity = new Entity(500, 200, 100, 30, 30);
+    leftMovingEntity.moveTarget.push(new Vec2(200, 200));
+    entities.push(
+        rightMovingEntity,
+        leftMovingEntity
+    );
+}
+
+function setup_collision_test_head_on_collision_huge() {
+    entities.clear();
+    enemies.clear();
+
+    const rightMovingEntity = new Entity(200, 200, 100, 150, 30);
+    rightMovingEntity.moveTarget.push(new Vec2(500, 200));
+    const leftMovingEntity = new Entity(700, 200, 100, 150, 30);
     leftMovingEntity.moveTarget.push(new Vec2(200, 200));
     entities.push(
         rightMovingEntity,
@@ -1199,21 +1147,50 @@ function setup_collision_test_same_direction() {
     );
 }
 
-function setup_collision_test_same_direction_huge() {
+function setup_collision_test_same_location_next_to_each_other() {
     entities.clear();
     enemies.clear();
 
-    const rightMovingEntity = new Entity(100, 200, 300, 20, 20);
-    rightMovingEntity.moveTarget.push(new Vec2(700, 200));
-    const leftMovingEntity = new Entity(400, 200, 100, 150, 300);
-    leftMovingEntity.moveTarget.push(new Vec2(700, 200));
+    const rightMovingEntity = new Entity(200, 260, 100, 30, 30);
+    rightMovingEntity.moveTarget.push(new Vec2(500, 230));
+    const leftMovingEntity = new Entity(200, 200, 100, 30, 30);
+    leftMovingEntity.moveTarget.push(new Vec2(500, 230));
     entities.push(
         rightMovingEntity,
         leftMovingEntity
     );
+
 }
 
-function setup_enemy_melee_aggro_range() {
+function setup_collision_test_same_direction_huge() {
+    entities.clear();
+    enemies.clear();
+
+    const smallEntity = new Entity(100, 200, 300, 20, 20);
+    smallEntity.moveTarget.push(new Vec2(700, 200));
+    const bigEntity = new Entity(400, 200, 10, 150, 300);
+    bigEntity.moveTarget.push(new Vec2(700, 200));
+    entities.push(
+        smallEntity,
+        bigEntity,
+    );
+}
+
+function setup_collision_test_same_direction_huge_next_to_each_other() {
+    entities.clear();
+    enemies.clear();
+
+    const small = new Entity(400, 370, 150, 20, 20);
+    small.moveTarget.push(new Vec2(700, 100));
+    const big = new Entity(400, 200, 10, 150, 300);
+    big.moveTarget.push(new Vec2(700, 300));
+    entities.push(
+        big,
+        small,
+    );
+}
+
+function setup_enemy_test_melee_aggro_range() {
     entities.clear();
     enemies.clear();
 
@@ -1224,3 +1201,22 @@ function setup_enemy_melee_aggro_range() {
     enemies.push(foe);
 
 }
+
+// What should happen here? Should they block each other from moving verticaly and only move horizontally? 
+// That seems to make some sense. It might be a bit weird though.
+// It makes a bit more sense when we think of one as walking right around the other, which would require them to move faster than they can.
+//  On the other hand, 
+function setup_collision_test_cross_movement() {
+    entities.clear();
+    enemies.clear();
+
+    const a = new Entity(400, 200, 50, 30, 20);
+    a.moveTarget.push(new Vec2(700, 300));
+    const b = new Entity(400, 270, 50, 30, 300);
+    b.moveTarget.push(new Vec2(700, 100));
+    entities.push(
+        b,
+        a,
+    );
+}
+
