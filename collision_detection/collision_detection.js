@@ -91,8 +91,6 @@ function naive_collision_detect(objects) {
 function draw(time) {
     const dt = time - draw.lastTime;
     draw.lastTime = time;
-    l(dt)
-    
     step(dt);
 
     const collidingPairs = naive_collision_detect(objects);
