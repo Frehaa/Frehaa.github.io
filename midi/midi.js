@@ -312,7 +312,7 @@ function addSelectOptionsAndReturnFirst(select, list) {
     return emptyIO;
 }
 
-function initializeCanvasMidiEvents(mideState) {
+function initializeCanvasEventListeners(mideState) {
     const canvas = document.getElementById('note-canvas');
     const ctx = canvas.getContext('2d');
     const fileInput = document.getElementById('file-input');
@@ -343,7 +343,7 @@ function initializeCanvasMidiEvents(mideState) {
     });
 }
 
-function initializeInputMidiEvents(midiState) {
+function initializeMidiInputOutputEventListeners(midiState) {
     const getOrEmptyIO = (value, map) => {
         return map.has(value)? map.get(value) : emptyIO;
     };
@@ -361,18 +361,9 @@ function initializeInputMidiEvents(midiState) {
     });
 }
 
-// Initialized the midi state and sets up the events for it
-function initializeMidiState() {
-    const midi = {
-        chunks: null,
-        inputs: emptyMap,
-        outputs: emptyMap,
-        currentInput: emptyIO,
-        currentOutput: emptyIO
-    };
-
-    initializeInputMidiEvents(midi);
-    initializeCanvasMidiEvents(midi);
+function initializeMidiStateRelatedListeners(midiState) {
+    initializeMidiInputOutputEventListeners(midiState);
+    initializeCanvasEventListeners(midiState);
     initializeMIDIUSBAccess(
         midiAccess => {
             l("Inputs:", midiAccess.inputs, " - Outputs:", midiAccess.outputs, " - Sysex:", midiAccess.sysexEnabled, midiAccess);
@@ -380,24 +371,24 @@ function initializeMidiState() {
             // TODO: Handle disconnects and reconnects
             // midiAccess.onglobalMidichange = handleMidiAccessStateChange;
 
-            midi.inputs = midiAccess.inputs;
-            midi.outputs = midiAccess.outputs;
+            midiState.inputs = midiAccess.inputs;
+            midiState.outputs = midiAccess.outputs;
 
             const midiInputSelect = document.getElementById('midi-input-select');
             const midiOutputSelect = document.getElementById('midi-output-select');
-            midi.currentInput = addSelectOptionsAndReturnFirst(midiInputSelect, midiAccess.inputs);
-            midi.currentOutput = addSelectOptionsAndReturnFirst(midiOutputSelect, midiAccess.outputs);
-            l('', midi)
+            midiState.currentInput = addSelectOptionsAndReturnFirst(midiInputSelect, midiAccess.inputs);
+            midiState.currentOutput = addSelectOptionsAndReturnFirst(midiOutputSelect, midiAccess.outputs);
+            l('Midi state after access success', midiState)
         }, 
         error => {
             console.log("Failed to access MIDI devices:", error);
         }
     );
 
-    return midi;
 }
 
-function initializeFileInput(callback) {
+
+function initializeMidiFileInputListeners(callback) {
     const reader = new FileReader();
     reader.onload = (event) => {
         callback(event.target.result);
@@ -409,6 +400,7 @@ function initializeFileInput(callback) {
         const file = fileInput.files[0]; 
         reader.readAsArrayBuffer(file)
     });
+
 }
 
 function initializeMIDIUSBAccess(success, reject) {
@@ -421,19 +413,35 @@ function initializeMIDIUSBAccess(success, reject) {
     }
 }
 
-function initializePlaybackState() {
-    const playbackState = {
+// Objects which handles all program state
+// State variables for playback are "pause" and "speedMultiplier"
+// State variables for input and output are "inputs", "outputs", "currentInput", "currentOutput"
+// Parsed MIDI file is stored in Chunks
+function initializeState() {
+    if (localStorage.savedStateJSON !== undefined && localStorage.savedStateJSON !== null) {
+        return JSON.parse(localStorage.savedStateJSON);
+    }
+    return {
+        chunks: null,
+        inputs: emptyMap,
+        outputs: emptyMap,
+        currentInput: emptyIO,
+        currentOutput: emptyIO,
         pause: false,
         speedMultiplier: 1
     };
+}
+
+function initializePlaybackStateRelatedListeners(playbackState) {
+    const input = document.getElementById('playback-speed-input');
+    // General +- playback speed keyboard hotkeys
     document.addEventListener('keypress', e => {
         if (e.code === "Space") playbackState.pause = !playbackState.pause
         else if (e.key === "+") playbackState.speedMultiplier += 1
         else if (e.key === "-") playbackState.speedMultiplier -= 1
+        input.value = playbackState.speedMultiplier;
     });
-
-    const input = document.createElement('input');
-    input.type = 'number'
+    // Try to do some input validation, but 
     input.addEventListener('input', e => {
         const n = Number(input.value);
         if (Number.isNaN(n)) {
@@ -443,8 +451,6 @@ function initializePlaybackState() {
             playbackState.speedMultiplier = n;
         }
     });
-    document.body.appendChild(input)
-    return playbackState;
 }
 
 // ################### DRAWING FUNCTIONS ###########
@@ -848,134 +854,55 @@ function createPointShape(framesPerSecond, startPosition, duration, createUpdate
 // ############# MAIN #############
 
 function main() {
+    // runTests();
+
+    // Various initializations
+    const state = initializeState(); 
+    initializePlaybackStateRelatedListeners(state);
+    initializeMidiStateRelatedListeners(state);
+    initializeMidiFileInputListeners(buffer => {
+        try {
+            state.chunks = parseMidiFile(buffer);
+            doStuffWithParsedMidiFile(state);
+            // const melodies = chunksToMelodiesList(state.chunks)
+            // play(melodies[0].eventMap, melodies[0].tempoMap, state)
+        } catch(e) {
+            l('Parse MIDI file error:', e)
+        }
+    });
+
+    const saveButton = document.createElement('button');
+    saveButton.innerHTML = 'Save';
+    document.body.appendChild(saveButton)
+    saveButton.addEventListener('click', function() {
+        localStorage.savedStateJSON = JSON.stringify(state);
+    });
+
+
+    if (state.chunks !== null) {
+        doStuffWithParsedMidiFile(state);
+    }
+}
+
+
+class DrawElement {
+    constructor(x, y) {
+
+    }
+    draw(ctx) {
+    }
+}
+
+function doStuffWithParsedMidiFile(state) {
     const canvas = document.getElementById('note-canvas');
     const ctx = canvas.getContext('2d');
-
-    function drawGroup(ctx, group) {
-        const marginX = 450;
-        const marginY = 500;
-        
-        const width = 100;
-        const height = 80;
-        const offSetX = 10;
-        ctx.font = "48px Courier New";
-        ctx.textBaseline = 'middle'
-        ctx.textAlign = 'center'
-        for (const val of group) {
-            ctx.strokeRect(marginX + (width + offSetX) * (val-1), marginY, width, height)
-            ctx.fillText(val, marginX + (width + offSetX) * (val-1) + width / 2, marginY + height/2)
-        }
-    }
-
-    const numbers = 4;
-
-    // Test functionality I want on keyboard
-
-    function createRandomGroups(length) {
-        const result = [];
-        for (let i = 0; i < length; i++) {
-            const groupsSize = Math.round(Math.random() * numbers) + 1;
-            const values = shuffle([1,2,3,4]);
-            result.push(values.slice(numbers-groupsSize));
-        }
-        return result;
-    }
-
-    const state = {
-        // groups: [[1], [2], [3], [4], [5], [1, 2], [1,2, 3], [2,3,4, 5], [1,2,3,4, 5]],
-        groups: createRandomGroups(100),
-        currentGroupIndex: 0,
-        currentlyPressed: new Set()
-    }
-
-    function drawAllGroups() {
-        ctx.save();
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.translate(0, state.currentGroupIndex * 100);
-        for (let i = 0; i < state.groups.length; i++) {
-            if (i === state.currentGroupIndex) {
-                ctx.strokeStyle = 'red'
-            } else {
-                ctx.strokeStyle = 'black'
-            }
-            drawGroup(ctx, state.groups[i])
-            ctx.translate(0, -100)
-        }
-        ctx.restore();
-        requestAnimationFrame(drawAllGroups);
-    }
-    requestAnimationFrame(drawAllGroups)
-
-    let currentOffset = 0;
-    function keyInGroup(key, currentGroup) {
-        return currentGroup.indexOf(key) >= 0;
-    }
-
-    const currentlyPressed = new Set();
-
-    // TODO: what happens if we miss a key up event because the window did not have focus?
-    window.addEventListener('keydown', e => {
-        let key = e.key;
-        if (currentlyPressed.has(key)) return;
-        currentlyPressed.add(key);
-
-        switch (key) {
-            case '1': 
-            case '2': 
-            case '3': 
-            case '4': 
-            case '5': 
-                state.currentlyPressed.add(Number(key));
-            break;
-            default: return
-        }
-
-        const currentGroup = state.groups[state.currentGroupIndex];
-
-        console.log(currentGroup, state.currentlyPressed)
-        if (currentGroup.length === state.currentlyPressed.size) {
-            const result = currentGroup.reduce((s, key) => state.currentlyPressed.has(key) && s, true);
-            if (result) {
-                state.currentGroupIndex += 1
-                console.log(state.currentGroupIndex)
-                state.currentlyPressed.clear()
-            }
-        }
-
-    });
-    window.addEventListener('onfocus', e => {
-        currentlyPressed.clear();
-    })
-    window.addEventListener('keyup', e => {
-        currentlyPressed.delete(e.key);
-        switch (e.key) {
-            case '1': 
-            case '2': 
-            case '3': 
-            case '4': 
-            case '5': 
-                state.currentlyPressed.delete(Number(e.key));
-            break;
-            default: return
-        }
-    });
-    
-    return
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
 
-    runTests();
-    const playbackState = initializePlaybackState();
-    const midiState = initializeMidiState();
-    initializeFileInput(buffer => {
-        try {
-            midiState.chunks = parseMidiFile(buffer);
-            const melodies = chunksToMelodiesList(midiState.chunks)
-            play(melodies[0].eventMap, melodies[0].tempoMap, midiState)
-        } catch(e) {
-            l('Stuff went wrong', e)
-        }
-    });
+    l(state)
+
 }
+
 
 function chunksToMelodiesList(midiChunks) {
     l('Midi Chunks after parsing', midiChunks);
@@ -2001,4 +1928,117 @@ function playgroundCode() {
     //     [0.7 * canvas.width,  canvas.height -100]
     // ];
     const positions = createPointShape(framesPerSecond, [canvas.width / 2, canvas.height / 2], endTime, spiralUpdater);
+}
+
+function keyMatchGamePlaygroundCode() {
+    const canvas = document.getElementById('note-canvas');
+    const ctx = canvas.getContext('2d');
+    function drawGroup(ctx, group) {
+        const marginX = 450;
+        const marginY = 500;
+        
+        const width = 100;
+        const height = 80;
+        const offSetX = 10;
+        ctx.font = "48px Courier New";
+        ctx.textBaseline = 'middle'
+        ctx.textAlign = 'center'
+        for (const val of group) {
+            ctx.strokeRect(marginX + (width + offSetX) * (val-1), marginY, width, height)
+            ctx.fillText(val, marginX + (width + offSetX) * (val-1) + width / 2, marginY + height/2)
+        }
+    }
+
+    const numbers = 4;
+
+    // Test functionality I want on keyboard
+
+    function createRandomGroups(length) {
+        const result = [];
+        for (let i = 0; i < length; i++) {
+            const groupsSize = Math.round(Math.random() * numbers) + 1;
+            const values = shuffle([1,2,3,4]);
+            result.push(values.slice(numbers-groupsSize));
+        }
+        return result;
+    }
+
+    const state = {
+        // groups: [[1], [2], [3], [4], [5], [1, 2], [1,2, 3], [2,3,4, 5], [1,2,3,4, 5]],
+        groups: createRandomGroups(100),
+        currentGroupIndex: 0,
+        currentlyPressed: new Set()
+    }
+
+    function drawAllGroups() {
+        ctx.save();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.translate(0, state.currentGroupIndex * 100);
+        for (let i = 0; i < state.groups.length; i++) {
+            if (i === state.currentGroupIndex) {
+                ctx.strokeStyle = 'red'
+            } else {
+                ctx.strokeStyle = 'black'
+            }
+            drawGroup(ctx, state.groups[i])
+            ctx.translate(0, -100)
+        }
+        ctx.restore();
+        requestAnimationFrame(drawAllGroups);
+    }
+    requestAnimationFrame(drawAllGroups)
+
+    let currentOffset = 0;
+    function keyInGroup(key, currentGroup) {
+        return currentGroup.indexOf(key) >= 0;
+    }
+
+    const currentlyPressed = new Set();
+
+    // TODO: what happens if we miss a key up event because the window did not have focus?
+    window.addEventListener('keydown', e => {
+        let key = e.key;
+        if (currentlyPressed.has(key)) return;
+        currentlyPressed.add(key);
+
+        switch (key) {
+            case '1': 
+            case '2': 
+            case '3': 
+            case '4': 
+            case '5': 
+                state.currentlyPressed.add(Number(key));
+            break;
+            default: return
+        }
+
+        const currentGroup = state.groups[state.currentGroupIndex];
+
+        console.log(currentGroup, state.currentlyPressed)
+        if (currentGroup.length === state.currentlyPressed.size) {
+            const result = currentGroup.reduce((s, key) => state.currentlyPressed.has(key) && s, true);
+            if (result) {
+                state.currentGroupIndex += 1
+                console.log(state.currentGroupIndex)
+                state.currentlyPressed.clear()
+            }
+        }
+
+    });
+    window.addEventListener('onfocus', e => {
+        currentlyPressed.clear();
+    })
+    window.addEventListener('keyup', e => {
+        currentlyPressed.delete(e.key);
+        switch (e.key) {
+            case '1': 
+            case '2': 
+            case '3': 
+            case '4': 
+            case '5': 
+                state.currentlyPressed.delete(Number(e.key));
+            break;
+            default: return
+        }
+    });
 }
