@@ -6,63 +6,6 @@ const l = console.log
 function assert(p, msg) {
     if (!p) throw new Error(msg);
 }
-const TRACK_FORMAT = Object.freeze({
-    SINGLE_MULTICHANNEL_TRACK: 0,
-    SIMULTANEOUS_TRACKS: 1,
-    INDEPENDENT_TRACKS: 2
-});
-
-const CHUNK_TYPE = Object.freeze({
-    HEADER: 1297377380, // MThd
-    TRACK: 1297379947   // MTrk
-});
-
-const CONTROL_FUNCTION = Object.freeze({
-    BANK_SELECT: 0, // Used in some synthesizers to expand then number of sounds
-    CHANNEL_VOLUME: 7,
-    PAN: 10, // The operation of playing the audio louder in one side or the other side of a stereo audio
-    DAMPER_PEDAL: 64,
-    SOSTENUTO: 66,
-    SOFT_PEDAL: 67,
-});
-
-const META_EVENT = Object.freeze({
-    SEQUENCE_NUMBER: 0x00,
-    TEXT_EVENT: 0x01,
-    COPYRIGHT_NOTICE: 0x02,
-    TRACK_NAME: 0x03,
-    INSTRUMENT_NAME: 0x04,
-    LYRIC: 0x05,
-    MARKER: 0x06,
-    CUE_POINT: 0x07,
-    MIDI_CHANNEL_PRFIX: 0x20,
-    END_OF_TRACK: 0x2F,
-    SET_TEMPO: 0x51,
-    SMPTE_OFFSET: 0x54,
-    TIME_SIGNATURE: 0x58,
-    KEY_SIGNATURE: 0x59,
-    SEQUENCE_SPECIFIC: 0x7F
-});
-
-const STATUS = Object.freeze({
-    META_EVENT: 0xFF,
-    SYS_EXCLUSIVE_START: 0xF0,
-    SYS_EXCLUSIVE_END: 0xF7,
-});
-
-const MIDI_EVENT = Object.freeze({  // Channel Voice Messages
-    NOTE_OFF: 0x80,                 // 2 data bytes
-    NOTE_ON: 0x90,                  // 2 data bytes
-    POLYPHONIC_AFTERTOUCH: 0xA0,    // 2 data bytes
-    CONTROL_CHANGE: 0xB0,           // 2 data bytes
-    PROGRAM_CHANGE: 0xC0,           // 1 data bytes
-    CHANNEL_AFTERTOUCH: 0xD0,       // 1 data bytes
-    PITCH_BEND: 0xE0,               // 2 data bytes
-});
-const CLEFF = Object.freeze({
-    TREBLE: 0,
-    BASS: 1,
-});
 
 // Assuming input is valid noteName
 function flatToSharp(noteName) {
@@ -80,7 +23,7 @@ function sharpToFlat(noteName) {
 }
 
 // Assumes num is an integer value between 21 and 127
-function numToKeyboardNoteName(num) {
+function midiNoteValueToNoteName(num) {
     num = num - 12;
     const letters = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B", ];
     const l = num % letters.length;
@@ -88,204 +31,6 @@ function numToKeyboardNoteName(num) {
     return [letters[l], n];
 }
 
-
-// #################### PARSING FUNCTIONS #####################
-
-// TODO: Understand what midiClocksPerMetronomeClick and thirtySecondNotesPerQuarterNotes mean
-function parseTimeSignature(metaData) {
-    assert(metaData.length >= 4, `Expected at least four values for the time signature meta data, found ${metaData.length}`);
-    return {
-        numerator: metaData[0],
-        denominator: 2 ** metaData[1],
-        midiClocksPerMetronomeClick: metaData[2],
-        thirtySecondNotesPerQuarterNote: metaData[3]
-    }
-}
-
-function formatParseErrorMessage(offset, msg) {
-    return `At byte ${offset}(${offset.toString(16)}): ${msg}`;
-}
-
-// Transforming meta data for SET TEMPO META EVENT into value (meta data should be an array of 3 bytes)
-function parseTempoMetaData(metaData) {
-    assert(metaData.length >= 3, `Expected at least three values for the set tempo meta data, found ${metaData.length}`);
-    return metaData[0] << 16 | metaData[1] << 8 | metaData[2];
-}
-
-// Reads a variable length value from dataView starting at offset. Returns value and new offset at end of value
-function parseVariableLengthValue(dataView, offset) {
-    let value = 0;
-    let length = 0;
-    while (true) {
-        let deltaByte = dataView.getUint8(offset + length)
-        length++;
-        value = (value << 7) | (deltaByte & 0x7F);
-        if ((deltaByte & 0x80) === 0) break;
-    } 
-    return [value, offset + length]
-}
-
-function parseMidiFile(buffer) {
-    const dataView = new DataView(buffer);
-    let [chunk, offset] = parseChunk(dataView, 0, 0)
-    const header = chunk;
-    assert(header.type === CHUNK_TYPE.HEADER, `First chunk had invalid type. Expected header found ${header.type}`);
-    const chunks = [];
-    chunks.push(header);
-
-    let trackNumber = 0;
-    while (trackNumber < header.ntrks) {
-        try {
-            [chunk, offset] = parseChunk(dataView, offset, trackNumber);
-            if (chunk.type === CHUNK_TYPE.TRACK) { // Ignore non track chunks
-                chunk.trackNumber = trackNumber;
-                chunks.push(chunk);
-                trackNumber++;
-            } else { // TODO: Silently ignore unknown chunk types (use log warn instead?) or have a list for each type 
-                assert(false, `Found unknown chunk type found ${chunk.type}`);
-            }
-        } catch (e) {
-            l('Chunks', chunks);
-            throw e
-        }
-    }
-    return chunks;
-}
-
-function parseChunk(dataview, offset, trackNumber) {
-    assert(dataview.byteLength > offset + 8, formatParseErrorMessage(offset, `The dataview did not contain enough bytes to read chunk`));
-    const type = dataview.getUint32(offset);
-    const length = dataview.getUint32(offset + 4);
-
-    offset += 8;
-    switch (type) {
-        case CHUNK_TYPE.HEADER: { // Parse Header chunk
-            assert(length >= 6, formatParseErrorMessage(offset-4, `Data length too small for header chunk. Expected at least 6, found ${length}`));  
-            const chunk = {
-                type,
-                format: dataview.getUint16(offset),
-                ntrks: dataview.getUint16(offset + 2),
-                division: dataview.getUint16(offset + 4)
-            };
-            offset += length;
-            return [chunk, offset];
-        } 
-        case CHUNK_TYPE.TRACK: { // Parse Track chunk
-            const chunk = {
-                type, 
-                events: [] 
-            };
-            const finalOffset = offset + length;
-            assert(length > 0, formatParseErrorMessage(offset, `Length of Track chunk was 0`));
-            let event, runningStatus = null, runningTime = 0, eventNumber = 0;
-            do {
-                try {
-                    [event, offset] = parseEvent(dataview, offset, runningStatus, runningTime);
-                    event.eventNumber = eventNumber++;
-                    event.trackNumber = trackNumber;
-                    chunk.events.push(event);
-                    runningStatus = event.status;
-                    runningTime += event.deltaTime;
-                } catch(e) {
-                    l('Current chunk', chunk)
-                    throw e
-                }
-            } while (!(event.metaType && event.metaType === META_EVENT.END_OF_TRACK));
-            assert(offset === finalOffset, formatParseErrorMessage(offset, `Track Chunk data was different from expected. Expected ${finalOffset} - Found ${offset}`));
-            return [chunk, finalOffset];
-        } 
-        default: {
-            const chunk = {
-                type,
-                offset
-            };
-            return [chunk, offset + length];
-        }
-    }
-}
-
-function readUint8ToArray(dataView, offset, length, array) {
-    for (let i = 0; i < length; i++) { // Read length data
-        array.push(dataView.getUint8(offset + i));
-    }
-}
-
-// TODO: Should we make NoteOn events with velocity 0 into NoteOff events?
-function parseEvent(dataView, offset, runningStatus, runningTime) {
-    let dt;
-    [dt, offset] = parseVariableLengthValue(dataView, offset)
-    let status = dataView.getUint8(offset);
-    if ((status & 0x80) === 0) { // Use running status as status and shift offset back
-        assert(runningStatus !== null, formatParseErrorMessage(offset, `Expected running status to be set but was null`));
-        // Running status should not be a META or SYSEX event, but we are not testing for this. Should we?
-        status = runningStatus;
-        offset -= 1;
-    }
-
-    let eventData = null;
-    if (status === STATUS.SYS_EXCLUSIVE_START || status === STATUS.SYS_EXCLUSIVE_END) {
-        [length, offset] = parseVariableLengthValue(dataView, offset + 1);
-        eventData = {
-            length,
-            sysex: []
-        }
-        readUint8ToArray(dataView, offset, length, eventData.sysex);
-        assert(eventData.sysex[length-1] === 0xF7, formatParseErrorMessage(offset + length - 1, `Expected 0xF7 at end of SYSEX Event, found ${eventData.sysex[length-1]}`));
-        offset = offset + length;
-    } else if (status === STATUS.META_EVENT) { 
-        const metaType = dataView.getUint8(offset + 1);
-        [length, offset] = parseVariableLengthValue(dataView, offset + 2);
-        eventData = { metaType, length, metaData: [] };
-        readUint8ToArray(dataView, offset, length, eventData.metaData);
-        offset = offset + length;
-    } else { 
-        eventData = {
-            type: status & 0xF0,
-            channel: status & 0x0F
-        }
-        switch (eventData.type) {
-            case MIDI_EVENT.NOTE_OFF: 
-            case MIDI_EVENT.NOTE_ON: {
-                eventData["note"] = dataView.getUint8(offset + 1);
-                eventData["velocity"] = dataView.getUint8(offset + 2);
-                offset += 3;
-            } break;
-            case MIDI_EVENT.POLYPHONIC_AFTERTOUCH: {
-                eventData["note"] = dataView.getUint8(offset + 1);
-                eventData["pressure"] = dataView.getUint8(offset + 2);
-                offset += 3;
-            } break;
-            case MIDI_EVENT.CONTROL_CHANGE: {
-                eventData["control"] = dataView.getUint8(offset + 1);
-                eventData["value"] = dataView.getUint8(offset + 2);
-                offset += 3;
-            } break;
-            case MIDI_EVENT.PROGRAM_CHANGE: {
-                eventData["program"] = dataView.getUint8(offset + 1);
-                offset += 2;
-            } break;
-            case MIDI_EVENT.CHANNEL_AFTERTOUCH: {
-                eventData["pressure"] = dataView.getUint8(offset + 1);
-                offset += 2;
-            } break;
-            case MIDI_EVENT.PITCH_BEND: {
-                eventData["bendlsb"] = dataView.getUint8(offset + 1);
-                eventData["bendmsb"] = dataView.getUint8(offset + 2);
-                offset += 3;
-            } break;
-            default: {
-                assert(false, formatParseErrorMessage(offset, `Unknown MIDI event ${eventData.type}`));
-            } break;
-        }
-    } 
-    const event = {
-        deltaTime: dt, 
-        time: runningTime + dt,
-        status, 
-        ...eventData
-    };
-    return [event, offset];
-}
 
 // ################ INITIALIZATION FUNCTIONS #########################
 
@@ -453,167 +198,167 @@ function initializePlaybackStateRelatedListeners(playbackState) {
     });
 }
 
-// ################### DRAWING FUNCTIONS ###########
+// // ################### DRAWING FUNCTIONS ###########
 
-// TODO: Wareta ringo has some weird boxes in the bottom of the falling notes. Figure out why these exist.
-function drawFallingNotes(ctx, noteEvents, elapsed, { msToPixel, noteFill, topLineHeight }) {
-    const noteWidth = 20
-    const timeFromTopToBottomMilliseconds = topLineHeight / msToPixel;
-    ctx.beginPath()
-    ctx.moveTo(0, topLineHeight);
-    ctx.lineTo(ctx.canvas.width, topLineHeight);
-    ctx.stroke();
-    for (let i = 0; i < noteEvents.length; i++) {
-        const event = noteEvents[i];
-        if (elapsed + timeFromTopToBottomMilliseconds < event.startMs) break; // Stop processing more events since they wont be shown anyway. (Correctness requires input to be sorted)
+// // TODO: Wareta ringo has some weird boxes in the bottom of the falling notes. Figure out why these exist.
+// function drawFallingNotes(ctx, noteEvents, elapsed, { msToPixel, noteFill, topLineHeight }) {
+//     const noteWidth = 20
+//     const timeFromTopToBottomMilliseconds = topLineHeight / msToPixel;
+//     ctx.beginPath()
+//     ctx.moveTo(0, topLineHeight);
+//     ctx.lineTo(ctx.canvas.width, topLineHeight);
+//     ctx.stroke();
+//     for (let i = 0; i < noteEvents.length; i++) {
+//         const event = noteEvents[i];
+//         if (elapsed + timeFromTopToBottomMilliseconds < event.startMs) break; // Stop processing more events since they wont be shown anyway. (Correctness requires input to be sorted)
 
-        const top = (-event.endMs + elapsed) * msToPixel + topLineHeight;
-        if (top > topLineHeight) continue;  
+//         const top = (-event.endMs + elapsed) * msToPixel + topLineHeight;
+//         if (top > topLineHeight) continue;  
 
-        const left = 10 + event.note * 14 - noteWidth/2;
-        const height = Math.min((event.endMs - event.startMs) * msToPixel, topLineHeight - top);
-        ctx.fillStyle = noteFill(event, i);
-        ctx.fillRect(left, top, noteWidth, height);
-    }
-}
+//         const left = 10 + event.note * 14 - noteWidth/2;
+//         const height = Math.min((event.endMs - event.startMs) * msToPixel, topLineHeight - top);
+//         ctx.fillStyle = noteFill(event, i);
+//         ctx.fillRect(left, top, noteWidth, height);
+//     }
+// }
 
-function drawTimeMeasures(ctx, timeMeasures) {
-    ctx.fillStyle = 'black';
-    ctx.beginPath();
-    for (let i = 0; i < timeMeasures.length; i++) {
-        const measureTime = timeMeasures[i].start;
-        let y = (elapsed - measureTime) * msToPixel;
-        if (y > topLineHeight) continue
-        ctx.fillText(i, 25, y)
-        ctx.moveTo(50, y);
-        ctx.lineTo(canvas.width, y);
-    }
-    ctx.stroke();
-}
+// function drawTimeMeasures(ctx, timeMeasures) {
+//     ctx.fillStyle = 'black';
+//     ctx.beginPath();
+//     for (let i = 0; i < timeMeasures.length; i++) {
+//         const measureTime = timeMeasures[i].start;
+//         let y = (elapsed - measureTime) * msToPixel;
+//         if (y > topLineHeight) continue
+//         ctx.fillText(i, 25, y)
+//         ctx.moveTo(50, y);
+//         ctx.lineTo(canvas.width, y);
+//     }
+//     ctx.stroke();
+// }
 
-function draw(wholeNoteImage, notes, time) {
-    let canvas = document.getElementById('note-canvas');
-    let ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.lineWidth = 4
-    let startX = 100 ;
-    let startY = 250;
-    let length = 1800;
-    let offSetY = ctx.lineWidth * 15;
-    ctx.beginPath();
-    for (let i = 0; i < 5; i++) {
-        ctx.moveTo(startX, startY + offSetY * i);
-        ctx.lineTo(startX + length, startY + offSetY * i);
-    }
-    ctx.moveTo(startX + 100, startY - 10);
-    ctx.lineTo(startX + 100, startY + offSetY * 4 + 10);
-    ctx.stroke();
+// function drawSheet(wholeNoteImage, notes, time) {
+//     let canvas = document.getElementById('note-canvas');
+//     let ctx = canvas.getContext('2d');
+//     ctx.clearRect(0, 0, canvas.width, canvas.height);
+//     ctx.lineWidth = 4
+//     let startX = 100 ;
+//     let startY = 250;
+//     let length = 1800;
+//     let offSetY = ctx.lineWidth * 15;
+//     ctx.beginPath();
+//     for (let i = 0; i < 5; i++) {
+//         ctx.moveTo(startX, startY + offSetY * i);
+//         ctx.lineTo(startX + length, startY + offSetY * i);
+//     }
+//     ctx.moveTo(startX + 100, startY - 10);
+//     ctx.lineTo(startX + 100, startY + offSetY * 4 + 10);
+//     ctx.stroke();
 
-    const noteHeight = offSetY * 1.1;
-    const noteWidth = noteHeight * 40/25
+//     const noteHeight = offSetY * 1.1;
+//     const noteWidth = noteHeight * 40/25
 
-    // Positions are given as 0 being the middle of G thingy
-    // Time is now just given as numbers from 0 and up
-    function drawNote(noteValue, time, cleff) {
-        let position;
-        switch (cleff) {
-            case CLEFF.TREBLE: {
-                position = noteValue;
-            } break;
-            case CLEFF.BASS: {
-                position = noteValue + 12;
-            } break;
-            default: {
-                throw new Error("Unknown cleff");
-            } break;
-        }
-        if (Math.abs(position) > 10) {
-            // TO BE FIXED SOMEHOW
-            throw new Error("Position out of bound");
-        }
-        let timeOffset = noteWidth * 2;
-        let x = startX + timeOffset * time;
-        let y = startY + 2 * offSetY - noteHeight / 2 + (-position) * offSetY / 2;
+//     // Positions are given as 0 being the middle of G thingy
+//     // Time is now just given as numbers from 0 and up
+//     function drawNote(noteValue, time, cleff) {
+//         let position;
+//         switch (cleff) {
+//             case CLEFF.TREBLE: {
+//                 position = noteValue;
+//             } break;
+//             case CLEFF.BASS: {
+//                 position = noteValue + 12;
+//             } break;
+//             default: {
+//                 throw new Error("Unknown cleff");
+//             } break;
+//         }
+//         if (Math.abs(position) > 10) {
+//             // TO BE FIXED SOMEHOW
+//             throw new Error("Position out of bound");
+//         }
+//         let timeOffset = noteWidth * 2;
+//         let x = startX + timeOffset * time;
+//         let y = startY + 2 * offSetY - noteHeight / 2 + (-position) * offSetY / 2;
 
-        drawLedgerLines(position, time)
+//         drawLedgerLines(position, time)
 
-        ctx.drawImage(wholeNoteImage, x, y, noteWidth, noteHeight);
-    }
-    function drawLedgerLines(position, time) {
-        let numberOfLines = Math.ceil((Math.abs(position) - 5) / 2);
-        const ledgerLineWidth = noteWidth * 1.1;
-        let x = startX + 2 * noteWidth * time;
+//         ctx.drawImage(wholeNoteImage, x, y, noteWidth, noteHeight);
+//     }
+//     function drawLedgerLines(position, time) {
+//         let numberOfLines = Math.ceil((Math.abs(position) - 5) / 2);
+//         const ledgerLineWidth = noteWidth * 1.1;
+//         let x = startX + 2 * noteWidth * time;
         
-        if (position > 0) {
-            // Draw ledger lines
-            ctx.beginPath();
-            for (let i = 0; i < numberOfLines; i++) {
-                ctx.moveTo(x - noteWidth * 0.1, startY - offSetY * (i+1));
-                ctx.lineTo(x + ledgerLineWidth, startY - offSetY * (i+1));
-            }
-            ctx.stroke();
-        } else if (position < 0) {
-            ctx.beginPath();
-            for (let i = 0; i < numberOfLines; i++) {
-                ctx.moveTo(x - noteWidth * 0.1, startY + offSetY * (5 + i));
-                ctx.lineTo(x + ledgerLineWidth, startY + offSetY * (5 + i));
-            }
-            ctx.stroke();
-        }
-    }
+//         if (position > 0) {
+//             // Draw ledger lines
+//             ctx.beginPath();
+//             for (let i = 0; i < numberOfLines; i++) {
+//                 ctx.moveTo(x - noteWidth * 0.1, startY - offSetY * (i+1));
+//                 ctx.lineTo(x + ledgerLineWidth, startY - offSetY * (i+1));
+//             }
+//             ctx.stroke();
+//         } else if (position < 0) {
+//             ctx.beginPath();
+//             for (let i = 0; i < numberOfLines; i++) {
+//                 ctx.moveTo(x - noteWidth * 0.1, startY + offSetY * (5 + i));
+//                 ctx.lineTo(x + ledgerLineWidth, startY + offSetY * (5 + i));
+//             }
+//             ctx.stroke();
+//         }
+//     }
 
-    // TODO: move treble position calculation out of draw call
-    // TODO: Move ledger lines out of draw call
-    for (const note of notes) {
-        drawNote(note[0], note[1] - time * 0.001, CLEFF.TREBLE);
+//     // TODO: move treble position calculation out of draw call
+//     // TODO: Move ledger lines out of draw call
+//     for (const note of notes) {
+//         drawNote(note[0], note[1] - time * 0.001, CLEFF.TREBLE);
         
-    }
-}
+//     }
+// }
 
-function drawNoteNamesAndTopLine(top) {
-    const canvas = document.getElementById('note-canvas');
-    const ctx = canvas.getContext('2d');
+// function drawNoteNamesAndTopLine(top) {
+//     const canvas = document.getElementById('note-canvas');
+//     const ctx = canvas.getContext('2d');
     
-    ctx.fillStyle = 'black'
-    ctx.font = "10px Georgia";
+//     ctx.fillStyle = 'black'
+//     ctx.font = "10px Georgia";
 
-    const letters = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B", ];
-    // const letters = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", ];
-    for (let i = 0; i < 128; i++) {
-        const note = letters[i % letters.length];
-        // Mark boundary and middle notes
-        if (i === 60 || i === 21 || i === 108) {
-            ctx.fillStyle = 'red'
-        } else {
-            ctx.fillStyle = 'black'
-        }
+//     const letters = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B", ];
+//     // const letters = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", ];
+//     for (let i = 0; i < 128; i++) {
+//         const note = letters[i % letters.length];
+//         // Mark boundary and middle notes
+//         if (i === 60 || i === 21 || i === 108) {
+//             ctx.fillStyle = 'red'
+//         } else {
+//             ctx.fillStyle = 'black'
+//         }
 
-        // Draw white or black note
-        if (note.length == 2) {
-            ctx.fillText(note[0], 8 + i * 14, top + 20);
-            ctx.font = "8px Georgia";
-            ctx.fillText(note[1], 14 + i * 14, top + 16);
-            ctx.font = "10px Georgia";
-        } else {
-            ctx.fillText(note, 10 + i * 14, top + 40);
-        }
+//         // Draw white or black note
+//         if (note.length == 2) {
+//             ctx.fillText(note[0], 8 + i * 14, top + 20);
+//             ctx.font = "8px Georgia";
+//             ctx.fillText(note[1], 14 + i * 14, top + 16);
+//             ctx.font = "10px Georgia";
+//         } else {
+//             ctx.fillText(note, 10 + i * 14, top + 40);
+//         }
 
-        // Draw octave partitioner
-        if (note === "B") {
-            ctx.beginPath();
-            ctx.moveTo(21 + i * 14, top);
-            ctx.lineTo(21 + i * 14, top + 45);
-            ctx.stroke();
+//         // Draw octave partitioner
+//         if (note === "B") {
+//             ctx.beginPath();
+//             ctx.moveTo(21 + i * 14, top);
+//             ctx.lineTo(21 + i * 14, top + 45);
+//             ctx.stroke();
 
-        }
+//         }
 
-    }
+//     }
 
-    ctx.beginPath();
-    ctx.moveTo(0, top);
-    ctx.lineTo(canvas.width, top);
-    ctx.stroke();
-}
+//     ctx.beginPath();
+//     ctx.moveTo(0, top);
+//     ctx.lineTo(canvas.width, top);
+//     ctx.stroke();
+// }
 
 // ################# EVENT HANDLING FUNCTIONS #######################
 
@@ -624,7 +369,7 @@ function handleOnMidiMessage(event) {
     switch (status) {
         case MIDI_EVENT.NOTE_ON:
         case MIDI_EVENT.NOTE_OFF: {
-            l(`Event ${status.toString(16)} Note ${numToKeyboardNoteName(data[1])} Channel ${channel} Velocity ${data[2]}`);
+            l(`Event ${status.toString(16)} Note ${midiNoteValueToNoteName(data[1])} Channel ${channel} Velocity ${data[2]}`);
         } break;
         case MIDI_EVENT.PROGRAM_CHANGE: {
             l(`Change program on channel ${channel} to program ${data[1]}`);
@@ -654,207 +399,12 @@ function handleMidiIOglobalMidiChange(event) {
     l('MidiIO globalMidi Change', event);
 }
 
-// ########### ANIMATION STUFF ##############
-function playback(ctx, endTime, playbackState, createDraw) {
-    const canvas = ctx.canvas;
-    let previous = 0
-    let elapsed = 0
-    const [state, draw] = createDraw();
-    const animate = t => {
-        if (playbackState.pause) {
-            previous = t;
-            return requestAnimationFrame(animate)
-        } 
-
-        elapsed += (t - previous) * playbackState.speedMultiplier
-        elapsed = clamp(0, elapsed, endTime);
-        previous = t;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        draw(ctx, elapsed, state);
-        requestAnimationFrame(animate);
-    }
-    requestAnimationFrame(t => {
-        previous = t;
-        animate(t);
-    });
-}
-
-//TODO: Make the line draw animation 3 dimensional
-function animatePointLine(ctx, framesPerSecond, endTime, points, playbackState) {
-    const timeStep = 1000 / framesPerSecond; 
-    const canvas = ctx.canvas
-    let previous = 0;
-    let elapsed = 0;
-    const animate = t => {
-        if (playbackState.pause) {
-            previous = t;
-            return requestAnimationFrame(animate)
-        } 
-
-        elapsed += (t - previous) * playbackState.speedMultiplier;
-        elapsed = clamp(0, elapsed, endTime);
-        previous = t;
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // const frameEnd = 3;
-        const frameEnd = Math.floor(elapsed / timeStep);
-
-        ctx.beginPath();
-        ctx.moveTo(...points[0]);
-        for (let i = 1; i < frameEnd; i++) {
-            // DEBUG COLORING
-            // if (i % 3 === 0) {
-            //     ctx.strokeStyle = 'red'
-            // } else if (i % 3 === 1) {
-            //     ctx.strokeStyle = 'blue'
-            // } else if (i % 3 === 2) {
-            //     ctx.strokeStyle = 'green'
-            // }
-
-            let [x0, y0] = points[i-1];
-            let [x1, y1] = points[i];
-            // Wrap around horizontally
-            
-            let x0Wraps = Math.floor(x0 / canvas.width); 
-            let x1Wraps = Math.floor(x1 / canvas.width); 
-            x1 = x1 - x0Wraps * canvas.width;
-
-            let wrapDiffs = x1Wraps - x0Wraps;
-            for (let j = 0; j < wrapDiffs; j++) {
-                // x0 = x0 % canvas.width;
-                const distW = canvas.width - x0;
-                const distX = x1 - x0;
-                const ratioX = distW / distX;
-                const distY = y1 - y0;
-                const y = y0 + distY * ratioX;
-                x0 = 0;
-                y0 = y;
-                ctx.lineTo(canvas.width, y0);
-                ctx.moveTo(x0, y0)
-                x1 = x1 - canvas.width;
-            }
-            while (x1 < 0) {
-                const distX = Math.abs(x1 - x0);
-                const distW = Math.abs(x0);
-                const ratioX = distW / distX;
-                const distY = y1 - y0;
-                const y = y0 + distY * ratioX;
-                x0 = canvas.width;
-                y0 = y;
-                ctx.lineTo(0, y0);
-                ctx.moveTo(x0, y0)
-                x1 = x1 + canvas.width;
-            }
-
-
-            // TODO: Wrap around
-            // x = x % canvas.width;
-            // if (x < 0) {
-            //     x = canvas.width + x;
-            // }
-            // y = y % canvas.height;
-            // if (y < 0) {
-            //     y = canvas.height + y;
-            // }
-
-            ctx.lineTo(x1, y1);
-            // DEBUG COLORING
-            // ctx.stroke();
-            // ctx.beginPath()
-            // ctx.moveTo(x1, y1);
-        }
-        ctx.stroke();
-            // return
-
-        requestAnimationFrame(animate)
-    };
-    requestAnimationFrame(t => {
-        previous = t;
-        animate(t);
-    });
-}
-
-function pyramidUpdater(timeStep) {
-    const state = {
-        i: 0,
-        k: 0,
-        timeToUpdate: 1,
-        velocity: [5 / timeStep, 0.0]
-    };
-
-    return [state, (currentPosition, currentTime, state) => {
-        let {i, k, timeToUpdate, velocity} = state;
-        // l(currentPosition, velocity, timeStep)
-        const newPosition = [
-            currentPosition[0] + velocity[0] * timeStep,
-            currentPosition[1] + velocity[1] * timeStep
-        ];
-
-        // Rotate 
-        if (i % timeToUpdate === 0) {
-            state.i = 0;
-            let tmp = velocity[0];
-            if (k % 2 === 0) {
-                state.velocity[0] = velocity[1];
-                state.velocity[1] = tmp;
-            } else {
-                state.velocity[0] = -velocity[1];
-                state.velocity[1] = tmp;
-                state.timeToUpdate++
-            }
-            state.k++;
-        }
-        state.i++
-
-        return newPosition
-    }];
-}
-
-function spiralUpdater(timeStep) {
-    const state = {
-        r: 0,
-        angle: 0
-    };
-
-    return [state, (currentPosition, currentTime, state) => {
-        if (!state.center) {
-            state.center = currentPosition;
-        }
-        state.r += 0.01 * timeStep;
-        state.angle += 0.01 * timeStep;
-
-        const x = state.r * Math.cos(state.angle);
-        const y = state.r * Math.sin(state.angle);
-
-        return [
-            state.center[0] + x,
-            state.center[1] + y,
-        ];
-    }];
-}
-
-// Creates a shape of points using a given update function.
-function createPointShape(framesPerSecond, startPosition, duration, createUpdate) {
-    const timeStep = 1000 / framesPerSecond; 
-    const positions = [];
-    let currentPosition = startPosition;
-    positions.push(currentPosition);
-    const [state, update] = createUpdate(timeStep);
-    let currentTime = 0;
-    while (currentTime < duration) {
-        currentPosition = update(currentPosition, currentTime, state);
-        positions.push(currentPosition);
-
-        currentTime += timeStep
-    }
-    return positions;
-}
-
-// ############# MAIN #############
+// #####################################################
+// ##################### MAIN ##########################
+// #####################################################
 
 function main() {
-    // runTests();
+    runTests();
 
     // Various initializations
     const state = initializeState(); 
@@ -884,19 +434,136 @@ function main() {
     }
 }
 
+// What is it we want?
 
-class DrawElement {
-    constructor(x, y) {
+// We want some representation of the notes positioned according to their value. 
+// We want to be able move these notes according to time. 
+// We want multiple ways to show these notes, e.g. falling or a note sheet
+// We want se
+
+// Initial setup
+// Falling notes
+// The notes' x position is placed according to 
+
+
+// What are our objects? 
+// We have out notes. The notes are characterized by a note value, a duration, and a start time, possibly 
+// We have a view which takes a note and draws it. The view calculates how the notes are seen. 
+// We have some settings. Simple setting is selection. We want to use the mouse to select. 
+
+
+
+
+function drawNote(noteValue, startTimeMs, durationMs) {
+
+}
+
+function selectNotes(notes, view, selectionBox) {
+    const result = [];
+    // for all notes
+    // if note positioned according to view is in selection box
+    //      add to result
+}
+
+class FallingNotesView {
+    constructor() {
+    }
+
+    drawNote(note) {
 
     }
-    draw(ctx) {
+
+    drawBackground() {
+        const canvas = document.getElementById('note-canvas');
+        const ctx = canvas.getContext('2d');
+        const top = 600;
+        
+        ctx.fillStyle = 'black'
+        ctx.font = "10px Georgia";
+
+        const letters = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B", ];
+        // const letters = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", ];
+        for (let i = 0; i < 128; i++) {
+            const note = letters[i % letters.length];
+            // Mark boundary and middle notes
+            if (i === 60 || i === 21 || i === 108) {
+                ctx.fillStyle = 'red'
+            } else {
+                ctx.fillStyle = 'black'
+            }
+
+            // Draw white or black note
+            if (note.length == 2) {
+                ctx.fillText(note[0], 8 + i * 14, top + 20);
+                ctx.font = "8px Georgia";
+                ctx.fillText(note[1], 14 + i * 14, top + 16);
+                ctx.font = "10px Georgia";
+            } else {
+                ctx.fillText(note, 10 + i * 14, top + 40);
+            }
+
+            // Draw octave partitioner
+            if (note === "B") {
+                ctx.beginPath();
+                ctx.moveTo(21 + i * 14, top);
+                ctx.lineTo(21 + i * 14, top + 45);
+                ctx.stroke();
+
+            }
+
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(0, top);
+        ctx.lineTo(canvas.width, top);
+        ctx.stroke();
+    }
+    
+    drawSettingsPanel() {
+
+    }
+
+}
+
+class Note {
+    // TODO: Maybe record original time values and have something to convert to time
+    constructor(value, startMs, durationMs) {
+        this.value = value;
+        this.startMs = startMs; 
+        this.duration = durationMs;
+    }
+    // TODO: Can define various shifts on everything
+}
+
+class MusicSheetView {
+    constructor() {
     }
 }
 
 function doStuffWithParsedMidiFile(state) {
+    const melodies = chunksToMelodiesList(state.chunks)
+    l(melodies)
+    l(midiNoteValueToNoteName(60))
     const canvas = document.getElementById('note-canvas');
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const fallingNotesView = new FallingNotesView();
+
+    fallingNotesView.drawBackground();
+
+
+    const notes = new Note()
+
+    // TODO: 
+    // Create 2 view types
+    // Type 1 is falling notes. 
+    // Type 2 is music sheet
+    // Create 5 notes to position them
+    // Make it possible to select notes in view
+    //
+
+    // drawNoteNamesAndTopLine(600)
 
 
     l(state)
@@ -1537,19 +1204,9 @@ function getTextHeight(ctx, text) {
     return textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
 }
 
-function clamp(min, v, max) {
-    if (v < min) {
-        return min;
-    } 
-    if (v > max) {
-        return max;
-    }
-    return v;
-}
-
-function isTempoEvent(event) {
-    return event.metaType && event.metaType === META_EVENT.setTimeout;
-}
+// function isTempoEvent(event) {
+//     return event.metaType && event.metaType === META_EVENT.setTimeout;
+// }
 
 // Assumes the list contains elements with an end time
 function getPlayTrackEndMsTime(noteEvents) {
@@ -1654,391 +1311,4 @@ function mergeTrackChunksEvents(a, b) {
         i++;
     }
     return result; 
-}
-
-// ######################### TESTING CODE ############################
-
-function runTests() {
-    testParseVariableLengthValue();
-    testParseTempoMetaData();
-    testCalcAccumulatedDeltaTimes();
-    testMergeTracks();
-    // testBatchNoteEvents(); // Broken after checking for dupplicate key entries
-    testComputeTempoMap();
-}
-
-/* Implements tests based on the examples from the MIDI specification
-    | Number (hex)  | Representation (hex) |
-    | 00000000      | 00  |
-    | 00000040      | 40  |
-    | 0000007F      | 7F  |
-    | 00000080      | 81 00  |
-    | 00002000      | C0 00  |
-    | 00003FFF      | FF 7F  |
-    | 00100000      | 81 80 00  |
-    | 001FFFFF      | C0 80 00  |
-    | 00200000      | FF FF 7F  |
-    | 08000000      | 81 80 80 00  |
-    | 0FFFFFFF      | FF FF FF 7F |
-*/
-function testParseVariableLengthValue() {
-    let tests = [];
-    tests.push([[0x00], 0x00]);
-    tests.push([[0x40], 0x40]);
-    tests.push([[0x7F], 0x7F]);
-
-    tests.push([[0x81, 0x00], 0x80]);
-    tests.push([[0xC0, 0x00], 0x2000]);
-    tests.push([[0xFF, 0x7F], 0x3FFF]);
-
-    tests.push([[0x80, 0x80, 0x00], 0x00]);
-    tests.push([[0x81, 0x80, 0x00], 0x00004000]);
-    tests.push([[0xC0, 0x80, 0x00], 0x00100000]);
-    tests.push([[0xFF, 0xFF, 0x7F], 0x001FFFFF]);
-
-    tests.push([[0x81, 0x80, 0x80, 0x00], 0x00200000]);
-    tests.push([[0xC0, 0x80, 0x80, 0x00], 0x08000000]);
-    tests.push([[0xFF, 0xFF, 0xFF, 0x7F], 0x0FFFFFFF]);
-    
-    let dataView = new DataView(new ArrayBuffer(4));
-    for (const test of tests) {
-        // Setup
-        let rep = test[0];
-        let number = test[1];
-        for (let i = 0; i < rep.length; i++) {
-            dataView.setUint8(i, rep[i]);
-        }
-
-        // Run
-        let res = parseVariableLengthValue(dataView, 0);
-
-        // Verify
-        if (res[0] != number) {
-            let hexRep = rep.map(v => v.toString(16));
-            console.log(`Expected ${number.toString(16)} - Actual ${res[0].toString(16)} - Input ${hexRep}`);
-        } 
-    }
-
-}
-
-function testParseTempoMetaData() {
-    let tests = [
-        [[0x07, 0xA1, 0x20], 500000]
-    ];
-    for (const test of tests) {
-        let [input, expected] = test;
-        let result = parseTempoMetaData(input);
-
-        if (result !== expected) {
-            console.log(`Expected ${input} gave result ${expected}, but was ${result}`);
-        }
-    }
-}
-
-function testCalcAccumulatedDeltaTimes() {
-    const tests = [
-        [   // Test 1
-            [   // Inputs
-                {deltaTime: 0}, {deltaTime: 0}
-            ],
-            [   // Output
-               0, 0,
-            ] 
-        ], 
-        [   
-            [   // Inputs
-                {deltaTime: 0}, {deltaTime: 5}, {deltaTime: 0}
-            ],
-            [   // Output
-               0, 5, 5
-            ] 
-        ], 
-        [   
-            [   // Inputs
-                {deltaTime: 0}, {deltaTime: 5}, {deltaTime: 5}
-            ],
-            [   // Output
-               0, 5, 10
-            ] 
-        ],        
-        [
-            [   // Inputs
-                {deltaTime: 10}, {deltaTime: 20}, {deltaTime: 30}, 
-            ],
-            [   // Output
-               10, 30, 60
-            ] 
-        ],
-        [
-            [   // Inputs
-                {deltaTime: 0}, {deltaTime: 25}, {deltaTime: 1}, 
-            ],
-            [   // Output
-               0, 25, 26
-            ] 
-        ],
-
-
-    ];
-    for (const test of tests) {
-        let [input, expected] = test;
-        let result = calcAccumulatedDeltaTimes(input);
-
-        if (expected.length !== result.length) {
-            console.log(`Expected ${input} gave result ${expected}, but was ${result}`);
-        } else {
-            for (let i = 0; i < result.length; i++) {
-                if (result[i] !== expected[i]) {
-                    console.log(`Expected ${input} gave result ${expected}, but was ${result}`);
-                    break;
-                }
-            }
-        }
-    } 
-
-}
-
-function testMergeTracks() {
-    const tests = []; // TODO: Maybe redo tests
-    for (const [input, expected] of tests) {
-        let result = mergeTrackChunksEvents(...input);
-
-        if (expected.length !== result.length) {
-            console.log(`Expected`, input, `gave result`, expected, `but was`, result);
-        } else {
-            for (let i = 0; i < result.length; i++) {
-                let e = expected[i].time;
-                let a = result[i].time;
-                if (a !== e) {
-                    console.log(`Expected`, input, `gave result ${e}, but was ${a} at index ${i}`);
-                    break;
-                }
-            }
-        }
-    }
-
-    // Test that inputs are not modified, but instead properly copied.
-    let inputA = {deltaTime: 5};
-    let inputB = {deltaTime: 5};
-    mergeTrackChunksEvents([inputA], [inputB]);
-    
-    if (inputA.deltaTime !== 5 || inputB.deltaTime !== 5) {
-        console.log("Expected input to mergeTracChunks to be unmodified")
-    }
-
-}
-
-// Delegate problem of comparing elements in a list to a callback
-function arrayEqual(a, b, elementCompare) {
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-        if (!elementCompare(a[i], b[i])) return false;
-    }
-    return true;
-}
-
-// This fucking test actually made me find an error. This is especially annoying since I thought this was an unnecessary test since my code was "obviously" correct. You live and learn.
-function testBatchNoteEvents() {
-    let tests = [
-        {input: [], expected: []},
-        {input: [{time: 0}, {time: 0}], expected: [[{time:0}, {time:0}]]},
-        {input: [{time: 0}, {time: 1}], expected: [[{time:0}], [{time:1}]]},
-    ];
-    for (const {input, expected} of tests) {
-        let result = batchNoteEvents(input);
-
-        if (!arrayEqual(result, expected, (a, b) => arrayEqual(a, b, (x, y) => { return x.start === y.start }))) {
-            console.log("Expected:", expected, " - Actual:", result, " - Input:", input);
-        }
-    } 
-}
-
-// TODO: Any more test?
-function testComputeTempoMap() {
-    let hundredThousand = [0x1, 0x86, 0xa0];    // 100000
-    let twohundredThousand = [0x3, 0x0d, 0x40]; // 200000
-    let fiftyThousand = [0x00, 0xc3, 0x50];     // 50000
-
-    let tests = [
-        {input: [[/* empty for default */], 100, [{time: 1000}, {time: 2000}]], expected: [{startMs: 5000}, {startMs: 10000}]}, // Default tempo map
-        {input: [[{time: 0, metaData: hundredThousand}], 100, [{time: 1000}, {time: 1500}]], expected: [{startMs: 1000}, {startMs: 1500}]},
-        {input: [[{time: 0, metaData: twohundredThousand}], 100, [{time: 1000}, {time: 1500}]], expected: [{startMs: 2000}, {startMs: 3000}]},
-        {input: [[{time: 0, metaData: twohundredThousand}], 200, [{time: 1000}, {time: 1500}]], expected: [{startMs: 1000}, {startMs: 1500}]},
-        {input: [[{time: 0, metaData: hundredThousand}, {time: 1000, metaData: twohundredThousand }], 100, [{time: 1000}, {time: 1500}]], expected: [{startMs: 1000}, {startMs: 2000}]},
-        {input: [[{time: 0, metaData: twohundredThousand}, {time: 1000, metaData: fiftyThousand}], 100, [{time: 1000}, {time: 1500}]], expected: [{startMs: 2000}, {startMs: 2250}]},
-        {input: [[{time: 0, metaData: twohundredThousand}, {time: 3000, metaData: fiftyThousand}], 200, [{time: 1000}, {time: 1500}]], expected: [{startMs: 1000}, {startMs: 1500}]},
-        { // Test for initially undiscovered bug. When the tempo changed multiple times, the new runningTimeMilliseconds was based on difference between time quarter note time and ms which is nonsense. 
-            input: [
-                [{time: 0, metaData: twohundredThousand}, {time: 1000, metaData: hundredThousand}, {time: 2000, metaData: twohundredThousand}], 100, 
-                [{time: 1500}, {time: 2500}]
-            ], 
-            expected: [{startMs: 2500}, {startMs: 4000}] 
-        },
-    ];    
-
-    for (const {input, expected} of tests) {
-        const mappingFunction = computeTempoMappingFunction(input[0], input[1]);
-        const result = mappingFunction(input[2]);
-
-        if (expected.length !== result.length) {
-            console.log('Expected', input[2], 'gave result of length', expected.length, 'but was', result.length);
-        } else {
-            for (let i = 0; i < result.length; i++) {
-                let e = expected[i].startMs;
-                let a = result[i].startMs;
-                if (a !== e) {
-                    console.log(`Expected`, input, `gave result ${e}, but was ${a} at index ${i}`);
-                    break;
-                }
-            }
-        }
-    } 
-}
-
-
-// ################ FUNCTIONALITY TESTING #################
-function playgroundCode() {
-    const ctx = document.getElementById('note-canvas').getContext('2d');
-    const endTime = getPlayTrackEndMsTime(noteEvents)
-    return playback(ctx, endTime, playbackState, () => {
-        const width = ctx.canvas.width - 400;
-        const offsetY = ctx.canvas.height - 50;
-        const noteFill = (note, i) => {
-            return [ "#54478cff", "#2c699aff", "#048ba8ff", "#0db39eff", "#16db93ff", "#83e377ff", "#b9e769ff", "#efea5aff", "#f1c453ff", "#f29e4cff", ][i % 10];
-        };
-        return [{}, (ctx, elapsed, state) => {
-            drawFallingNotes(ctx, [{
-                "note": 60,
-                "start": 0,
-                "velocity": 78,
-                "end": 1000,
-            }], elapsed, {msToPixel: 0.27, noteFill, topLineHeight: 600});
-            drawNoteNamesAndTopLine(600)
-            drawTimeBar(ctx, elapsed, endTime, {
-                width, offsetX: 200, offsetY, notchHeight: 6, font: "18px Courier New", textColor: 'black', lineColor: 'black'
-            });
-            playbackState.pause = true
-        }];
-    });
-
-    const framesPerSecond = 300;
-    // const positions = [
-    //     [canvas.width / 2, canvas.height / 2],
-    //     [0.1 * canvas.width,  50],
-    //     [0.7 * canvas.width,  canvas.height -100]
-    // ];
-    const positions = createPointShape(framesPerSecond, [canvas.width / 2, canvas.height / 2], endTime, spiralUpdater);
-}
-
-function keyMatchGamePlaygroundCode() {
-    const canvas = document.getElementById('note-canvas');
-    const ctx = canvas.getContext('2d');
-    function drawGroup(ctx, group) {
-        const marginX = 450;
-        const marginY = 500;
-        
-        const width = 100;
-        const height = 80;
-        const offSetX = 10;
-        ctx.font = "48px Courier New";
-        ctx.textBaseline = 'middle'
-        ctx.textAlign = 'center'
-        for (const val of group) {
-            ctx.strokeRect(marginX + (width + offSetX) * (val-1), marginY, width, height)
-            ctx.fillText(val, marginX + (width + offSetX) * (val-1) + width / 2, marginY + height/2)
-        }
-    }
-
-    const numbers = 4;
-
-    // Test functionality I want on keyboard
-
-    function createRandomGroups(length) {
-        const result = [];
-        for (let i = 0; i < length; i++) {
-            const groupsSize = Math.round(Math.random() * numbers) + 1;
-            const values = shuffle([1,2,3,4]);
-            result.push(values.slice(numbers-groupsSize));
-        }
-        return result;
-    }
-
-    const state = {
-        // groups: [[1], [2], [3], [4], [5], [1, 2], [1,2, 3], [2,3,4, 5], [1,2,3,4, 5]],
-        groups: createRandomGroups(100),
-        currentGroupIndex: 0,
-        currentlyPressed: new Set()
-    }
-
-    function drawAllGroups() {
-        ctx.save();
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.translate(0, state.currentGroupIndex * 100);
-        for (let i = 0; i < state.groups.length; i++) {
-            if (i === state.currentGroupIndex) {
-                ctx.strokeStyle = 'red'
-            } else {
-                ctx.strokeStyle = 'black'
-            }
-            drawGroup(ctx, state.groups[i])
-            ctx.translate(0, -100)
-        }
-        ctx.restore();
-        requestAnimationFrame(drawAllGroups);
-    }
-    requestAnimationFrame(drawAllGroups)
-
-    let currentOffset = 0;
-    function keyInGroup(key, currentGroup) {
-        return currentGroup.indexOf(key) >= 0;
-    }
-
-    const currentlyPressed = new Set();
-
-    // TODO: what happens if we miss a key up event because the window did not have focus?
-    window.addEventListener('keydown', e => {
-        let key = e.key;
-        if (currentlyPressed.has(key)) return;
-        currentlyPressed.add(key);
-
-        switch (key) {
-            case '1': 
-            case '2': 
-            case '3': 
-            case '4': 
-            case '5': 
-                state.currentlyPressed.add(Number(key));
-            break;
-            default: return
-        }
-
-        const currentGroup = state.groups[state.currentGroupIndex];
-
-        console.log(currentGroup, state.currentlyPressed)
-        if (currentGroup.length === state.currentlyPressed.size) {
-            const result = currentGroup.reduce((s, key) => state.currentlyPressed.has(key) && s, true);
-            if (result) {
-                state.currentGroupIndex += 1
-                console.log(state.currentGroupIndex)
-                state.currentlyPressed.clear()
-            }
-        }
-
-    });
-    window.addEventListener('onfocus', e => {
-        currentlyPressed.clear();
-    })
-    window.addEventListener('keyup', e => {
-        currentlyPressed.delete(e.key);
-        switch (e.key) {
-            case '1': 
-            case '2': 
-            case '3': 
-            case '4': 
-            case '5': 
-                state.currentlyPressed.delete(Number(e.key));
-            break;
-            default: return
-        }
-    });
 }
