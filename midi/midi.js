@@ -1,5 +1,7 @@
 'use strict';
 const KEY_CODE_SPACE = 'Space';
+const LEFT_MOUSE_BUTTON = 0
+
 // const KEY_CODE_NUMPAD_PLUS = "";
 // const KEY_CODE_NUMPAD_PLUS = "";
 const l = console.log
@@ -57,7 +59,7 @@ function addSelectOptionsAndReturnFirst(select, list) {
     return emptyIO;
 }
 
-function initializeCanvasEventListeners(mideState) {
+function initializeCanvasEventListeners(midiState) {
     const canvas = document.getElementById('note-canvas');
     const ctx = canvas.getContext('2d');
     const fileInput = document.getElementById('file-input');
@@ -68,7 +70,7 @@ function initializeCanvasEventListeners(mideState) {
     ctx.fillText("or drag and drop it in the window", 100, 540);
 
     canvas.addEventListener('click', (e) => {
-        if (mideState.chunks === null) {
+        if (midiState.chunks === null) {
             fileInput.click();
         }
     });
@@ -86,6 +88,8 @@ function initializeCanvasEventListeners(mideState) {
         const changeEvent = new Event('change', { bubbles: true });
         fileInput.dispatchEvent(changeEvent);
     });
+
+
 }
 
 function initializeMidiInputOutputEventListeners(midiState) {
@@ -164,7 +168,9 @@ function initializeMIDIUSBAccess(success, reject) {
 // Parsed MIDI file is stored in Chunks
 function initializeState() {
     if (localStorage.savedStateJSON !== undefined && localStorage.savedStateJSON !== null) {
-        return JSON.parse(localStorage.savedStateJSON);
+        const state = JSON.parse(localStorage.savedStateJSON);
+        l('Louding saved state', state)
+        return state
     }
     return {
         chunks: null,
@@ -451,71 +457,75 @@ function main() {
 // We have a view which takes a note and draws it. The view calculates how the notes are seen. 
 // We have some settings. Simple setting is selection. We want to use the mouse to select. 
 
-
-
-
-function drawNote(noteValue, startTimeMs, durationMs) {
-
-}
-
-function selectNotes(notes, view, selectionBox) {
-    const result = [];
-    // for all notes
-    // if note positioned according to view is in selection box
-    //      add to result
-}
-
 class FallingNotesView {
     constructor() {
+        this.deltaTime = 0;
+
+        const canvas = document.getElementById('note-canvas');
+        this.drawSettings = {
+            top: 600,
+            marginLeft: 10,
+            marginRight: 10,
+            leftmostNoteValue: 60 - 2*12, // 2 Octaves from middle C
+            notesToShow: 12 * 3,
+            whiteToBlackRatio: 0.8, // Initially we assume they have identical width
+            partitionerHeight: 45,
+            canvas: canvas,
+            ctx: canvas.getContext('2d'), 
+            timeFromTopToTopMs: 2000
+        };
+    }
+
+    setDeltaTime(deltaTime) {
+        this.deltaTime = deltaTime;
     }
 
     drawNote(note) {
-
+        const {notesToShow, leftmostNoteValue, ctx} = this.drawSettings;
+        if (note.value < leftmostNoteValue || note.value > notesToShow + leftmostNoteValue) return;
+        const {leftX, topY, width, height} = this.calculateNoteRectangle(note);
+        ctx.fillRect(leftX, topY, width, height);
     }
 
     drawBackground() {
-        const canvas = document.getElementById('note-canvas');
-        const ctx = canvas.getContext('2d');
-        const top = 600;
-        
-        ctx.fillStyle = 'black'
-        ctx.font = "10px Georgia";
+        const {
+            top, 
+            marginLeft, 
+            marginRight, 
+            notesToShow, 
+            leftmostNoteValue,
+            canvas, 
+            ctx} = this.drawSettings;
+
+        const totalWidth = canvas.width - marginLeft - marginRight;
+        const noteWidth = totalWidth / notesToShow;
 
         const letters = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B", ];
-        // const letters = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", ];
-        for (let i = 0; i < 128; i++) {
-            const note = letters[i % letters.length];
-            // Mark boundary and middle notes
-            if (i === 60 || i === 21 || i === 108) {
-                ctx.fillStyle = 'red'
-            } else {
-                ctx.fillStyle = 'black'
-            }
+
+        const textOffsetY = 16;
+        const textSmallOffsetY = textOffsetY -4;
+
+        for (let i = 0; i < notesToShow; i++) {
+            ctx.fillStyle = 'black';
+            ctx.strokeStyle = 'black';
+            ctx.font = "10px Georgia";
+            const note = letters[(i + leftmostNoteValue) % letters.length];
+
+            ctx.strokeRect(marginLeft + i * noteWidth, top, noteWidth, (i + 20));
 
             // Draw white or black note
+            ctx.fillText(note[0], marginLeft + i * noteWidth + noteWidth/2, top + textOffsetY);
             if (note.length == 2) {
-                ctx.fillText(note[0], 8 + i * 14, top + 20);
                 ctx.font = "8px Georgia";
-                ctx.fillText(note[1], 14 + i * 14, top + 16);
-                ctx.font = "10px Georgia";
-            } else {
-                ctx.fillText(note, 10 + i * 14, top + 40);
-            }
-
-            // Draw octave partitioner
-            if (note === "B") {
-                ctx.beginPath();
-                ctx.moveTo(21 + i * 14, top);
-                ctx.lineTo(21 + i * 14, top + 45);
-                ctx.stroke();
-
-            }
-
+                ctx.fillText(note[1], marginLeft + i * noteWidth + noteWidth/2 + 8, top + textSmallOffsetY);
+            } 
         }
 
+        // Draw top line
+        ctx.strokeStyle = 'black'
         ctx.beginPath();
-        ctx.moveTo(0, top);
-        ctx.lineTo(canvas.width, top);
+        ctx.moveTo(this.drawSettings.marginLeft, top);
+        ctx.lineTo(canvas.width-this.drawSettings.marginRight, top);
         ctx.stroke();
     }
     
@@ -523,14 +533,70 @@ class FallingNotesView {
 
     }
 
+    calculateNoteRectangle(note) {
+
+
+        // How long time from 0 to top? 
+        // Say it takes 2000 ms, then a duration of 2000 ms should cover the whole thing
+
+
+        // Note value = leftmostNoteValue => x = marginLeft
+        const {top, marginLeft, marginRight, notesToShow, leftmostNoteValue, canvas, timeFromTopToTopMs} = this.drawSettings;
+        const totalWidth = canvas.width - marginLeft - marginRight;
+        const noteWidth = totalWidth / notesToShow;
+        const x = marginLeft + (note.value - leftmostNoteValue) * noteWidth;
+
+        const noteHeightFraction = note.durationMs / timeFromTopToTopMs;
+        const noteStartFraction = note.startMs / timeFromTopToTopMs;
+        const height = noteHeightFraction * top;
+        const y = top - height;
+
+        // this.deltaTime = 0 && note.startMs = 0 => topY + height = top
+
+        // top = 600
+        // this.deltaTime = 0 && note.startMs = 500 && note.durationMs = 500 => topY = topY/2
+        // topY = 300
+        // height = 
+
+        // TODO: Tomorrow. Too tired to do this now. I want a piece of paper
+
+
+        // Calculate x position based on current view of keys
+        // Calculate y position based on current time possibly taking into key view into consideration to account for proportions
+        // return note;
+        return {leftX: x, topY: y, width: noteWidth, height: height}
+    }
+
+    selectElementsInRectangle(notes, leftX, rightX, topY, bottomY) {
+        const result = [];
+        for (const note of notes) {
+            const noteRectangle = this.calculateNoteRectangle(note);
+            const noteCorners = {
+                leftX: noteRectangle.leftX,
+                rightX: noteRectangle.leftX + noteRectangle.width,
+                topY: noteRectangle.topY,
+                bottomY: noteRectangle.topY + noteRectangle.height
+            }
+            if (rectangleOverlap(noteCorners, {leftX, rightX, bottomY, topY})) 
+            {
+                result.push(note);
+            }
+        }
+        return result;
+    }
 }
+
+function rectangleOverlap(a, b) {
+    return !(a.rightX < b.leftX || b.rightX < a.leftX || a.bottomY < b.topY || b.bottomY < a.topY);
+}
+
 
 class Note {
     // TODO: Maybe record original time values and have something to convert to time
     constructor(value, startMs, durationMs) {
         this.value = value;
         this.startMs = startMs; 
-        this.duration = durationMs;
+        this.durationMs = durationMs;
     }
     // TODO: Can define various shifts on everything
 }
@@ -542,18 +608,112 @@ class MusicSheetView {
 
 function doStuffWithParsedMidiFile(state) {
     const melodies = chunksToMelodiesList(state.chunks)
+    const notes = [
+        new Note(60, 1000, 500),
+        new Note(48, 0, 500),
+        new Note(36, 500, 1000),
+    ]; // TODO: Do something based off of melodies
     l(melodies)
-    l(midiNoteValueToNoteName(60))
+    
     const canvas = document.getElementById('note-canvas');
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const fallingNotesView = new FallingNotesView();
+    const mouseState = {
+        position: {x: 0, y: 0},
+        dragStart: null,
+        updateMousePosition: function(event) {
+            this.position.x = event.clientX - canvas.offsetLeft;
+            this.position.y = event.clientY - canvas.offsetTop;
+        }
+    }
 
-    fallingNotesView.drawBackground();
+    let currentView = fallingNotesView;
+
+    canvas.addEventListener('mousemove', e => {
+        mouseState.updateMousePosition(e);
+    });
+
+    canvas.addEventListener('mousedown', e => {
+        if (e.button === LEFT_MOUSE_BUTTON) {
+            mouseState.updateMousePosition(e);
+            mouseState.dragStart = {...mouseState.position}; // Copy
+        }
+    });
+
+    canvas.addEventListener('mouseup', e => {
+        if (e.button === LEFT_MOUSE_BUTTON && mouseState.dragStart !== null) {
+            const selectionArea = {
+                leftX: Math.min(mouseState.dragStart.x, mouseState.position.x),
+                rightX: Math.max(mouseState.dragStart.x, mouseState.position.x),
+                topY: Math.min(mouseState.dragStart.y, mouseState.position.y),
+                bottomY: Math.max(mouseState.dragStart.y, mouseState.position.y),
+            }
+            const selectedElements = currentView.selectElementsInRectangle(
+                notes,
+                selectionArea.leftX,
+                selectionArea.rightX,
+                selectionArea.topY,
+                selectionArea.bottomY,
+            );
+            l(selectionArea, selectedElements, notes)
+            mouseState.dragStart = null;
+        }
+    })
+
+    function myDraw(time) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        let selectedElements = [];
+        if (mouseState.dragStart != null) {
+            const selectionArea = {
+                leftX: Math.min(mouseState.dragStart.x, mouseState.position.x),
+                rightX: Math.max(mouseState.dragStart.x, mouseState.position.x),
+                topY: Math.min(mouseState.dragStart.y, mouseState.position.y),
+                bottomY: Math.max(mouseState.dragStart.y, mouseState.position.y),
+            }
+            selectedElements = currentView.selectElementsInRectangle(
+                notes,
+                selectionArea.leftX,
+                selectionArea.rightX,
+                selectionArea.topY,
+                selectionArea.bottomY,
+            );
+        }
+
+        for (const note of notes) {
+            if (selectedElements.includes(note)) {
+                ctx.fillStyle = 'red'; 
+            } else {
+                ctx.fillStyle = 'black'; 
+            }
+            currentView.drawNote(note);
+        }
+        
+        if (mouseState.dragStart !== null) {
+            // Surprisingly nice colors
+            ctx.fillStyle = 'rgba(100, 150, 200, 0.5)'; 
+            ctx.strokeStyle = 'rgba(100, 150, 200, 1)';
+            ctx.strokeWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(mouseState.dragStart.x, mouseState.dragStart.y);
+            ctx.lineTo(mouseState.position.x, mouseState.dragStart.y);
+            ctx.lineTo(mouseState.position.x, mouseState.position.y);
+            ctx.lineTo(mouseState.dragStart.x, mouseState.position.y);
+            ctx.closePath();
+            ctx.fill()
+            ctx.stroke();
+        }
+
+        fallingNotesView.drawBackground();
+        requestAnimationFrame(myDraw)
+    }
+
+    requestAnimationFrame(myDraw);
 
 
-    const notes = new Note()
+    // const notes = new Note()
 
     // TODO: 
     // Create 2 view types
