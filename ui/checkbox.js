@@ -1,4 +1,4 @@
-class Checkbox extends UIElement { // Requires loading the ui.js file first
+class Checkbox extends InteractableUIELement { // Requires loading the ui.js file first
  // Requires loading the ui.js file first
     constructor({position, width, lineWidth}) {
         super(position, {width: width, height: width}, 5)
@@ -7,7 +7,6 @@ class Checkbox extends UIElement { // Requires loading the ui.js file first
         this.lineWidth = lineWidth;
         this.hover = false;
         this.checked = false;
-        this.callbacks = [];
     }
     draw(ctx) {
         ctx.lineWidth = this.lineWidth;
@@ -31,9 +30,7 @@ class Checkbox extends UIElement { // Requires loading the ui.js file first
     mouseDown(event) {
         if (this.bufferedBoundingBox.contains(this.ui.mousePosition)) {
             this.checked = !this.checked;
-            for (const c in this.callbacks) {
-                this.callbacks[c](this);
-            }
+            this.triggerCallbacks(this);
             return true;
         }
 

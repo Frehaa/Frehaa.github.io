@@ -1,6 +1,6 @@
 class UIElement {
     constructor(topLeft, size, boundingBoxPadding) {
-        this.bufferedBoundingBox = new BoundingBox(
+        this.bufferedBoundingBox = new UIBoundingBox(
             topLeft.x,
             topLeft.y,
             size.width,
@@ -12,8 +12,21 @@ class UIElement {
     mouseMove(event) {}
     mouseDown(event) {}
     mouseUp(event) {}
-
 }
+
+class InteractableUIELement extends UIElement {
+    constructor(topLeft, size, boundingBoxPadding) {
+        super(topLeft, size, boundingBoxPadding)
+        this.callbacks = [];
+    }
+    addCallback(callback) {
+        this.callbacks.push(callback);
+    }
+    triggerCallbacks(value) {
+        this.callbacks.forEach(callback => callback(value));
+    }
+}
+
 
 // Class for handling all interaction to UI elements
 class UI {
@@ -21,6 +34,8 @@ class UI {
         this.uiElements = []; // TODO: Order UI Elements and 
         // TODO: Have different frames that can be switched between 
         // TODO: How to implement a UI popup? 
+        // TODO: Toggle interactability of UI Elements. Non-interactable elements do not need mouse events. 
+        // TODO: Implement something which checks if UI needs to be redrawn. E.g. Check if elements are "dirty"
     }
     add(uiElement) {
         this.uiElements.push(uiElement);
@@ -30,6 +45,15 @@ class UI {
         for (const uiElement of this.uiElements) {
             ctx.beginPath();
             uiElement.draw(ctx);
+        }
+        
+
+        // DEBUGGING 
+        if (this.drawBoundingBoxes) {
+            for (const uiElement of this.uiElements) {
+                ctx.beginPath();
+                uiElement.bufferedBoundingBox.draw(ctx);
+            }
         }
     }
     mouseMove(mouseMoveEvent) {
@@ -62,14 +86,14 @@ class UI {
     }
 }
 
-class BoundingBox {
+class UIBoundingBox {
     constructor(x, y, width, height) {
         this.xMin = x;
         this.yMin = y;
         this.xMax = x + width;
         this.yMax = y + height;
     }
-    stretchBox(value) {
+    stretchBox(value) { 
         this.xMin -= value;
         this.yMin -= value;
         this.xMax += value;
@@ -78,5 +102,10 @@ class BoundingBox {
     contains(position) {
         return (this.xMin <= position.x && position.x <= this.xMax &&
                 this.yMin <= position.y && position.y <= this.yMax)
+    }
+    draw(ctx) {
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'teal';
+        ctx.strokeRect(this.xMin, this.yMin, this.xMax - this.xMin, this.yMax - this.yMin);
     }
 }

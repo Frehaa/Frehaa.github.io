@@ -6,7 +6,7 @@ class VerticalSlider {
     // TODO if I want to create a general class for vertical sliders too
 }
 
-class HorizontalSlider extends UIElement { // Requires loading the ui.js file before the slider
+class HorizontalSlider extends InteractableUIELement { // Requires loading the ui.js file before the slider
     constructor({position, size, lineWidth, initialSliderMarkerRatio}) {
         const boundingBoxPosition = { x: position.x - size.height/2, y: position.y };
         const boundingBoxSize = { width: size.width + size.height, height: size.height };
@@ -25,11 +25,9 @@ class HorizontalSlider extends UIElement { // Requires loading the ui.js file be
 
         this.sliderMarkerRatio = initialSliderMarkerRatio;
         const slider = this;
-        this.callbacks = [
-            value => {
-                slider.sliderMarkerRatio = (value - slider.state.min) / (slider.state.max - slider.state.min);
-            }
-        ];
+        this.addCallback(value => {
+            slider.sliderMarkerRatio = (value - slider.state.min) / (slider.state.max - slider.state.min);
+        })
     }
     draw(ctx) {
         const leftX = this.position.x;
@@ -84,8 +82,6 @@ class HorizontalSlider extends UIElement { // Requires loading the ui.js file be
     }
     _setValue(value) {
         this.state.value = value;
-        for (const c in this.callbacks) {
-            this.callbacks[c](value);
-        }
+        this.triggerCallbacks(value);
     }
 }

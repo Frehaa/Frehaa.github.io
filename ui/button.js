@@ -1,4 +1,4 @@
-class Button extends UIElement { // Requires loading the ui.js file first
+class Button extends InteractableUIELement { // Requires loading the ui.js file first
     constructor({position, size, lineWidth}) {
         super(position, size, 5)
         this.position = position;
@@ -22,9 +22,7 @@ class Button extends UIElement { // Requires loading the ui.js file first
     }
     mouseDown(event) {
         if (this.bufferedBoundingBox.contains(this.ui.mousePosition)) {
-            for (const c in this.callbacks) {
-                this.callbacks[c](this);
-            }
+            this.triggerCallbacks(this);
             return true;
         }
 
