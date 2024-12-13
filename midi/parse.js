@@ -90,6 +90,8 @@ function parseVariableLengthValue(dataView, offset) {
     return [value, offset + length]
 }
 
+// Expects an ArrayBuffer since this is what the DataView can handle
+// TODO: Make a promise do the workparse this?
 function parseMidiFile(buffer) {
     const dataView = new DataView(buffer);
     let [chunk, offset] = parseChunk(dataView, 0, 0)
@@ -117,6 +119,18 @@ function parseMidiFile(buffer) {
     return chunks;
 }
 
+function parseHeaderChunk(dataview, offset) {
+    const length = dataview.getUint32(offset + 4);
+    assert(length >= 6, formatParseErrorMessage(offset-4, `Data length too small for header chunk. Expected at least 6, found ${length}`));  
+    const chunk = {
+        type,
+        format: dataview.getUint16(offset + 8),
+        ntrks: dataview.getUint16(offset + 10),
+        division: dataview.getUint16(offset + 14)
+    };
+    return [chunk, offset + length];
+}
+
 function parseChunk(dataview, offset, trackNumber) {
     assert(dataview.byteLength > offset + 8, formatParseErrorMessage(offset, `The dataview did not contain enough bytes to read chunk`));
     const type = dataview.getUint32(offset);
@@ -125,6 +139,7 @@ function parseChunk(dataview, offset, trackNumber) {
     offset += 8;
     switch (type) {
         case CHUNK_TYPE.HEADER: { // Parse Header chunk
+            // return parseHeaderChunk(dataview, offset);
             assert(length >= 6, formatParseErrorMessage(offset-4, `Data length too small for header chunk. Expected at least 6, found ${length}`));  
             const chunk = {
                 type,
@@ -132,6 +147,7 @@ function parseChunk(dataview, offset, trackNumber) {
                 ntrks: dataview.getUint16(offset + 2),
                 division: dataview.getUint16(offset + 4)
             };
+            // return [chunk, offset + length];
             offset += length;
             return [chunk, offset];
         } 

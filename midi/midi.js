@@ -409,9 +409,62 @@ function handleMidiIOglobalMidiChange(event) {
 // ##################### MAIN ##########################
 // #####################################################
 
-function main() {
-    runTests();
+// Function for handling initializing the UI elements which deal with file transfer
+// The UI elements should be a file input (<input type="file">) element an element which supports drag and drop since the FileReader can only access those files: https://developer.mozilla.org/en-US/docs/Web/API/FileReader
+// When the file input detects a file has been added, it tells the file reader to read it as an array buffer and once this is done, the loadCallback is called with the result
+function initializeDataTransferInterface(fileInput, dragAndDropElement, loadCallback, errorCallback) {
+    function triggerFileInputClick() { fileInput.click() } 
+    dragAndDropElement.addEventListener('click', triggerFileInputClick);
 
+    // TODO: Handle multiple files?
+    fileInput.addEventListener('change', _ => {
+        l('files', fileInput.files)
+        assert(fileInput.files.length > 0, `File input change event fired even though it contained no files`);
+
+        // Read file as an ArrayBuffer, returning a promise which is handled by respective callbacks.
+        fileInput.files[0].arrayBuffer().then(loadCallback, errorCallback); 
+
+        dragAndDropElement.removeEventListener('click', triggerFileInputClick); // TODO: Figure out if there is a better way to handle this. Right now this does not work together with a track already being stored in the local storage and used to initialize.
+    });
+
+    dragAndDropElement.addEventListener('dragover', event => {
+        event.preventDefault(); // This is required for drop event. (https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/drop_event)
+    });
+
+    dragAndDropElement.addEventListener('drop', event => {
+        if (event.dataTransfer.files.length == 0) return;
+        event.stopPropagation();
+        event.preventDefault(); // This prevents the browser default behavior of downloading the file for the user
+
+        // Add the dropped file and dispatch the change event to the fileInput
+        fileInput.files = event.dataTransfer.files;
+        const changeEvent = new Event('change', { bubbles: true });
+        fileInput.dispatchEvent(changeEvent);
+    });
+}
+
+function main() {
+    // const canvas = document.getElementById('note-canvas');
+    // const filepicker = document.getElementById('file-input');
+
+
+    // function handleFileLoad(arrayBuffer) {
+    //     const parsedData = parseMidiFile(arrayBuffer);
+    //     l(parsedData);
+
+    // }
+
+    doStuffWithParsedMidiFile();
+
+    // // TODO: Implement error handling
+    // initializeDataTransferInterface(filepicker, canvas, handleFileLoad, errorEvent => l('An error occured trying to handle file loading', errorEvent))
+
+
+   
+
+    return ;
+
+    runTests();
     // Various initializations
     const state = initializeState(); 
     initializePlaybackStateRelatedListeners(state);
@@ -606,14 +659,14 @@ class MusicSheetView {
     }
 }
 
-function doStuffWithParsedMidiFile(state) {
-    const melodies = chunksToMelodiesList(state.chunks)
+function doStuffWithParsedMidiFile() {
+    // const melodies = chunksToMelodiesList(state.chunks)
+    // l(melodies)
     const notes = [
         new Note(60, 1000, 500),
         new Note(48, 0, 500),
         new Note(36, 500, 1000),
     ]; // TODO: Do something based off of melodies
-    l(melodies)
     
     const canvas = document.getElementById('note-canvas');
     const ctx = canvas.getContext('2d');
@@ -725,8 +778,6 @@ function doStuffWithParsedMidiFile(state) {
 
     // drawNoteNamesAndTopLine(600)
 
-
-    l(state)
 
 }
 
