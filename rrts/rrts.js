@@ -1,22 +1,10 @@
 'use strict';
-const l = console.log;
-function d(...m) {
-    if (settings.debugLogging) l(...m);
-}
-
-[].__proto__.clear = function() {
-    this.splice(0, this.length);
-}
-
 const MOUSE_LEFT_BUTTON = 0
 const MOUSE_MIDDLE_BUTTON = 1
 const MOUSE_RIGHT_BUTTON = 2
 
 const MAP_TILE_SIZE = 50;
 
-function assert(condition, msg) {
-    if (!condition) throw Error(msg)
-}
 // TODO: Translate screen space to canvas space
 
 const settings = {
@@ -549,11 +537,11 @@ function handleAnimationFrame(time) {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = 'black'
+    ctx.fillStyle = 'white'
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.save()
 
-    drawWorld(ctx, world, camera)
+    // drawWorld(ctx, world, camera)
 
     // drawNavigationMesh(ctx, camera)
 
@@ -574,7 +562,7 @@ function handleAnimationFrame(time) {
         // l(mouseState.dragStartPosition, mouseState.position)
     }
 
-    drawBottomThingy(ctx, gameState);
+    // drawBottomThingy(ctx, gameState);
 
     if (document.pointerLockElement === canvas && mouseState.cameraDrag === null) {
         drawCursor(ctx, mouseState);
@@ -715,7 +703,7 @@ class Entity {
     // Seems kind of fun and interesting 
 
     drawHitbox(ctx) {
-        ctx.lineWidth = 5
+        ctx.lineWidth = 1
         ctx.strokeStyle = 'green';
         ctx.beginPath();
         ctx.arc(this.position.x, this.position.y, this.size.width-ctx.lineWidth, 0, 2 * Math.PI);
@@ -889,8 +877,84 @@ function doesPointsHaveNoObstructionsBetweenThem(pointA, pointB, world) {
 
 const waypointGraph = new WorldGraph(1000, world);
 
+function stepSimulation(time) {
+    const dt = time - stepSimulation.lastTime;
+    stepSimulation.lastTime = time;
 
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = 'white'
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    for (const entity of entities) {
+        entity.computeNewPosition(dt);
+    }
+    
+
+    ctx.lineWidth = 1
+    for (const entity of entities) {
+        const {x, y} = entity.position;
+        ctx.strokeStyle = 'green';
+        ctx.beginPath();
+        ctx.arc(x, y, entity.size.width-ctx.lineWidth, 0, 2 * Math.PI);
+        ctx.stroke();
+
+        ctx.strokeStyle = 'red';
+        ctx.beginPath();
+        ctx.arc(x, y, 1, 0, 2 * Math.PI);
+        ctx.stroke();
+
+        ctx.strokeStyle = 'purple';
+        ctx.beginPath();
+        ctx.arc(entity.newPosition.x, entity.newPosition.y, 1, 0, 2 * Math.PI);
+        ctx.stroke();
+
+        const radius = entity.size.width;
+        const normVelocity = entity.velocity.normalize().scale(radius);
+        l(normVelocity)
+        ctx.beginPath();
+        ctx.moveTo(x + normVelocity.x, y + normVelocity.y);
+        ctx.lineTo(x + 2 * normVelocity.x, y + 2 * normVelocity.y);
+        ctx.stroke();
+    }
+
+    for (const entity of entities) {
+        entity.position = entity.newPosition;
+    }
+
+    requestAnimationFrame(stepSimulation);
+}
 function initialize() {
+    const tests = [
+        setup_collision_test_cross_movement,
+        setup_collision_test_head_on_collision,
+        setup_collision_test_head_on_collision_huge,
+        setup_collision_test_same_direction,
+        setup_collision_test_same_direction_huge,
+        setup_collision_test_same_direction_huge_next_to_each_other,
+        setup_collision_test_same_location_next_to_each_other,
+        setup_enemy_test_melee_aggro_range
+    ]
+
+    // Setup tests keybind
+    document.addEventListener('keydown', function(e) {
+        if (!isNaN(parseInt(e.key))) {
+            try {
+                tests[e.key]();
+            } catch(e) { /* Ignore */ }
+        }
+    });
+
+    tests[0]();
+
+    requestAnimationFrame(time => {
+        stepSimulation.lastTime = time;
+        stepSimulation(time);
+    });
+
+    return
+
     const canvas = document.getElementById('canvas');
     camera.canvas = canvas;
 
@@ -1071,30 +1135,7 @@ function initialize() {
         }
     });
 
-    const tests = [
-        setup_collision_test_cross_movement,
-        setup_collision_test_head_on_collision,
-        setup_collision_test_head_on_collision_huge,
-        setup_collision_test_same_direction,
-        setup_collision_test_same_direction_huge,
-        setup_collision_test_same_direction_huge_next_to_each_other,
-        setup_collision_test_same_location_next_to_each_other,
-        setup_enemy_test_melee_aggro_range
-    ]
 
-    // Setup tests keybind
-    document.addEventListener('keydown', function(e) {
-        if (!isNaN(parseInt(e.key))) {
-            tests[e.key]();
-        }
-    });
-
-    tests[0]();
-
-    requestAnimationFrame(time => {
-        handleAnimationFrame.lastTime = time;
-        handleAnimationFrame(time);
-    });
 }
 
 
