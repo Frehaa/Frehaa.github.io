@@ -2,13 +2,6 @@
 const KEY_CODE_SPACE = 'Space';
 const LEFT_MOUSE_BUTTON = 0
 
-// const KEY_CODE_NUMPAD_PLUS = "";
-// const KEY_CODE_NUMPAD_PLUS = "";
-const l = console.log
-function assert(p, msg) {
-    if (!p) throw new Error(msg);
-}
-
 // Assuming input is valid noteName
 function flatToSharp(noteName) {
     if (noteName.length == 2 && noteName[1] == "b") {
@@ -510,11 +503,11 @@ function main() {
 // We have a view which takes a note and draws it. The view calculates how the notes are seen. 
 // We have some settings. Simple setting is selection. We want to use the mouse to select. 
 
-class FallingNotesView {
-    constructor() {
+class FallingNotesView extends InteractableUIELement {
+    constructor(canvas, notes) {
+        super({x: 0, y: 0}, {width: canvas.width, height: canvas.height}, 0)
         this.deltaTime = 0;
 
-        const canvas = document.getElementById('note-canvas');
         this.drawSettings = {
             top: 600,
             marginLeft: 10,
@@ -524,31 +517,99 @@ class FallingNotesView {
             whiteToBlackRatio: 0.8, // Initially we assume they have identical width
             partitionerHeight: 45,
             canvas: canvas,
-            ctx: canvas.getContext('2d'), 
             timeFromTopToTopMs: 2000
         };
+
+        this.hoverNote = null;
+        this.dragStart = null;
+        this.selectedElements = [];
+        this.boxedElements = [];
+        this.notes = notes;
     }
 
     setDeltaTime(deltaTime) {
         this.deltaTime = deltaTime;
     }
 
-    drawNote(note) {
-        const {notesToShow, leftmostNoteValue, ctx} = this.drawSettings;
+    drawNote(ctx, note) {
+        const {notesToShow, leftmostNoteValue} = this.drawSettings;
         if (note.value < leftmostNoteValue || note.value > notesToShow + leftmostNoteValue) return;
         const {leftX, topY, width, height} = this.calculateNoteRectangle(note);
         ctx.fillRect(leftX, topY, width, height);
     }
 
-    drawBackground() {
+    mouseMove(e) {
+        this.hoverNote = null;
+        const mousePosition = this.ui.mousePosition;
+        if (this.dragStart !== null) {
+            const boxingArea = {
+                leftX: Math.min(this.dragStart.x, mousePosition.x),
+                rightX: Math.max(this.dragStart.x, mousePosition.x),
+                topY: Math.min(this.dragStart.y, mousePosition.y),
+                bottomY: Math.max(this.dragStart.y, mousePosition.y),
+            }
+            this.boxedElements = this.selectElementsInRectangle(
+                this.notes,
+                boxingArea.leftX,
+                boxingArea.rightX,
+                boxingArea.topY,
+                boxingArea.bottomY,
+            );
+
+        } else {
+            // Handle hover of notes
+            for (const note of this.notes) {
+                const rect = this.calculateNoteRectangle(note);
+                if (pointInRectange(mousePosition, rect)) {
+                    this.hoverNote = note;
+                    break;
+                }
+            }
+        }
+    }
+
+    // TODO: If the user clicks directly on a unit, should it be selected without boxing, or should we still initiate box if we are dragging? Maybe we can do both?
+    mouseDown(e) {
+        // Boxing functionality 
+        if (e.button === LEFT_MOUSE_BUTTON) {
+            this.selectedElements = []
+            this.dragStart = this.ui.mousePosition;
+        }
+    }
+    
+    mouseUp(e) {
+        // Boxing functionality
+        if (e.button !== LEFT_MOUSE_BUTTON) return false;
+        if (this.dragStart !== null) {
+            this.selectedElements = this.boxedElements;
+            this.boxedElements = [];
+            l(this.selectedElements, this.notes)
+            this.dragStart = null;
+            
+
+
+            if (this.selectedElements.length > 0) return false;
+            const mousePosition = this.ui.mousePosition;
+            for (const note of this.notes) {
+                const rect = this.calculateNoteRectangle(note);
+                if (pointInRectange(mousePosition, rect)) {
+                    this.selectedElements = [note];
+                    break;
+                }
+            }
+
+        }
+    }
+
+    drawBackground(ctx) {
         const {
             top, 
             marginLeft, 
             marginRight, 
             notesToShow, 
             leftmostNoteValue,
-            canvas, 
-            ctx} = this.drawSettings;
+            canvas
+            } = this.drawSettings;
 
         const totalWidth = canvas.width - marginLeft - marginRight;
         const noteWidth = totalWidth / notesToShow;
@@ -581,14 +642,30 @@ class FallingNotesView {
         ctx.lineTo(canvas.width-this.drawSettings.marginRight, top);
         ctx.stroke();
     }
+
+    drawSelectionBox(ctx) {
+        if (this.dragStart !== null) {
+            const mousePosition = this.ui.mousePosition;
+            // Surprisingly nice colors
+            ctx.fillStyle = 'rgba(100, 150, 200, 0.5)'; 
+            ctx.strokeStyle = 'rgba(100, 150, 200, 1)';
+            ctx.strokeWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(this.dragStart.x, this.dragStart.y);
+            ctx.lineTo(mousePosition.x, this.dragStart.y);
+            ctx.lineTo(mousePosition.x, mousePosition.y);
+            ctx.lineTo(this.dragStart.x, mousePosition.y);
+            ctx.closePath();
+            ctx.fill()
+            ctx.stroke();
+        }
+    }
     
     drawSettingsPanel() {
 
     }
 
     calculateNoteRectangle(note) {
-
-
         // How long time from 0 to top? 
         // Say it takes 2000 ms, then a duration of 2000 ms should cover the whole thing
 
@@ -637,6 +714,31 @@ class FallingNotesView {
         }
         return result;
     }
+
+    drawNotes(ctx) {
+        for (const note of this.notes) {
+            if (this.selectedElements.length > 0 && this.selectedElements.includes(note)) {
+                if (note === this.hoverNote) {
+                    ctx.fillStyle = 'pink'; 
+                } else {
+                    ctx.fillStyle = 'purple'; 
+                }
+            }
+            else if (note === this.hoverNote) {
+                ctx.fillStyle = 'blue'
+            }
+            else if (this.boxedElements.includes(note)) {
+                ctx.fillStyle = 'red'; 
+            } else {
+                ctx.fillStyle = 'black'; 
+            }
+            this.drawNote(ctx, note);
+        }
+    }
+}
+
+function pointInRectange(p, a) {
+    return a.leftX <= p.x && p.x <= a.leftX + a.width && a.topY <= p.y && p.y <= a.topY + a.height;
 }
 
 function rectangleOverlap(a, b) {
@@ -672,94 +774,25 @@ function doStuffWithParsedMidiFile() {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const fallingNotesView = new FallingNotesView();
-    const mouseState = {
-        position: {x: 0, y: 0},
-        dragStart: null,
-        updateMousePosition: function(event) {
-            this.position.x = event.clientX - canvas.offsetLeft;
-            this.position.y = event.clientY - canvas.offsetTop;
-        }
-    }
+    const fallingNotesView = new FallingNotesView(canvas, notes);
 
+    const ui = new UI();
+    ui.add(fallingNotesView);
     let currentView = fallingNotesView;
 
-    canvas.addEventListener('mousemove', e => {
-        mouseState.updateMousePosition(e);
-    });
+    canvas.addEventListener('mousemove', e => ui.mouseMove(e));
+    canvas.addEventListener('mousedown', e => ui.mouseDown(e));
+    canvas.addEventListener('mouseup', e => ui.mouseUp(e));
 
-    canvas.addEventListener('mousedown', e => {
-        if (e.button === LEFT_MOUSE_BUTTON) {
-            mouseState.updateMousePosition(e);
-            mouseState.dragStart = {...mouseState.position}; // Copy
-        }
-    });
-
-    canvas.addEventListener('mouseup', e => {
-        if (e.button === LEFT_MOUSE_BUTTON && mouseState.dragStart !== null) {
-            const selectionArea = {
-                leftX: Math.min(mouseState.dragStart.x, mouseState.position.x),
-                rightX: Math.max(mouseState.dragStart.x, mouseState.position.x),
-                topY: Math.min(mouseState.dragStart.y, mouseState.position.y),
-                bottomY: Math.max(mouseState.dragStart.y, mouseState.position.y),
-            }
-            const selectedElements = currentView.selectElementsInRectangle(
-                notes,
-                selectionArea.leftX,
-                selectionArea.rightX,
-                selectionArea.topY,
-                selectionArea.bottomY,
-            );
-            l(selectionArea, selectedElements, notes)
-            mouseState.dragStart = null;
-        }
-    })
 
     function myDraw(time) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        let selectedElements = [];
-        if (mouseState.dragStart != null) {
-            const selectionArea = {
-                leftX: Math.min(mouseState.dragStart.x, mouseState.position.x),
-                rightX: Math.max(mouseState.dragStart.x, mouseState.position.x),
-                topY: Math.min(mouseState.dragStart.y, mouseState.position.y),
-                bottomY: Math.max(mouseState.dragStart.y, mouseState.position.y),
-            }
-            selectedElements = currentView.selectElementsInRectangle(
-                notes,
-                selectionArea.leftX,
-                selectionArea.rightX,
-                selectionArea.topY,
-                selectionArea.bottomY,
-            );
-        }
+        fallingNotesView.drawBackground(ctx);
+        fallingNotesView.drawNotes(ctx);
+        fallingNotesView.drawSelectionBox(ctx);
+        fallingNotesView.drawSettingsPanel(); // TODO: Have this part of the UI instead?
 
-        for (const note of notes) {
-            if (selectedElements.includes(note)) {
-                ctx.fillStyle = 'red'; 
-            } else {
-                ctx.fillStyle = 'black'; 
-            }
-            currentView.drawNote(note);
-        }
-        
-        if (mouseState.dragStart !== null) {
-            // Surprisingly nice colors
-            ctx.fillStyle = 'rgba(100, 150, 200, 0.5)'; 
-            ctx.strokeStyle = 'rgba(100, 150, 200, 1)';
-            ctx.strokeWidth = 4;
-            ctx.beginPath();
-            ctx.moveTo(mouseState.dragStart.x, mouseState.dragStart.y);
-            ctx.lineTo(mouseState.position.x, mouseState.dragStart.y);
-            ctx.lineTo(mouseState.position.x, mouseState.position.y);
-            ctx.lineTo(mouseState.dragStart.x, mouseState.position.y);
-            ctx.closePath();
-            ctx.fill()
-            ctx.stroke();
-        }
-
-        fallingNotesView.drawBackground();
         requestAnimationFrame(myDraw)
     }
 

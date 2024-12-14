@@ -1,3 +1,6 @@
+
+// TODO: Make tests which parses my MIDI Files or at least some real like data.
+
 function runTests() {
     l("Running tests");
     testParseVariableLengthValue();
