@@ -33,6 +33,14 @@ function shuffle(array/*: any[]*/) {
   return array;
 }
 
+function radiansToDegrees(radians) {
+  return radians * 180/Math.PI;
+}
+
+function degreesToRadians(degrees) {
+  return degrees/180 * Math.PI;
+}
+
 class Vec2 {
     constructor(x, y) {
         this.size = 2;

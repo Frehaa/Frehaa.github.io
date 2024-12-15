@@ -578,6 +578,7 @@ class FallingNotesView extends InteractableUIELement {
     }
     
     mouseUp(e) {
+        // TODO: Check if hovering an element when releasing the button
         // Boxing functionality
         if (e.button !== LEFT_MOUSE_BUTTON) return false;
         if (this.dragStart !== null) {
