@@ -508,16 +508,17 @@ class FallingNotesView extends InteractableUIELement {
         super({x: 0, y: 0}, {width: canvas.width, height: canvas.height}, 0)
         this.deltaTime = 0;
 
-        this.drawSettings = {
-            top: 600,
-            marginLeft: 10,
-            marginRight: 10,
-            leftmostNoteValue: 60 - 2*12, // 2 Octaves from middle C
-            notesToShow: 12 * 3,
+        this.drawSettings = { // This view consists of a bottom UI and a note view. The top of thi
+            topY: 50, 
+            leftX: 80,
+            width: 500, 
+            height: 400,
+            leftmostNoteValue: 60 - 1*12 + 0.5, // 2 Octaves from middle C
+            rightMostNoteValue: 60 + 12.5,
             whiteToBlackRatio: 0.8, // Initially we assume they have identical width
             partitionerHeight: 45,
             canvas: canvas,
-            timeFromTopToTopMs: 2000
+            timeFromTopToBottomMs: 2000,
         };
 
         this.hoverNote = null;
@@ -532,8 +533,8 @@ class FallingNotesView extends InteractableUIELement {
     }
 
     drawNote(ctx, note) {
-        const {notesToShow, leftmostNoteValue} = this.drawSettings;
-        if (note.value < leftmostNoteValue || note.value > notesToShow + leftmostNoteValue) return;
+        const {notesToShow, leftmostNoteValue, rightMostNoteValue} = this.drawSettings;
+        if (note.value < leftmostNoteValue || note.value > rightMostNoteValue) return; // TODO: Need to make sure that note 25 is shown when leftmost is 25.2
         const {leftX, topY, width, height} = this.calculateNoteRectangle(note);
         ctx.fillRect(leftX, topY, width, height);
     }
@@ -566,6 +567,20 @@ class FallingNotesView extends InteractableUIELement {
                 }
             }
         }
+    }
+
+    draw(ctx) {
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'green';
+        const {leftX, topY, width, height} = this.drawSettings;
+        ctx.strokeRect(leftX, topY, width, height);
+
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'black';
+        this.drawNotes(ctx);
+        this.drawSelectionBox(ctx);
+        this.drawBottomArea(ctx);
+        this.drawSettingsPanel(ctx); // TODO: Have this part of the UI instead?
     }
 
     // TODO: If the user clicks directly on a unit, should it be selected without boxing, or should we still initiate box if we are dragging? Maybe we can do both?
@@ -602,49 +617,71 @@ class FallingNotesView extends InteractableUIELement {
         }
     }
 
-    drawBackground(ctx) {
+    drawBottomArea(ctx) {
         const {
-            top, 
-            marginLeft, 
-            marginRight, 
-            notesToShow, 
+            topY,
+            leftX, 
+            width,
+            height,
             leftmostNoteValue,
-            canvas
+            rightMostNoteValue,
             } = this.drawSettings;
 
-        const totalWidth = canvas.width - marginLeft - marginRight;
-        const noteWidth = totalWidth / notesToShow;
+        
+        
+        const bottomAreaHeightFraction = 0.2
+
+        const bottomAreaTop = topY + height * (1 - bottomAreaHeightFraction);
+        
+        const notesToShow = rightMostNoteValue - leftmostNoteValue; // TODO: Calculate correctly with fractional values
+        const noteWidth = width / notesToShow;
 
         const letters = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B", ];
 
         const textOffsetY = 16;
         const textSmallOffsetY = textOffsetY -4;
 
-        for (let i = 0; i < notesToShow; i++) {
+        const f = Math.floor(leftmostNoteValue);
+        const t = leftmostNoteValue - f;
+        for (let i = t; i < rightMostNoteValue - leftmostNoteValue; ++i ) { // Math.floor(leftmostNoteValue); i < rightMostNoteValue-1; ++i) {
             ctx.fillStyle = 'black';
             ctx.strokeStyle = 'black';
             ctx.font = "10px Georgia";
-            const note = letters[(i + leftmostNoteValue) % letters.length];
-
-            ctx.strokeRect(marginLeft + i * noteWidth, top, noteWidth, (i + 20));
+            const noteName = letters[(Math.floor(i) + f) % letters.length];
+            const noteHeight = i + 20; // TODO: Make it something sensible
+            ctx.strokeRect(leftX + i * noteWidth, bottomAreaTop, noteWidth, noteHeight);
 
             // Draw white or black note
-            ctx.fillText(note[0], marginLeft + i * noteWidth + noteWidth/2, top + textOffsetY);
-            if (note.length == 2) {
+            ctx.fillText(noteName[0], leftX + i * noteWidth + noteWidth/2, bottomAreaTop + textOffsetY);
+            if (noteName.length == 2) {
                 ctx.font = "8px Georgia";
-                ctx.fillText(note[1], marginLeft + i * noteWidth + noteWidth/2 + 8, top + textSmallOffsetY);
+                ctx.fillText(noteName[1], leftX + i * noteWidth + noteWidth/2 + 8, bottomAreaTop + textSmallOffsetY);
             } 
         }
+
+
+        // for (let i = 0; i < notesToShow; i++) {
+        //     const note = letters[(i + leftmostNoteValue) % letters.length];
+
+        //     ctx.strokeRect(leftX + i * noteWidth, top, noteWidth, (i + 20));
+
+        //     // Draw white or black note
+        //     ctx.fillText(note[0], leftX + i * noteWidth + noteWidth/2, top + textOffsetY);
+        //     if (note.length == 2) {
+        //         ctx.font = "8px Georgia";
+        //         ctx.fillText(note[1], leftX + i * noteWidth + noteWidth/2 + 8, top + textSmallOffsetY);
+        //     } 
+        // }
 
         // Draw top line
         ctx.strokeStyle = 'black'
         ctx.beginPath();
-        ctx.moveTo(this.drawSettings.marginLeft, top);
-        ctx.lineTo(canvas.width-this.drawSettings.marginRight, top);
+        ctx.moveTo(leftX, bottomAreaTop);
+        ctx.lineTo(leftX + width, bottomAreaTop);
         ctx.stroke();
     }
 
-    drawSelectionBox(ctx) {
+    drawSelectionBox(ctx) { // TODO: Don't do drag start and drawing selection box when not clicking in the note view
         if (this.dragStart !== null) {
             const mousePosition = this.ui.mousePosition;
             // Surprisingly nice colors
@@ -672,14 +709,14 @@ class FallingNotesView extends InteractableUIELement {
 
 
         // Note value = leftmostNoteValue => x = marginLeft
-        const {top, marginLeft, marginRight, notesToShow, leftmostNoteValue, canvas, timeFromTopToTopMs} = this.drawSettings;
-        const totalWidth = canvas.width - marginLeft - marginRight;
-        const noteWidth = totalWidth / notesToShow;
-        const x = marginLeft + (note.value - leftmostNoteValue) * noteWidth;
+        const {topY, leftX, width, height, leftmostNoteValue, rightMostNoteValue, timeFromTopToBottomMs} = this.drawSettings;
+        const notesToShow = rightMostNoteValue - leftmostNoteValue;
+        const noteWidth = width / notesToShow;
+        const x = leftX + (note.value - leftmostNoteValue) * noteWidth;
 
-        const noteHeightFraction = note.durationMs / timeFromTopToTopMs;
-        const noteStartFraction = note.startMs / timeFromTopToTopMs;
-        const height = noteHeightFraction * top;
+        const noteHeightFraction = note.durationMs / timeFromTopToBottomMs;
+        const noteStartFraction = note.startMs / timeFromTopToBottomMs;
+        const noteHeight = noteHeightFraction * top;
         const y = top - height;
 
         // this.deltaTime = 0 && note.startMs = 0 => topY + height = top
@@ -695,7 +732,8 @@ class FallingNotesView extends InteractableUIELement {
         // Calculate x position based on current view of keys
         // Calculate y position based on current time possibly taking into key view into consideration to account for proportions
         // return note;
-        return {leftX: x, topY: y, width: noteWidth, height: height}
+        return {leftX: x, topY: topY, width: 100, height: 100}
+        // return {leftX: x, topY: y, width: noteWidth, height: noteHeight}
     }
 
     selectElementsInRectangle(notes, leftX, rightX, topY, bottomY) {
@@ -766,20 +804,39 @@ function doStuffWithParsedMidiFile() {
     // const melodies = chunksToMelodiesList(state.chunks)
     // l(melodies)
     const notes = [
-        new Note(60, 1000, 500),
-        new Note(48, 0, 500),
-        new Note(36, 500, 1000),
+        // new Note(60, 1000, 500),
+        // new Note(48, 0, 500),
+        // new Note(36, 500, 1000),
     ]; // TODO: Do something based off of melodies
-    
+
+    for (let i = 0; i < 100; ++i) {
+        notes.push(new Note(0 + i, 20 * i, 40))
+    }
+
     const canvas = document.getElementById('note-canvas');
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const fallingNotesView = new FallingNotesView(canvas, notes);
 
+    const startNoteSlider = new HorizontalSlider({
+        position: {x: 100, y: 500},
+        size: {width: 300, height: 30},
+        lineWidth: 3,
+        initialSliderMarkerRatio: 0.5
+    });
+
+    const minimumNoteValue = 0;
+    const maximumNoteValue = 100;
+
+    startNoteSlider.addCallback(value => {
+        fallingNotesView.drawSettings.leftmostNoteValue = value * maximumNoteValue;
+        // l(value)
+    })
+
     const ui = new UI();
     ui.add(fallingNotesView);
-    let currentView = fallingNotesView;
+    ui.add(startNoteSlider);
 
     canvas.addEventListener('mousemove', e => ui.mouseMove(e));
     canvas.addEventListener('mousedown', e => ui.mouseDown(e));
@@ -789,10 +846,7 @@ function doStuffWithParsedMidiFile() {
     function myDraw(time) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        fallingNotesView.drawBackground(ctx);
-        fallingNotesView.drawNotes(ctx);
-        fallingNotesView.drawSelectionBox(ctx);
-        fallingNotesView.drawSettingsPanel(); // TODO: Have this part of the UI instead?
+        ui.draw(ctx);
 
         requestAnimationFrame(myDraw)
     }
