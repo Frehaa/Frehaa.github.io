@@ -34,36 +34,41 @@ function swap(data, i, j) {
 }
 
 
-// The check for steps >= budget is due to cases when budget 
 function ContinuationInsertionSort(data, budget) {
 
     function continuedSort(iCont, jCont, budget) { // TODO: Make it such that we can restart from an arbitrary j value too
         if (budget === 0) return budget => continuedSort(iCont, jCont, budget);
+        assert(jCont <= iCont, "j should always be smaller than i");
 
         let steps = 0;
-        assert(jCont < iCont, "j should always be smaller than i");
-        // Finish the remaining work for iteration i, starting from jCont
-        for (let j = jCont; j >= 0; j--) {
-            if (data[j] > data[j+1]) swap(data, j, j+1);
+        for (let j = jCont; j > 0; j--) {
             steps += 1
-            if (steps === budget) {
-                return budget => continuedSort(iCont, j, budget);
+            if (data[j-1] <= data[j]) {
+                if (steps === budget) return budget => continuedSort(iCont, 0, budget);
+                else break;
             }
+
+            swap(data, j-1, j);
+            if (steps === budget) return budget => continuedSort(iCont, j-1, budget);
         }
 
+
         for (let i = iCont+1; i < data.length; i++) {
-            for (let j = i-1; j >= 0; j--) {
-                if (data[j] > data[j+1]) swap(data, j, j+1);
+            for (let j = i; j > 0; j--) {
                 steps += 1
-                if (steps === budget) {
-                    return budget => continuedSort(i, j, budget);
+                if (data[j-1] <= data[j]) {
+                    if (steps === budget) return budget => continuedSort(i, 0, budget);
+                    else break;
                 }
+                
+                swap(data, j-1, j);
+                if (steps === budget) return budget => continuedSort(i, j-1, budget);
             }
 
         }
         return true;
     }
-    return continuedSort(0, -1, budget);
+    return continuedSort(0, 0, budget);
 }
 
 function insertionSort(data, less, swap) {
@@ -79,7 +84,6 @@ function insertionSort(data, less, swap) {
 
 function drawData(ctx, data, gradient, {leftX, topY, width, height, minBarHeight, maxBarHeight}) {
     ctx.clearRect(leftX, topY, width, height);
-    ctx.strokeRect(leftX, topY, width, height);
 
     const barWidth = width / data.length;
     const maxValue = Math.max(...data);
@@ -92,12 +96,12 @@ function drawData(ctx, data, gradient, {leftX, topY, width, height, minBarHeight
         ctx.fillStyle = gradient(fraction);
         ctx.fillRect(leftX + i * barWidth, topY + height - barHeight, barWidth, barHeight);
     }
+    ctx.strokeRect(leftX, topY, width, height);
 }
 
 function onBodyLoad() {
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-
 
     // TODO: Trace of Algorithms
 
@@ -110,36 +114,13 @@ function onBodyLoad() {
         maxBarHeight: 270
     };
 
-    let comparisons = 0;
-    let swaps = 0;
-
-    const n = 20000;
+    const n = 100;
     l(n)
     const data = randomArray(n);
     const gradient = createGradient({r: 67, g: 83, b: 150}, {r:183, g: 90, b: 43}, );
 
-    // drawData(ctx, data, gradient, drawSettings);
-
-    // insertionSort(data, (i, j) => {
-    //     comparisons += 1;
-    //     return data[i] < data[j]
-    // }, (i, j) => {
-    //     swaps += 1
-    //     const tmp = data[i];
-    //     data[i] = data[j];
-    //     data[j] = tmp;
-    // })
-
-    // drawData(ctx, data, gradient, {
-    //     ...drawSettings,
-    //     leftX: 600
-    // });
-    // l(comparisons, swaps)
-    // ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-
-    const maxSpeed = 1000000;
-    let sortingSpeed = 300;
+    const maxSpeed = 10;
+    let sortingSpeed = 1;
 
     let ui = new UI();
     const speedSlider = new HorizontalSlider({
@@ -164,6 +145,7 @@ function onBodyLoad() {
         partialSort = partialSort(sortingSpeed)
         if (partialSort === true) {
             l('Finished')
+            drawData(ctx, data, gradient, drawSettings);
         } else {
             requestAnimationFrame(drawFrame);
         }
