@@ -506,7 +506,7 @@ function main() {
 class FallingNotesView extends InteractableUIELement {
     constructor(canvas, notes) {
         super({x: 0, y: 0}, {width: canvas.width, height: canvas.height}, 0)
-        this.deltaTime = 0;
+        this.elapsedTimeMs = 0;
 
         this.drawSettings = { // This view consists of a bottom UI and a note view. The top of thi
             topY: 50, 
@@ -517,6 +517,7 @@ class FallingNotesView extends InteractableUIELement {
             rightMostNoteValue: 60 + 12.5,
             whiteToBlackRatio: 0.8, // Initially we assume they have identical width
             partitionerHeight: 45,
+            bottomAreaHeight: 75,
             canvas: canvas,
             timeFromTopToBottomMs: 2000,
         };
@@ -528,13 +529,17 @@ class FallingNotesView extends InteractableUIELement {
         this.notes = notes;
     }
 
-    setDeltaTime(deltaTime) {
-        this.deltaTime = deltaTime;
+    setElapsedTimeMs(elapsedTimeMs) {
+        this.elapsedTimeMs = elapsedTimeMs;
     }
 
     drawNote(ctx, note) {
-        const {notesToShow, leftmostNoteValue, rightMostNoteValue} = this.drawSettings;
-        if (note.value < leftmostNoteValue || note.value > rightMostNoteValue) return; // TODO: Need to make sure that note 25 is shown when leftmost is 25.2
+        const {leftmostNoteValue, rightMostNoteValue} = this.drawSettings;
+
+        // TODO: Handle corner case where we should only draw a partial note
+        // TODO Related: Need to make sure that note 25 is shown when leftmost is 25.2
+
+        // if (note.value < leftmostNoteValue || note.value > rightMostNoteValue) return; 
         const {leftX, topY, width, height} = this.calculateNoteRectangle(note);
         ctx.fillRect(leftX, topY, width, height);
     }
@@ -599,7 +604,7 @@ class FallingNotesView extends InteractableUIELement {
         if (this.dragStart !== null) {
             this.selectedElements = this.boxedElements;
             this.boxedElements = [];
-            l(this.selectedElements, this.notes)
+            // l(this.selectedElements, this.notes)
             this.dragStart = null;
             
 
@@ -625,13 +630,13 @@ class FallingNotesView extends InteractableUIELement {
             height,
             leftmostNoteValue,
             rightMostNoteValue,
+            bottomAreaHeight,
             } = this.drawSettings;
 
         
         
-        const bottomAreaHeightFraction = 0.2
 
-        const bottomAreaTop = topY + height * (1 - bottomAreaHeightFraction);
+        const bottomAreaTop = topY + height - bottomAreaHeight;
         
         const notesToShow = rightMostNoteValue - leftmostNoteValue; // TODO: Calculate correctly with fractional values
         const noteWidth = width / notesToShow;
@@ -643,20 +648,32 @@ class FallingNotesView extends InteractableUIELement {
 
         const f = Math.floor(leftmostNoteValue);
         const t = leftmostNoteValue - f;
-        for (let i = t; i < rightMostNoteValue - leftmostNoteValue; ++i ) { // Math.floor(leftmostNoteValue); i < rightMostNoteValue-1; ++i) {
+
+        // Do something special for first and last to handle fractions?
+
+        // TODO: Notes seem to work nicely except they are note hidden when out of the note view. But I need to fix this area
+
+
+        for (let i = 1; i < notesToShow-1; ++i ) { 
+
+            const noteValue = leftmostNoteValue + i;
             ctx.fillStyle = 'black';
             ctx.strokeStyle = 'black';
             ctx.font = "10px Georgia";
-            const noteName = letters[(Math.floor(i) + f) % letters.length];
+            const noteName = Math.floor(noteValue) //  letters[(Math.floor(i) + f) % letters.length];
             const noteHeight = i + 20; // TODO: Make it something sensible
-            ctx.strokeRect(leftX + i * noteWidth, bottomAreaTop, noteWidth, noteHeight);
+
+            const noteX = this.calculateNoteOffsetX(noteValue, leftmostNoteValue, noteWidth)
+            ctx.strokeRect(noteX, bottomAreaTop, noteWidth, noteHeight);
+
+            ctx.fillText(noteName, noteX + noteWidth/2, bottomAreaTop + textOffsetY);
 
             // Draw white or black note
-            ctx.fillText(noteName[0], leftX + i * noteWidth + noteWidth/2, bottomAreaTop + textOffsetY);
-            if (noteName.length == 2) {
-                ctx.font = "8px Georgia";
-                ctx.fillText(noteName[1], leftX + i * noteWidth + noteWidth/2 + 8, bottomAreaTop + textSmallOffsetY);
-            } 
+            // ctx.fillText(noteName[0], leftX + i * noteWidth + noteWidth/2, bottomAreaTop + textOffsetY);
+            // if (noteName.length == 2) {
+            //     ctx.font = "8px Georgia";
+            //     ctx.fillText(noteName[1], leftX + i * noteWidth + noteWidth/2 + 8, bottomAreaTop + textSmallOffsetY);
+            // } 
         }
 
 
@@ -703,37 +720,46 @@ class FallingNotesView extends InteractableUIELement {
 
     }
 
+    // Calculates a notes offset from the left of the view
+    calculateNoteOffsetX(noteValue, leftmostNoteValue, noteWidth) {
+        const fromLeftMost = noteValue - leftmostNoteValue;
+        return noteWidth * fromLeftMost;
+    }
+
+    // Calculates a notes offset from the top of the view
+    calculateNoteOffsetY(noteDurationMs, noteStartMs) {
+        const {height, timeFromTopToBottomMs, bottomAreaHeight} = this.drawSettings;
+        
+        const t = (noteStartMs - this.elapsedTimeMs); // Normalization, we now treat the note as being t ms after 0
+
+        const tf = t / timeFromTopToBottomMs; // This gives a fraction of how far up the note is from the bottom 
+
+        const noteAreaHeight = height - bottomAreaHeight;
+        const noteHeight = (noteDurationMs / timeFromTopToBottomMs) * noteAreaHeight;
+
+        // const offsetY = 
+        const noteBottom = noteAreaHeight * (1 - tf)
+
+        // l(noteBottom, noteHeight, tf, t, noteBottom - noteHeight)
+        return noteBottom - noteHeight;
+    }
+
+    calculateNoteHeight(durationMs, timeFromTopToBottomMs, noteAreaHeight) {
+        const noteHeightFraction = durationMs / timeFromTopToBottomMs;
+        return noteHeightFraction * noteAreaHeight;
+    }
+
     calculateNoteRectangle(note) {
-        // How long time from 0 to top? 
-        // Say it takes 2000 ms, then a duration of 2000 ms should cover the whole thing
 
-
-        // Note value = leftmostNoteValue => x = marginLeft
-        const {topY, leftX, width, height, leftmostNoteValue, rightMostNoteValue, timeFromTopToBottomMs} = this.drawSettings;
+        const {topY, leftX, width, height, leftmostNoteValue, rightMostNoteValue, timeFromTopToBottomMs, bottomAreaHeight} = this.drawSettings;
         const notesToShow = rightMostNoteValue - leftmostNoteValue;
         const noteWidth = width / notesToShow;
-        const x = leftX + (note.value - leftmostNoteValue) * noteWidth;
+        const noteLeftX = leftX + this.calculateNoteOffsetX(note.value, leftmostNoteValue, noteWidth);
+        const noteTopY = topY + this.calculateNoteOffsetY(note.durationMs, note.startMs);
+        const noteAreaHeight = height - bottomAreaHeight;
+        const noteHeight = this.calculateNoteHeight(note.durationMs, timeFromTopToBottomMs, noteAreaHeight);
 
-        const noteHeightFraction = note.durationMs / timeFromTopToBottomMs;
-        const noteStartFraction = note.startMs / timeFromTopToBottomMs;
-        const noteHeight = noteHeightFraction * top;
-        const y = top - height;
-
-        // this.deltaTime = 0 && note.startMs = 0 => topY + height = top
-
-        // top = 600
-        // this.deltaTime = 0 && note.startMs = 500 && note.durationMs = 500 => topY = topY/2
-        // topY = 300
-        // height = 
-
-        // TODO: Tomorrow. Too tired to do this now. I want a piece of paper
-
-
-        // Calculate x position based on current view of keys
-        // Calculate y position based on current time possibly taking into key view into consideration to account for proportions
-        // return note;
-        return {leftX: x, topY: topY, width: 100, height: 100}
-        // return {leftX: x, topY: y, width: noteWidth, height: noteHeight}
+        return {leftX: noteLeftX, topY: noteTopY, width: noteWidth, height: noteHeight}
     }
 
     selectElementsInRectangle(notes, leftX, rightX, topY, bottomY) {
@@ -754,23 +780,20 @@ class FallingNotesView extends InteractableUIELement {
         return result;
     }
 
+    getNoteFillStyle(note) {
+        if (this.selectedElements.length > 0 && this.selectedElements.includes(note)) {
+            if (note === this.hoverNote) return 'pink'; 
+            else return 'purple'; 
+        }
+        else if (note === this.hoverNote) return 'blue'
+        else if (this.boxedElements.includes(note)) return 'red'; 
+        else return 'black'; 
+        
+    }
+
     drawNotes(ctx) {
         for (const note of this.notes) {
-            if (this.selectedElements.length > 0 && this.selectedElements.includes(note)) {
-                if (note === this.hoverNote) {
-                    ctx.fillStyle = 'pink'; 
-                } else {
-                    ctx.fillStyle = 'purple'; 
-                }
-            }
-            else if (note === this.hoverNote) {
-                ctx.fillStyle = 'blue'
-            }
-            else if (this.boxedElements.includes(note)) {
-                ctx.fillStyle = 'red'; 
-            } else {
-                ctx.fillStyle = 'black'; 
-            }
+            ctx.fillStyle = this.getNoteFillStyle(note);
             this.drawNote(ctx, note);
         }
     }
@@ -809,8 +832,8 @@ function doStuffWithParsedMidiFile() {
         // new Note(36, 500, 1000),
     ]; // TODO: Do something based off of melodies
 
-    for (let i = 0; i < 100; ++i) {
-        notes.push(new Note(0 + i, 20 * i, 40))
+    for (let i = 0; i < 10; ++i) {
+        notes.push(new Note(60 + i, 20 * i, 40))
     }
 
     const canvas = document.getElementById('note-canvas');
@@ -819,24 +842,64 @@ function doStuffWithParsedMidiFile() {
 
     const fallingNotesView = new FallingNotesView(canvas, notes);
 
-    const startNoteSlider = new HorizontalSlider({
+    const centerNoteSlider = new HorizontalSlider({
         position: {x: 100, y: 500},
+        size: {width: 300, height: 30},
+        lineWidth: 3,
+        initialSliderMarkerRatio: 0.6
+    });
+
+    const noteCountSlider = new HorizontalSlider({
+        position: {x: 100, y: 560},
         size: {width: 300, height: 30},
         lineWidth: 3,
         initialSliderMarkerRatio: 0.5
     });
 
-    const minimumNoteValue = 0;
-    const maximumNoteValue = 100;
+    const elapsedTimeSlider = new HorizontalSlider({
+        position: {x: 100, y: 620},
+        size: {width: 300, height: 30},
+        lineWidth: 3,
+        initialSliderMarkerRatio: 0.0
+    });
 
-    startNoteSlider.addCallback(value => {
-        fallingNotesView.drawSettings.leftmostNoteValue = value * maximumNoteValue;
-        // l(value)
+    let notesToShow = 10;
+    let centerNote = 60;
+
+    const notesLeftOfCenter = Math.floor(notesToShow / 2);
+    const notesRightOfCenter = Math.floor((notesToShow + 1) / 2);
+    fallingNotesView.drawSettings.leftmostNoteValue = centerNote - notesLeftOfCenter;
+    fallingNotesView.drawSettings.rightMostNoteValue = centerNote + notesRightOfCenter;
+
+    // TODO: Properly handle fractional number of notes to show 
+    
+    centerNoteSlider.addCallback(value => {
+        centerNote = 25 + Math.floor(value * 50); // Ranges from 25 to 75
+        const notesLeftOfCenter = Math.floor(notesToShow / 2);
+        const notesRightOfCenter = Math.floor((notesToShow + 1) / 2);
+        fallingNotesView.drawSettings.leftmostNoteValue = centerNote - notesLeftOfCenter;
+        fallingNotesView.drawSettings.rightMostNoteValue = centerNote + notesRightOfCenter;
     })
+
+    noteCountSlider.addCallback(value => {
+        notesToShow = Math.floor(value * 100) + 1;
+
+        const notesLeftOfCenter = Math.floor(notesToShow / 2);
+        const notesRightOfCenter = Math.floor((notesToShow + 1) / 2);
+        fallingNotesView.drawSettings.leftmostNoteValue = centerNote - notesLeftOfCenter;
+        fallingNotesView.drawSettings.rightMostNoteValue = centerNote + notesRightOfCenter;
+    });
+
+    elapsedTimeSlider.addCallback(value => {
+        fallingNotesView.elapsedTimeMs = value * 10000;
+    }) 
 
     const ui = new UI();
     ui.add(fallingNotesView);
-    ui.add(startNoteSlider);
+    ui.add(centerNoteSlider);
+    ui.add(noteCountSlider);
+    ui.add(elapsedTimeSlider);
+
 
     canvas.addEventListener('mousemove', e => ui.mouseMove(e));
     canvas.addEventListener('mousedown', e => ui.mouseDown(e));

@@ -57,7 +57,7 @@ class UI {
         }
     }
     mouseMove(mouseMoveEvent) {
-        this.mousePosition = this._getMousePosition(mouseMoveEvent);
+        this.mousePosition = this._getMousePosition(mouseMoveEvent); // TODO?: Only call event on elements where the mouse position falls within the bounding box?
         for (const uiElement of this.uiElements) {
             if (uiElement.mouseMove(mouseMoveEvent)) return true;
         }
