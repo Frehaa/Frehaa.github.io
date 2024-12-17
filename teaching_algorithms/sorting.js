@@ -33,8 +33,37 @@ function swap(data, i, j) {
     data[j] = tmp;
 }
 
+// TODO: Since we are essentially doing dealing with state here, would it not be better to do the sorting in a class? 
 
-function ContinuationInsertionSort(data, budget) {
+function continuationSelectionSort(data, budget) {
+    function continuedSort(iCont, jCont, tCont, budget) { 
+        if (budget === 0) return budget => continuedSort(iCont, jCont, tCont, budget);
+        assert(jCont >= iCont, "j should always be larger than i");
+
+        let steps = 0;
+        let t = tCont
+        for (let j = jCont; j < data.length; j++) {
+            if (data[j] < data[t]) t = j;    
+            steps += 1;
+            if (steps === budget) return budget => continuedSort(iCont, j + 1, t, budget);
+        }
+        swap(data, iCont, t);
+
+        for (let i = iCont + 1; i < data.length; i++) {
+            let t = i;
+            for (let j = i+1; j < data.length; j++) {
+                if (data[j] < data[t]) t = j;    
+                steps += 1;
+                if (steps === budget) return budget => continuedSort(i, j + 1, t, budget);
+            }
+            swap(data, i, t);
+        }
+        return true;
+    }
+    return continuedSort(0, 0, 0, budget);
+}
+
+function continuationInsertionSort(data, budget) {
 
     function continuedSort(iCont, jCont, budget) { // TODO: Make it such that we can restart from an arbitrary j value too
         if (budget === 0) return budget => continuedSort(iCont, jCont, budget);
@@ -132,45 +161,26 @@ function onBodyLoad() {
     canvas.addEventListener('mouseup', e => ui.mouseUp(e));
     canvas.addEventListener('mousemove', e => ui.mouseMove(e));
 
-    let partialSort = ContinuationInsertionSort(data, 0);
+    // let partialSort = ContinuationInsertionSort(data, 0);
+    let partialSort = continuationSelectionSort(data, 0);
 
     speedSlider.addCallback(value => {
         sortingSpeed = Math.floor(value * maxSpeed);
     })
 
     const drawFrame = time => {
+
+        // TODO: Sorting speed with fractional value which takes multiple frames to do a step (e.g. 0.5 takes 2 frame to do 1 step)
+
         ctx.clearRect(80, 390, 400, 50);
         ui.draw(ctx);
         drawData(ctx, data, gradient, drawSettings);
         partialSort = partialSort(sortingSpeed)
         if (partialSort === true) {
-            l('Finished')
             drawData(ctx, data, gradient, drawSettings);
         } else {
             requestAnimationFrame(drawFrame);
         }
     }
     requestAnimationFrame(drawFrame);
-
-    // TODO: This does not work since the sorting will freeze everything until it is finished, meaning an animation frame won't come. 
-    // TODO: Instead we should do something like run a partial sort some steps and then draw. So something like
-    // TODO: (1) Measure the time to do some comparisons and swaps (2) Measure frame time (3) calculate the number of steps doable in one frame (4) for every frame, draw the current data and perform the number of allowed steps
-
-
-    // What do I want to finish today? I want to do a partial sorting, i.e. do x steps of the sorting and return a continuation or similar 
-
-    // const startSort = e => {
-    //     insertionSort(data, (i, j) => {
-    //         comparisons += 1;
-    //         return data[i] < data[j]
-    //     }, (i, j) => {
-    //         swaps += 1
-    //         const tmp = data[i];
-    //         data[i] = data[j];
-    //         data[j] = tmp;
-    //     })
-
-    //     canvas.removeEventListener('mousedown', startSort);
-    // }
-    // canvas.addEventListener('mousedown', startSort)
 }
