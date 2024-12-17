@@ -9,7 +9,6 @@ function randomArray(n) {
     return result;
 }
 
-
 // TODO: Why does the gradient have weird color when 
 function createGradient(colorA, colorB) {
     return v => {
@@ -27,92 +26,73 @@ function createGradient(colorA, colorB) {
     }
 }
 
-function swap(data, i, j) {
-    const tmp = data[i];
-    data[i] = data[j];
-    data[j] = tmp;
-}
-
 // TODO: Since we are essentially doing dealing with state here, would it not be better to do the sorting in a class? 
-
-function continuationSelectionSort(data, budget) {
-    function continuedSort(iCont, jCont, tCont, budget) { 
-        if (budget === 0) return budget => continuedSort(iCont, jCont, tCont, budget);
-        assert(jCont >= iCont, "j should always be larger than i");
-
-        let steps = 0;
-        let t = tCont
-        for (let j = jCont; j < data.length; j++) {
-            if (data[j] < data[t]) t = j;    
-            steps += 1;
-            if (steps === budget) return budget => continuedSort(iCont, j + 1, t, budget);
-        }
-        swap(data, iCont, t);
-
-        for (let i = iCont + 1; i < data.length; i++) {
-            let t = i;
-            for (let j = i+1; j < data.length; j++) {
-                if (data[j] < data[t]) t = j;    
-                steps += 1;
-                if (steps === budget) return budget => continuedSort(i, j + 1, t, budget);
-            }
-            swap(data, i, t);
-        }
-        return true;
+class SortStepper {
+    constructor(data) {
+        this.data = data;
+        this.progress = 0;
     }
-    return continuedSort(0, 0, 0, budget);
+    isDone() { return this.progress >= 1}
+    _swap(i, j) {
+        let tmp = this.data[i];
+        this.data[i] = this.data[j];
+        this.data[j] = tmp;
+    }
 }
 
-function continuationInsertionSort(data, budget) {
-
-    function continuedSort(iCont, jCont, budget) { // TODO: Make it such that we can restart from an arbitrary j value too
-        if (budget === 0) return budget => continuedSort(iCont, jCont, budget);
-        assert(jCont <= iCont, "j should always be smaller than i");
-
-        let steps = 0;
-        for (let j = jCont; j > 0; j--) {
-            steps += 1
-            if (data[j-1] <= data[j]) {
-                if (steps === budget) return budget => continuedSort(iCont, 0, budget);
-                else break;
-            }
-
-            swap(data, j-1, j);
-            if (steps === budget) return budget => continuedSort(iCont, j-1, budget);
-        }
-
-
-        for (let i = iCont+1; i < data.length; i++) {
-            for (let j = i; j > 0; j--) {
-                steps += 1
-                if (data[j-1] <= data[j]) {
-                    if (steps === budget) return budget => continuedSort(i, 0, budget);
-                    else break;
-                }
-                
-                swap(data, j-1, j);
-                if (steps === budget) return budget => continuedSort(i, j-1, budget);
-            }
-
-        }
-        return true;
+class SelectionSortStepper extends SortStepper{
+    constructor(data) {
+        super(data);
+        this.i = 0;
+        this.j = 1;
+        this.t = 0;
     }
-    return continuedSort(0, 0, budget);
-}
-
-function insertionSort(data, less, swap) {
-    for (let i = 1; i < data.length; i++) {
-        for (let j = i-1; j >= 0; j--) {
-            if (!less(j, j+1)) swap(j, j+1);
+    // TODO?: Implement as state automata?
+    step() {
+        if (this.isDone()) return;
+        if (this.j < this.data.length) {
+            if (this.data[this.j] < this.data[this.t]) this.t = this.j;
+            this.j += 1
+        }
+        else {
+            this._swap(this.t, this.i);
+            this.i += 1;
+            this.progress = this.i / this.data.length; // TODO: Calculate better notion of progress since selection sort always does the same amount of work
+            this.j = this.i + 1;
+            this.t = this.i;
         }
     }
 }
 
+class InsertionSortStepper extends SortStepper {
+    constructor(data) {
+        super(data);
+        this.i = 0;
+        this.j = 0;
+    }
+    step() {
+        if (this.isDone()) return;
+        if (this.j > 0) {
+            if (this.data[this.j] < this.data[this.j - 1]) {
+                this._swap(this.j, this.j - 1);
+                this.j -= 1;
+            } else {
+                this.i += 1
+                this.j = this.i;
+                this.progress = this.i / this.data.length;
 
+            }
+        } else {
+                this.i += 1
+                this.j = this.i;
+                this.progress = this.i / this.data.length;
+        }
 
+    }
+}
 
 function drawData(ctx, data, gradient, {leftX, topY, width, height, minBarHeight, maxBarHeight}) {
-    ctx.clearRect(leftX, topY, width, height);
+    // ctx.clearRect(leftX, topY, width, height);
 
     const barWidth = width / data.length;
     const maxValue = Math.max(...data);
@@ -143,17 +123,16 @@ function onBodyLoad() {
         maxBarHeight: 270
     };
 
-    const n = 100;
-    l(n)
+    const n = 50
     const data = randomArray(n);
     const gradient = createGradient({r: 67, g: 83, b: 150}, {r:183, g: 90, b: 43}, );
 
-    const maxSpeed = 10;
-    let sortingSpeed = 1;
+    const maxSpeed = (n * n) / 100;
+    let stepsPerFrame = maxSpeed / 100;
 
     let ui = new UI();
     const speedSlider = new HorizontalSlider({
-        position: {x: 100, y: 400}, size: {width: 300, height: 30}, lineWidth: 3, initialSliderMarkerRatio: sortingSpeed / maxSpeed, 
+        position: {x: 100, y: 400}, size: {width: 300, height: 30}, lineWidth: 3, initialSliderMarkerRatio: stepsPerFrame / maxSpeed, 
     });
     ui.add(speedSlider);
 
@@ -161,26 +140,43 @@ function onBodyLoad() {
     canvas.addEventListener('mouseup', e => ui.mouseUp(e));
     canvas.addEventListener('mousemove', e => ui.mouseMove(e));
 
-    // let partialSort = ContinuationInsertionSort(data, 0);
-    let partialSort = continuationSelectionSort(data, 0);
+    let sortStepper = new InsertionSortStepper(data);
 
     speedSlider.addCallback(value => {
-        sortingSpeed = Math.floor(value * maxSpeed);
-    })
+        stepsPerFrame = value * maxSpeed;
+    });
 
+    let totalSteps = 0;
     const drawFrame = time => {
-
         // TODO: Sorting speed with fractional value which takes multiple frames to do a step (e.g. 0.5 takes 2 frame to do 1 step)
 
-        ctx.clearRect(80, 390, 400, 50);
+        // ctx.clearRect(80, 390, 700, 100);
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
         ui.draw(ctx);
-        drawData(ctx, data, gradient, drawSettings);
-        partialSort = partialSort(sortingSpeed)
-        if (partialSort === true) {
-            drawData(ctx, data, gradient, drawSettings);
-        } else {
-            requestAnimationFrame(drawFrame);
+
+        // Handle fractional sorting speed. We add the stepsPerFrame to the total steps and take the floor of this and the total steps. 
+        // If these are integers it will simply return stepsPerFrame, if not, it may give 1 step higher in case the sum of fractions of totalSteps and StepsPerFrame add to 1 or more
+        const steps = Math.floor(totalSteps + stepsPerFrame) - Math.floor(totalSteps);
+        for (let i = 0; i < steps; i++) {
+            sortStepper.step();
         }
+        drawData(ctx, data, gradient, drawSettings);
+        totalSteps += stepsPerFrame; // Add the (possibly fractional) stepsPerFrame to the total number of steps 
+        // Note that the number of steps we have actually take is only the integer part of totalSteps
+
+        ctx.fillStyle = 'black';
+        ctx.font = '16px Ariel'
+        if (stepsPerFrame >= 1) {
+            ctx.fillText("Steps per Frame", 430, 410);
+            ctx.fillText(stepsPerFrame.toFixed(2), 430, 435);
+        } else {
+            ctx.fillText("Frames per Step", 430, 410);
+            ctx.fillText(Math.round(1/stepsPerFrame), 430, 435);
+        }
+
+        ctx.fillText((sortStepper.progress * 100).toFixed(1) + '%', 100, 450);
+
+        requestAnimationFrame(drawFrame);
     }
     requestAnimationFrame(drawFrame);
 }
