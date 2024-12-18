@@ -91,6 +91,97 @@ class InsertionSortStepper extends SortStepper {
     }
 }
 
+class MergeSortStepper extends SortStepper {
+    constructor(data) {
+        super(data);
+    }
+    step() {
+
+    }
+}
+
+function topDownMergeSort(data) { // TODO: Fix
+    const result = Array(data.length);
+    function merge(a, b) {
+        l('Merge', a[0],a[1], b[0], b[1])
+        const [lo1, hi1] = a;
+        const [lo2, hi2] = b;
+        let lo = lo1; 
+        const hi = hi2;
+
+        let i = lo1;
+        let j = lo2;
+        // while (lo < hi) {
+        //     if (data[i] < data[j]) {
+        //         result[lo] = data[i]; 
+        //         lo += 1
+        //         i += 1
+        //         if (i == hi1) {// If list a is done, merge remainig 
+        //             for (;j < hi2; j++, lo++) {
+        //                 result[lo] = data[j]; 
+        //             }
+        //             break;
+        //         }
+        //     } else {
+        //         result[lo] = data[j];
+        //         lo += 1
+        //         j += 1
+        //         if (j == hi2) { // If list b is done, merge remainig 
+        //             for (;i < hi1; i++, lo++) {
+        //                 result[lo] = data[i];
+        //             }
+        //             break;
+        //         }
+        //     }
+        // }
+        return [lo1, hi2];
+    }
+    function sort(lo, hi) {
+        if ((hi - lo) === 1) { return [lo, hi]; } 
+
+        const mid = lo + Math.floor((hi - lo) / 2);
+        const a = sort(lo, mid);
+        const b = sort(mid, hi);
+        return merge(a, b);
+    }
+    sort(0, data.length);
+    return result;
+}
+
+function bottomUpMergeSort(data) { // TODO: Implement
+    const result = Array(data.length);
+
+    function merge(lo, mid, hi) {
+        l(lo, mid, hi);
+        let i = lo;
+        let j = mid;
+        
+        while (i < mid && j < hi) {
+            if (data[i] < data[j]) {
+                result[lo++] = data[i++];
+            } else {
+                result[lo++] = data[j++];
+            }
+        }
+        while (i < mid) {
+            result[lo++] = data[i++];
+        }
+        while (j < hi) {
+            result[lo++] = data[j++];
+        }
+    }
+
+    for (let k = 1; k < data.length; k *= 2) {
+        for (let i = 0; i < data.length; i += 2 * k) {
+            merge(i, i + k, i + 2 * k);
+        }
+        
+    }
+    
+    return result;
+}
+
+
 function drawData(ctx, data, gradient, {leftX, topY, width, height, minBarHeight, maxBarHeight}) {
     // ctx.clearRect(leftX, topY, width, height);
 
@@ -112,7 +203,10 @@ function onBodyLoad() {
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
-    // TODO: Trace of Algorithms
+    // TODO: Maybe use state machine to get a trace of the algorithm with the code of the algorithm next to the data
+    // TODO: Select data size
+    // TODO: Select data type, e.g. sorted, reverse sorted, random, etc.
+    // TODO: Make a progress bar and let the algorithm go back to previous progress points of the algorithm using snapshots etc. 
 
     const drawSettings = {
         leftX: 100,
@@ -123,8 +217,9 @@ function onBodyLoad() {
         maxBarHeight: 270
     };
 
-    const n = 50
-    const data = randomArray(n);
+    const n = 8
+    // const data = randomArray(n);
+    const data = [5, 4, 7, 2, 0, 1, 6, 3];
     const gradient = createGradient({r: 67, g: 83, b: 150}, {r:183, g: 90, b: 43}, );
 
     const maxSpeed = (n * n) / 100;
@@ -147,6 +242,14 @@ function onBodyLoad() {
     });
 
     let totalSteps = 0;
+
+    let mergeSorted = bottomUpMergeSort(data)
+    l(data, mergeSorted)
+
+    drawData(ctx, mergeSorted, gradient, drawSettings);
+
+    return ;
+
     const drawFrame = time => {
         // TODO: Sorting speed with fractional value which takes multiple frames to do a step (e.g. 0.5 takes 2 frame to do 1 step)
 
