@@ -9,7 +9,14 @@ function randomArray(n) {
     return result;
 }
 
-// TODO: Why does the gradient have weird color when 
+function isSorted(data) {
+    for (let i = 1; i < data.length; i++) {
+        if (data[i-1] > data[i]) return false;
+    }
+    return true;
+}
+
+// TODO: Why does the gradient have weird color for data with many values. I expect it is because the same pixels (or sub-pixels, since a column may only be 0.01 pixels wide) are being painted multiple times, but why does it result does it result in the weird colors.
 function createGradient(colorA, colorB) {
     return v => {
         assert(0 <= v & v <= 1, 'v is between 0 and 1 inclusive');
@@ -26,7 +33,6 @@ function createGradient(colorA, colorB) {
     }
 }
 
-// TODO: Since we are essentially doing dealing with state here, would it not be better to do the sorting in a class? 
 class SortStepper {
     constructor(data) {
         this.data = data;
@@ -114,8 +120,7 @@ class MergeSortStepper extends SortStepper {
             this.data[this.l++] = this.aux[this.i++];
         } else if (this.j < this.hi) {
             this.data[this.l++] = this.aux[this.j++];
-        } else { // Finished
-            l('Finished merge step', this.lo, this.mid, this.hi);
+        } else { // Finished 
             for (let copyIdx = this.lo; copyIdx < this.hi; copyIdx++) { // Copy back
                 this.aux[copyIdx] = this.data[copyIdx];
             }
@@ -132,7 +137,7 @@ class TopDownMergeSortStepper extends MergeSortStepper { // This should track th
         // TODO: figure out the values that lo, hi, mid go through in the different recursions
     }
     step() {
-        if (this.isDone()) { return; }
+        if (this.isDone()) {  assert(isSorted(this.data), "Data should be sorted when done!"); return; }
         if (!this.mergeStep()) { return; } // Only do the merge step if we didn't finish merging
 
         // TODO: Update internal variables to handle next merge step 
@@ -150,11 +155,11 @@ class BottomUpMergeSortStepper extends MergeSortStepper {
         this.hi = 2;
 
         this.i = 0;
-        this.l = 1;
+        this.l = 0;
         this.j = 0;
     }
     step() {
-        if (this.isDone()) { return; }
+        if (this.isDone()) {  assert(isSorted(this.data), "Data should be sorted when done!"); return; }
         if (!this.mergeStep()) { return; } // Only do the merge step if we didn't finish merging
 
         this.lo = this.lo + 2 * this.k;
@@ -174,14 +179,18 @@ class BottomUpMergeSortStepper extends MergeSortStepper {
         this.j = this.mid;
 
         // If there are not enough for two sub-arrays to be merged, skipping seems to work
-        if (this.mid > this.hi) { 
+        if (this.mid > this.hi) { // We skip by setting the iterator indices to their end value
             this.i = this.mid; 
             this.j = this.hi;
         }
+
+        // We can call mergeStep again to compensate for the copying back taking a whole step no matter if we are copying 2 elements or the whole array.  
+        // By doing an extra merge step when we have copied this means the copying step is essentially ignored.
+        // this.mergeStep();
     }
 }
 
-function topDownMergeSort(data) { // TODO: Fix
+function topDownMergeSort(data) {
     const aux = Array(data.length);
     function merge(lo, mid, hi) {
         let i = lo;
@@ -292,13 +301,16 @@ function onBodyLoad() {
         maxBarHeight: 270
     };
 
-    const n = 300
+    const n = 8
     const data = randomArray(n);
+    l(data)
     // const data = [5, 4, 7, 2, 0, 1, 6, 3];
     const gradient = createGradient({r: 67, g: 83, b: 150}, {r:183, g: 90, b: 43}, );
 
-    const maxSpeed = (n * n) / 100;
-    let stepsPerFrame = 1//maxSpeed / 100;
+    // const maxSpeed = (n * n) / 100;      // Nice max speed for quadratic time algorithms
+    // let stepsPerFrame = maxSpeed / 100;
+    const maxSpeed = n * Math.log2(n) / 100; // This does not seem to be perfect for small arrays
+    let stepsPerFrame = maxSpeed / 100;
 
     let ui = new UI();
     const speedSlider = new HorizontalSlider({
@@ -310,7 +322,7 @@ function onBodyLoad() {
     canvas.addEventListener('mouseup', e => ui.mouseUp(e));
     canvas.addEventListener('mousemove', e => ui.mouseMove(e));
 
-    let sortStepper = new BottomUpMergeSortStepper(data);
+    let sortStepper = new BottomUpMergeSortStepper(data); // TODO: It seems to be bugged which is clear on small arrays
 
     speedSlider.addCallback(value => {
         stepsPerFrame = value * maxSpeed;
@@ -318,12 +330,21 @@ function onBodyLoad() {
 
     let totalSteps = 0;
 
-    // let mergeSorted = topDownMergeSort(data)
-    // l(data, mergeSorted)
-    // return drawData(ctx, mergeSorted, gradient, drawSettings);
+    for (let i = 0; i < 100; i++) {
+        let d = randomArray(16);
+        let s = new BottomUpMergeSortStepper(d);
+        while(!s.isDone()) { s.step() }
+        assert(isSorted(d), `${d} was not sorted`);
+    }
+    l('success!')
+    return
+
+    let mergeSorted = topDownMergeSort(data)
+    l(mergeSorted)
+    return drawData(ctx, mergeSorted, gradient, drawSettings);
 
     const drawFrame = time => {
-        // TODO: Sorting speed with fractional value which takes multiple frames to do a step (e.g. 0.5 takes 2 frame to do 1 step)
+        // TODO: Frame rate display
 
         // ctx.clearRect(80, 390, 700, 100);
         ctx.clearRect(0, 0, canvas.width, canvas.height)
