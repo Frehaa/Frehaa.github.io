@@ -94,80 +94,155 @@ class InsertionSortStepper extends SortStepper {
 class MergeSortStepper extends SortStepper {
     constructor(data) {
         super(data);
+        this.aux = data.map(v => v); // Copy
+        // This class only manages the aux array. Sub-classes have to manage the variables it uses to replicate the order things are merged
+        // this.lo is the start index of the left sub-array
+        // this.hi is the end index of the right sub-array, after the last index of the sub-array (i.e. it is not an index to an element of the sub-array)
+        // this.mid is the end index of the left sub-array, and the start index of the right sub-array
+        // this.i is for traversing elements in the left sub-array
+        // this.j is for traversing elements in the right sub-array
+        // this.l is for copying elements from aux to data in the merge 
+    }
+    mergeStep() {
+        if (this.i < this.mid && this.j < this.hi) {
+            if (this.aux[this.i] < this.aux[this.j]) {
+                this.data[this.l++] = this.aux[this.i++];
+            } else {
+                this.data[this.l++] = this.aux[this.j++];
+            }
+        } else if (this.i < this.mid) {
+            this.data[this.l++] = this.aux[this.i++];
+        } else if (this.j < this.hi) {
+            this.data[this.l++] = this.aux[this.j++];
+        } else { // Finished
+            l('Finished merge step', this.lo, this.mid, this.hi);
+            for (let copyIdx = this.lo; copyIdx < this.hi; copyIdx++) { // Copy back
+                this.aux[copyIdx] = this.data[copyIdx];
+            }
+            return true; // Returns true when done with merging the current values
+        }
+        return false; // Returns false when the merge is still not finished
+    }
+    step() { assert(false, 'Use either TopDownMergeSort or BottomUpMergeSort' )}
+}
+
+class TopDownMergeSortStepper extends MergeSortStepper { // This should track the recursive stuff
+    constructor(data) {
+        super(data);
+        // TODO: figure out the values that lo, hi, mid go through in the different recursions
     }
     step() {
+        if (this.isDone()) { return; }
+        if (!this.mergeStep()) { return; } // Only do the merge step if we didn't finish merging
 
+        // TODO: Update internal variables to handle next merge step 
+    }
+
+    
+}
+
+class BottomUpMergeSortStepper extends MergeSortStepper {
+    constructor(data) {
+        super(data);
+        this.k = 1;
+        this.lo = 0;
+        this.mid = 1;
+        this.hi = 2;
+
+        this.i = 0;
+        this.l = 1;
+        this.j = 0;
+    }
+    step() {
+        if (this.isDone()) { return; }
+        if (!this.mergeStep()) { return; } // Only do the merge step if we didn't finish merging
+
+        this.lo = this.lo + 2 * this.k;
+        if (this.lo >= this.data.length) {
+            this.k = this.k * 2;
+            this.progress = Math.min(1, this.k / this.data.length); // TODO: Find a better measure of progress
+            if (this.isDone()) { return; }
+
+            this.lo = 0;
+        }
+
+        this.hi = Math.min(this.lo + 2 * this.k, this.data.length);
+        this.mid = this.lo + this.k;
+
+        this.i = this.lo;
+        this.l = this.lo;
+        this.j = this.mid;
+
+        // If there are not enough for two sub-arrays to be merged, skipping seems to work
+        if (this.mid > this.hi) { 
+            this.i = this.mid; 
+            this.j = this.hi;
+        }
     }
 }
 
 function topDownMergeSort(data) { // TODO: Fix
-    const result = Array(data.length);
-    function merge(a, b) {
-        l('Merge', a[0],a[1], b[0], b[1])
-        const [lo1, hi1] = a;
-        const [lo2, hi2] = b;
-        let lo = lo1; 
-        const hi = hi2;
-
-        let i = lo1;
-        let j = lo2;
-        // while (lo < hi) {
-        //     if (data[i] < data[j]) {
-        //         result[lo] = data[i]; 
-        //         lo += 1
-        //         i += 1
-        //         if (i == hi1) {// If list a is done, merge remainig 
-        //             for (;j < hi2; j++, lo++) {
-        //                 result[lo] = data[j]; 
-        //             }
-        //             break;
-        //         }
-        //     } else {
-        //         result[lo] = data[j];
-        //         lo += 1
-        //         j += 1
-        //         if (j == hi2) { // If list b is done, merge remainig 
-        //             for (;i < hi1; i++, lo++) {
-        //                 result[lo] = data[i];
-        //             }
-        //             break;
-        //         }
-        //     }
-        // }
-        return [lo1, hi2];
+    const aux = Array(data.length);
+    function merge(lo, mid, hi) {
+        let i = lo;
+        let j = mid;
+        let l = lo;
+        
+        while (i < mid && j < hi) {
+            if (data[i] < data[j]) {  // We need to read from the merged lists. This is 
+                aux[l++] = data[i++];
+            } else {
+                aux[l++] = data[j++];
+            }
+        }
+        while (i < mid) {
+            aux[l++] = data[i++];
+        }
+        while (j < hi) {
+            aux[l++] = data[j++];
+        }
+        // Copy back
+        for (let l = lo; l < hi; l++) {
+            data[l] = aux[l];
+        }
     }
+
     function sort(lo, hi) {
         if ((hi - lo) === 1) { return [lo, hi]; } 
 
         const mid = lo + Math.floor((hi - lo) / 2);
-        const a = sort(lo, mid);
-        const b = sort(mid, hi);
-        return merge(a, b);
+        sort(lo, mid);
+        sort(mid, hi);
+        return merge(lo, mid, hi);
     }
     sort(0, data.length);
-    return result;
+    return data
 }
 
 function bottomUpMergeSort(data) { // TODO: Implement
-    const result = Array(data.length);
+    const aux = Array(data.length); 
 
     function merge(lo, mid, hi) {
-        l(lo, mid, hi);
         let i = lo;
         let j = mid;
+        let l = lo;
         
         while (i < mid && j < hi) {
-            if (data[i] < data[j]) {
-                result[lo++] = data[i++];
+            if (data[i] < data[j]) {  // We need to read from the merged lists. This is 
+                aux[l++] = data[i++];
             } else {
-                result[lo++] = data[j++];
+                aux[l++] = data[j++];
             }
         }
         while (i < mid) {
-            result[lo++] = data[i++];
+            aux[l++] = data[i++];
         }
         while (j < hi) {
-            result[lo++] = data[j++];
+            aux[l++] = data[j++];
+        }
+        // Copy back
+        for (let l = lo; l < hi; l++) {
+            data[l] = aux[l];
         }
     }
 
@@ -178,7 +253,7 @@ function bottomUpMergeSort(data) { // TODO: Implement
         
     }
     
-    return result;
+    return data;
 }
 
 
@@ -217,13 +292,13 @@ function onBodyLoad() {
         maxBarHeight: 270
     };
 
-    const n = 8
-    // const data = randomArray(n);
-    const data = [5, 4, 7, 2, 0, 1, 6, 3];
+    const n = 300
+    const data = randomArray(n);
+    // const data = [5, 4, 7, 2, 0, 1, 6, 3];
     const gradient = createGradient({r: 67, g: 83, b: 150}, {r:183, g: 90, b: 43}, );
 
     const maxSpeed = (n * n) / 100;
-    let stepsPerFrame = maxSpeed / 100;
+    let stepsPerFrame = 1//maxSpeed / 100;
 
     let ui = new UI();
     const speedSlider = new HorizontalSlider({
@@ -235,7 +310,7 @@ function onBodyLoad() {
     canvas.addEventListener('mouseup', e => ui.mouseUp(e));
     canvas.addEventListener('mousemove', e => ui.mouseMove(e));
 
-    let sortStepper = new InsertionSortStepper(data);
+    let sortStepper = new BottomUpMergeSortStepper(data);
 
     speedSlider.addCallback(value => {
         stepsPerFrame = value * maxSpeed;
@@ -243,12 +318,9 @@ function onBodyLoad() {
 
     let totalSteps = 0;
 
-    let mergeSorted = bottomUpMergeSort(data)
-    l(data, mergeSorted)
-
-    drawData(ctx, mergeSorted, gradient, drawSettings);
-
-    return ;
+    // let mergeSorted = topDownMergeSort(data)
+    // l(data, mergeSorted)
+    // return drawData(ctx, mergeSorted, gradient, drawSettings);
 
     const drawFrame = time => {
         // TODO: Sorting speed with fractional value which takes multiple frames to do a step (e.g. 0.5 takes 2 frame to do 1 step)
@@ -264,6 +336,13 @@ function onBodyLoad() {
             sortStepper.step();
         }
         drawData(ctx, data, gradient, drawSettings);
+
+        if (sortStepper.aux) { // If the sorting algorithm has an auxiliary array, draw it too
+            drawData(ctx, sortStepper.aux, gradient, {
+                ...drawSettings,
+                leftX: 600
+            });
+        }
         totalSteps += stepsPerFrame; // Add the (possibly fractional) stepsPerFrame to the total number of steps 
         // Note that the number of steps we have actually take is only the integer part of totalSteps
 
