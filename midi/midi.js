@@ -137,7 +137,7 @@ function initializeMIDIUSBAccess(success, reject) {
 function initializeState() {
     if (localStorage.savedStateJSON !== undefined && localStorage.savedStateJSON !== null) {
         const state = JSON.parse(localStorage.savedStateJSON);
-        l('Louding saved state', state)
+        l('Loading saved state', state)
         return state
     }
     return {
@@ -384,7 +384,7 @@ function initializeDataTransferInterface(fileInput, dragAndDropElement, loadCall
     function triggerFileInputClick() { fileInput.click() } 
     dragAndDropElement.addEventListener('click', triggerFileInputClick);
 
-    // TODO: Handle multiple files?
+    // TODO?: Handle multiple files? I.e. have multiple MIDI files loaded and the ability to change between them using a tab or something.
     fileInput.addEventListener('change', _ => {
         l('files', fileInput.files)
         assert(fileInput.files.length > 0, `File input change event fired even though it contained no files`);
@@ -486,7 +486,7 @@ class FallingNotesView extends InteractableUIELement {
         this.drawSettings = { // This view consists of a bottom UI and a note view. The top of thi
             topY: 50, 
             leftX: 80,
-            width: 500, 
+            width: 1000, 
             height: 400,
             leftmostNoteValue: 60 - 1*12 + 0.5, // 2 Octaves from middle C
             rightMostNoteValue: 60 + 12.5,
@@ -515,9 +515,6 @@ class FallingNotesView extends InteractableUIELement {
         const {leftX, width} = this.drawSettings;
 
         // TODO?: Determine whether to draw note based on note value? We should know which note values are visible in the view.
-
-        // TODO: Handle corner case where we should only draw a partial note
-        // TODO Related: Need to make sure that note 25 is shown when leftmost is 25.2
 
         const noteRect = this.calculateNoteRectangle(note);
         if (noteRect.leftX + noteRect.width < leftX || leftX + width <  noteRect.leftX) { return } ; 
@@ -548,7 +545,7 @@ class FallingNotesView extends InteractableUIELement {
                 topY: Math.min(this.dragStart.y, mousePosition.y),
                 bottomY: Math.max(this.dragStart.y, mousePosition.y),
             }
-            this.boxedElements = this.selectElementsInRectangle(
+            this.boxedElements = this.selectElementsInRectangle( // TODO?: Right now we do a complete recomputation, would it be better to somehow reuse the previous result?
                 this.notes,
                 boxingArea.leftX,
                 boxingArea.rightX,
@@ -591,7 +588,7 @@ class FallingNotesView extends InteractableUIELement {
         }
     }
     
-    mouseUp(e) {
+    mouseUp(e) { // TODO?: Right now we don't recalculate the boxed elements based on the mouse position of the mouseUp event, but rely on the last mouseMove event instead. This can in theory result in inaccuracies if the mouseUp event is performed between two mouseMove events. Should we recalculate the boxedElements for the mouseUp event?
         // TODO: Check if hovering an element when releasing the button
         // Boxing functionality
         if (e.button !== LEFT_MOUSE_BUTTON) return false;
@@ -638,9 +635,59 @@ class FallingNotesView extends InteractableUIELement {
         }
     }
 
+    _drawBottomAreaWhiteNotes(ctx, whiteKeyWidth, maxOctaves, leftX, width, windowX, bottomAreaTop, whiteKeyLength) {
+        const whiteKeysInOctave = 7;
+        // TODO?: Should we use rect or lineTo to draw the white keys?
+        for (let i = 0; i < whiteKeysInOctave * maxOctaves; i++) {
+            const noteLeftX = leftX + i * whiteKeyWidth - windowX;
+            if (leftX + width < noteLeftX) { break; } // Outside of view to the right
+            if (noteLeftX < leftX) { continue; } // Outside of view to the left
+            ctx.moveTo(noteLeftX, bottomAreaTop);
+            ctx.lineTo(noteLeftX, bottomAreaTop + whiteKeyLength);
+        }
+        // Top line
+        ctx.moveTo(leftX, bottomAreaTop);
+        ctx.lineTo(leftX + width, bottomAreaTop);
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 2;
+        ctx.stroke()
+    }
+    _drawBottomAreaBlackNotes(ctx, whiteKeyWidth, blackKeyWidth, maxOctaves, leftX, width, windowX, bottomAreaTop, blackKeyLength) {
+        const whiteKeysInOctave = 7;
+        const octaveWidth = whiteKeysInOctave * whiteKeyWidth;
+        const blackKeyOffsets = [
+            whiteKeyWidth - 2/3 * blackKeyWidth,
+            2 * whiteKeyWidth - 1/3 * blackKeyWidth,
+            4 * whiteKeyWidth - 3/4 * blackKeyWidth,
+            5 * whiteKeyWidth - 1/2 * blackKeyWidth, 
+            6 * whiteKeyWidth - 1/4 * blackKeyWidth
+        ];
+        ctx.beginPath();
+        for (let i = 0; i < maxOctaves; i++) {
+            const octaveOffset = i * octaveWidth;
+            if (octaveOffset - windowX > leftX + width) break
+            for (let j = 0; j < blackKeyOffsets.length; j++) {
+                const noteLeftX = leftX + octaveOffset + blackKeyOffsets[j] - windowX;
+
+                if (noteLeftX + blackKeyWidth < leftX) { continue; } // Outside of view to the left
+                if (leftX + width < noteLeftX) { continue; } // Outside of view to the right
+
+                if (noteLeftX < leftX) { // Partially out of view to the left
+                    const diff = leftX - noteLeftX;
+                    ctx.rect(leftX, bottomAreaTop, blackKeyWidth - diff, blackKeyLength);
+                } else if (noteLeftX + blackKeyWidth > leftX + width) { // Partially out of view to the right
+                    const diff = noteLeftX + blackKeyWidth - (leftX + width);
+                    ctx.rect(noteLeftX, bottomAreaTop, blackKeyWidth - diff, blackKeyLength);
+                } else {
+                    ctx.rect(noteLeftX, bottomAreaTop, blackKeyWidth, blackKeyLength);
+                }
+            }
+        }
+        ctx.fillStyle = 'black';
+        ctx.fill()
+    }
+
     drawBottomArea(ctx) { 
-        // TODO?: How would all of this work if I tried to define it as one or two camera(s) which looked at the different areas?
-        // It being two cameras would make it a bit weird
         const {
             topY,
             leftX, 
@@ -653,156 +700,11 @@ class FallingNotesView extends InteractableUIELement {
             } = this.drawSettings;
 
         const bottomAreaTop = topY + height - bottomAreaHeight;
-
-        ctx.lineWidth = 2
-
-        const whiteKeyLength = 120;
-        const blackKeyLength = 80;
+        const blackKeyLength = 2/3 * bottomAreaHeight;
         const maxOctaves = 8;
 
-        //! Draw white keys
-        // TODO?: Should we use rect or lineTo to draw the white keys?
-        let noteOffsetX = -windowX;
-        for (let i = 0; i < 7 * maxOctaves; i++) {
-            ctx.moveTo(leftX + noteOffsetX, bottomAreaTop);
-            ctx.lineTo(leftX + noteOffsetX, bottomAreaTop + bottomAreaHeight);
-            noteOffsetX += whiteKeyWidth;
-        }
-        ctx.moveTo(leftX, bottomAreaTop);
-        ctx.lineTo(leftX + width, bottomAreaTop);
-        ctx.strokeStyle = 'black';
-        ctx.stroke()
-
-
-        //! Draw black keys
-        ctx.beginPath();
-        for (let i = 0; i < maxOctaves; i++) {
-            noteOffsetX = i * 7 * whiteKeyWidth + whiteKeyWidth - 2/3 * blackKeyWidth;
-            ctx.rect(leftX + noteOffsetX - windowX, bottomAreaTop, blackKeyWidth, blackKeyLength);
-
-            noteOffsetX = i * 7 * whiteKeyWidth + 2 * whiteKeyWidth - 1/3 * blackKeyWidth;
-            ctx.rect(leftX + noteOffsetX - windowX, bottomAreaTop, blackKeyWidth, blackKeyLength);
-
-            noteOffsetX = i * 7 * whiteKeyWidth + 4 * whiteKeyWidth - 3/4 * blackKeyWidth;
-            ctx.rect(leftX + noteOffsetX - windowX, bottomAreaTop, blackKeyWidth, blackKeyLength);
-
-            noteOffsetX = i * 7 * whiteKeyWidth + 5 * whiteKeyWidth - 1/2 * blackKeyWidth;
-            ctx.rect(leftX + noteOffsetX - windowX, bottomAreaTop, blackKeyWidth, blackKeyLength);
-
-            noteOffsetX = i * 7 * whiteKeyWidth + 6 * whiteKeyWidth - 1/4 * blackKeyWidth;
-            ctx.rect(leftX + noteOffsetX - windowX, bottomAreaTop, blackKeyWidth, blackKeyLength);
-        }
-        ctx.fillStyle = 'black';
-        ctx.fill()
-        
-
-        
-
-        // const whiteNoteWidth = 25;
-        // //            c   d   e f   g   a   b
-        // const types = [0,1,0,1,0,0,1,0,1,0,1,0]
-
-        // let noteOffsetX = 0;
-        // // TODO: Instead of even width notes, actually draw the piano
-        // for (let i = 0; i < 88; i++) {
-        //     const noteValue = i;
-        //     const type = types[noteValue % types.length];
-
-        //     const noteLeftX = this.calculateNoteOffsetX2(noteValue);
-        //     if (type === 0) {
-        //         ctx.rect(leftX + noteOffsetX, bottomAreaTop, whiteNoteWidth, bottomAreaHeight);
-        //         noteOffsetX += whiteNoteWidth;
-        //     } 
-        // }
-        // ctx.strokeStyle = 'black'
-        // ctx.stroke();
-        
-        // const blackNoteWidth = 15;
-        // noteOffsetX = 15;
-        // ctx.beginPath();
-        // for (let i = 0; i < 88; i++) {
-        //     const note = i + 60;
-        //     const type = types[note % types.length];
-
-        //     if (type === 1) {
-        //         ctx.rect(leftX + noteOffsetX, bottomAreaTop, blackNoteWidth, bottomAreaHeight * 0.7);
-        //         noteOffsetX += whiteNoteWidth;
-        //     } else {
-        //         noteOffsetX += 5;
-        //     }
-        // }
-        // ctx.fillStyle = 'black';
-        // ctx.fill();
-
-
-        // const bottomAreaTop = topY + height - bottomAreaHeight;
-        
-        // const notesToShow = rightMostNoteValue - leftmostNoteValue; // TODO: Calculate correctly with fractional values
-        // const noteWidth = width / notesToShow;
-
-        // const letters = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B", ];
-
-        // const textOffsetY = 16;
-        // const textSmallOffsetY = textOffsetY -4;
-
-        // // Do something special for first and last to handle fractions?
-
-        // // TODO: Notes seem to work nicely except they are note hidden when out of the note view. But I need to fix this area
-
-
-        // l(leftmostNoteValue) 
-        // // If this value is x + r where x is an integer and r is the remaining fraction, then we should show r of note x in the view
-
-        // ctx.strokeStyle = 'black';
-        // for (let i = 0; i < notesToShow; i++) {
-        //     const noteLeftX = leftX + noteWidth * i;
-        //     ctx.moveTo(noteLeftX, bottomAreaTop);
-        //     ctx.lineTo(noteLeftX, bottomAreaTop + bottomAreaHeight);
-        // }
-        // ctx.stroke();
-
-        // for (let i = 1; i < notesToShow-1; ++i ) { 
-
-        //     const noteValue = leftmostNoteValue + i;
-        //     ctx.fillStyle = 'black';
-        //     ctx.strokeStyle = 'black';
-        //     ctx.font = "10px Georgia";
-        //     const noteName = Math.floor(noteValue) //  letters[(Math.floor(i) + f) % letters.length];
-        //     const noteHeight = i + 20; // TODO: Make it something sensible
-
-        //     const noteX = this.calculateNoteOffsetX(noteValue, leftmostNoteValue, noteWidth)
-        //     ctx.strokeRect(noteX, bottomAreaTop, noteWidth, noteHeight);
-
-        //     ctx.fillText(noteName, noteX + noteWidth/2, bottomAreaTop + textOffsetY);
-
-        //     // Draw white or black note
-        //     // ctx.fillText(noteName[0], leftX + i * noteWidth + noteWidth/2, bottomAreaTop + textOffsetY);
-        //     // if (noteName.length == 2) {
-        //     //     ctx.font = "8px Georgia";
-        //     //     ctx.fillText(noteName[1], leftX + i * noteWidth + noteWidth/2 + 8, bottomAreaTop + textSmallOffsetY);
-        //     // } 
-        // }
-
-
-        // for (let i = 0; i < notesToShow; i++) {
-        //     const note = letters[(i + leftmostNoteValue) % letters.length];
-
-        //     ctx.strokeRect(leftX + i * noteWidth, top, noteWidth, (i + 20));
-
-        //     // Draw white or black note
-        //     ctx.fillText(note[0], leftX + i * noteWidth + noteWidth/2, top + textOffsetY);
-        //     if (note.length == 2) {
-        //         ctx.font = "8px Georgia";
-        //         ctx.fillText(note[1], leftX + i * noteWidth + noteWidth/2 + 8, top + textSmallOffsetY);
-        //     } 
-        // }
-
-        // Draw top line
-        // ctx.strokeStyle = 'black'
-        // ctx.beginPath();
-        // ctx.moveTo(leftX, bottomAreaTop);
-        // ctx.lineTo(leftX + width, bottomAreaTop);
-        // ctx.stroke();
+        this._drawBottomAreaWhiteNotes(ctx, whiteKeyWidth, maxOctaves, leftX, width, windowX, bottomAreaTop, bottomAreaHeight);
+        this._drawBottomAreaBlackNotes(ctx, whiteKeyWidth, blackKeyWidth, maxOctaves, leftX, width, windowX, bottomAreaTop, blackKeyLength);
     }
 
     drawSelectionBox(ctx) { // TODO: Don't do drag start and drawing selection box when not clicking in the note view
@@ -981,57 +883,31 @@ function doStuffWithParsedMidiFile() {
 
     const fallingNotesView = new FallingNotesView(canvas, notes);
 
+    const sliderGeneralDrawSettings = {
+        size: {width: 300, height: 30},
+        lineWidth: 3,
+        initialSliderMarkerRatio: 0.0
+    }
     const windowXViewSlider = new HorizontalSlider({
+        ...sliderGeneralDrawSettings,
         position: {x: 100, y: 500},
-        size: {width: 300, height: 30},
-        lineWidth: 3,
-        initialSliderMarkerRatio: 0.0
     });
-
     const noteCountSlider = new HorizontalSlider({
+        ...sliderGeneralDrawSettings,
         position: {x: 100, y: 560},
-        size: {width: 300, height: 30},
-        lineWidth: 3,
-        initialSliderMarkerRatio: 0.5
     });
-
     const elapsedTimeSlider = new HorizontalSlider({
+        ...sliderGeneralDrawSettings,
         position: {x: 100, y: 620},
-        size: {width: 300, height: 30},
-        lineWidth: 3,
-        initialSliderMarkerRatio: 0.0
     });
 
-    let notesToShow = 10;
-    let centerNote = 60;
-
-    const notesLeftOfCenter = Math.floor(notesToShow / 2);
-    const notesRightOfCenter = Math.floor((notesToShow + 1) / 2);
-    fallingNotesView.drawSettings.leftmostNoteValue = centerNote - notesLeftOfCenter;
-    fallingNotesView.drawSettings.rightMostNoteValue = centerNote + notesRightOfCenter;
-
-    // TODO: Properly handle fractional number of notes to show 
-    
     windowXViewSlider.addCallback(value => {
-        // const maxOctaves = 8; // TODO: calculate the max width based on relevant factors
-        // const max = fallingNotesView.drawSettings.whiteKeyWidth * 7 * maxOctaves - fallingNotesView.drawSettings.width;
-        const max = 820;
+        const maxOctaves = 8; // TODO: Put this setting into drawSettings
+        const max =  fallingNotesView.drawSettings.whiteKeyWidth * 7 * maxOctaves - fallingNotesView.drawSettings.width;
         fallingNotesView.drawSettings.windowX = value * max;
     })
 
-    noteCountSlider.addCallback(value => {
-        notesToShow = value * 100 + 1
-        fallingNotesView.drawSettings.leftmostNoteValue = centerNote - notesToShow / 2;
-        fallingNotesView.drawSettings.rightMostNoteValue = centerNote + notesToShow / 2;
-
-        // notesToShow = Math.floor(value * 100) + 1;
-
-        // const notesLeftOfCenter = Math.floor(notesToShow / 2);
-        // const notesRightOfCenter = Math.floor((notesToShow + 1) / 2);
-        // fallingNotesView.drawSettings.leftmostNoteValue = centerNote - notesLeftOfCenter;
-        // fallingNotesView.drawSettings.rightMostNoteValue = centerNote + notesRightOfCenter;
-        l('notes to show', notesToShow)
-    });
+    noteCountSlider.addCallback(value => { });
 
     elapsedTimeSlider.addCallback(value => {
         fallingNotesView.elapsedTimeMs = value * 10000;
