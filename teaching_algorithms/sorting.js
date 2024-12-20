@@ -134,19 +134,44 @@ class MergeSortStepper extends SortStepper {
 class TopDownMergeSortStepper extends MergeSortStepper { // This should track the recursive stuff
     constructor(data) {
         super(data);
-        // TODO: figure out the values that lo, hi, mid go through in the different recursions
+        assert(data.length > 1, 'Nothing to sort by the stepper.')
+        this.q = 0;
+        this.queue = [];
+        this._calculatePostOrderTraversal(0, data.length, this.queue);
+        this._prepareNextMerge();
+    }
+    _prepareNextMerge() {
+        const [lo, mid, hi] = this.queue[this.q];
+        this.lo = lo;
+        this.mid = mid;
+        this.hi = hi;
+        this.i = this.lo;
+        this.j = this.mid;
+        this.l = this.lo;
+        this.q++;
+    }
+    _calculatePostOrderTraversal(lo, hi, queue) {
+        if ((hi - lo) === 1) return;
+        const mid = lo + Math.floor((hi - lo) / 2);
+        this._calculatePostOrderTraversal(lo, mid, queue);
+        this._calculatePostOrderTraversal(mid, hi, queue);        
+        queue.push([lo, mid, hi]) 
     }
     step() {
         if (this.isDone()) {  assert(isSorted(this.data), "Data should be sorted when done!"); return; }
         if (!this.mergeStep()) { return; } // Only do the merge step if we didn't finish merging
 
-        // TODO: Update internal variables to handle next merge step 
+        this.progress = Math.min(1, this.q / this.queue.length); // TODO: Make a better progress 
+
+        if (!this.isDone()) {
+            this._prepareNextMerge();
+        }
     }
 
     
 }
 
-class BottomUpMergeSortStepper extends MergeSortStepper {
+class BottomUpMergeSortStepper extends MergeSortStepper { // TODO?: Is there a way to make the animation prettier?
     constructor(data) {
         super(data);
         this.k = 1;
@@ -156,7 +181,7 @@ class BottomUpMergeSortStepper extends MergeSortStepper {
 
         this.i = 0;
         this.l = 0;
-        this.j = 0;
+        this.j = 1;
     }
     step() {
         if (this.isDone()) {  assert(isSorted(this.data), "Data should be sorted when done!"); return; }
@@ -187,6 +212,15 @@ class BottomUpMergeSortStepper extends MergeSortStepper {
         // We can call mergeStep again to compensate for the copying back taking a whole step no matter if we are copying 2 elements or the whole array.  
         // By doing an extra merge step when we have copied this means the copying step is essentially ignored.
         // this.mergeStep();
+    }
+}
+
+class QuickSortStepper extends SortStepper {
+    constructor(data) {
+        super(data);
+    }
+    step() {
+        // TODO: Implement next
     }
 }
 
@@ -228,7 +262,7 @@ function topDownMergeSort(data) {
     return data
 }
 
-function bottomUpMergeSort(data) { // TODO: Implement
+function bottomUpMergeSort(data) { 
     const aux = Array(data.length); 
 
     function merge(lo, mid, hi) {
@@ -266,11 +300,11 @@ function bottomUpMergeSort(data) { // TODO: Implement
 }
 
 
-function drawData(ctx, data, gradient, {leftX, topY, width, height, minBarHeight, maxBarHeight}) {
+function drawData(ctx, data, gradient, {leftX, topY, width, height, minBarHeight, maxBarHeight, maxValue}) {
     // ctx.clearRect(leftX, topY, width, height);
 
     const barWidth = width / data.length;
-    const maxValue = Math.max(...data);
+    // const maxValue = maxValue; //Math.max(...data);
     const barHeightDiff = maxBarHeight - minBarHeight;
     
     for (let i = 0; i < data.length; i++) {
@@ -290,8 +324,7 @@ function onBodyLoad() {
     // TODO: Maybe use state machine to get a trace of the algorithm with the code of the algorithm next to the data
     // TODO: Select data size
     // TODO: Select data type, e.g. sorted, reverse sorted, random, etc.
-    // TODO: Make a progress bar and let the algorithm go back to previous progress points of the algorithm using snapshots etc. 
-
+    // TODO: Make a progress bar and let the algorithm go back to previous progress points of the algorithm using snapshots etc. Maybe make a snapshot class which takes a stepper and steps for it, but takes snapshots along the way.
     const drawSettings = {
         leftX: 100,
         topY: 60,
@@ -301,7 +334,7 @@ function onBodyLoad() {
         maxBarHeight: 270
     };
 
-    const n = 8
+    const n = 133
     const data = randomArray(n);
     l(data)
     // const data = [5, 4, 7, 2, 0, 1, 6, 3];
@@ -322,7 +355,7 @@ function onBodyLoad() {
     canvas.addEventListener('mouseup', e => ui.mouseUp(e));
     canvas.addEventListener('mousemove', e => ui.mouseMove(e));
 
-    let sortStepper = new BottomUpMergeSortStepper(data); // TODO: It seems to be bugged which is clear on small arrays
+    let sortStepper = new TopDownMergeSortStepper(data);
 
     speedSlider.addCallback(value => {
         stepsPerFrame = value * maxSpeed;
@@ -330,19 +363,7 @@ function onBodyLoad() {
 
     let totalSteps = 0;
 
-    for (let i = 0; i < 100; i++) {
-        let d = randomArray(16);
-        let s = new BottomUpMergeSortStepper(d);
-        while(!s.isDone()) { s.step() }
-        assert(isSorted(d), `${d} was not sorted`);
-    }
-    l('success!')
-    return
-
-    let mergeSorted = topDownMergeSort(data)
-    l(mergeSorted)
-    return drawData(ctx, mergeSorted, gradient, drawSettings);
-
+    drawSettings.maxValue = n;
     const drawFrame = time => {
         // TODO: Frame rate display
 
