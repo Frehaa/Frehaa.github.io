@@ -914,10 +914,48 @@ function doStuffWithParsedMidiFile() {
     }) 
 
     const ui = new UI();
-    ui.add(fallingNotesView);
+    // Sliders
     ui.add(windowXViewSlider);
     ui.add(noteCountSlider);
     ui.add(elapsedTimeSlider);
+
+    // Move button
+    const dragBoxWidth = 30;
+    const viewPositionDragBox = new DragBox({ 
+        position: { 
+            x: fallingNotesView.drawSettings.leftX - dragBoxWidth /2,
+            y: fallingNotesView.drawSettings.topY - dragBoxWidth /2
+        }, 
+        size: {width: dragBoxWidth, height: dragBoxWidth}, 
+        lineWidth: 4
+    });
+    ui.add(viewPositionDragBox);
+    viewPositionDragBox.addCallback(value => {
+        fallingNotesView.drawSettings.leftX = value.x;
+        fallingNotesView.drawSettings.topY = value.y;
+
+
+        viewSizeDragBox.updatePosition(
+            fallingNotesView.drawSettings.leftX + fallingNotesView.drawSettings.width - dragBoxWidth /2,
+            fallingNotesView.drawSettings.topY + fallingNotesView.drawSettings.height - dragBoxWidth /2
+        );
+    })
+
+    const viewSizeDragBox = new DragBox({
+        position: {
+            x: fallingNotesView.drawSettings.leftX + fallingNotesView.drawSettings.width - dragBoxWidth /2,
+            y: fallingNotesView.drawSettings.topY + fallingNotesView.drawSettings.height - dragBoxWidth /2
+        }, 
+        size: {width: dragBoxWidth, height: dragBoxWidth}, 
+        lineWidth: 4
+    })
+    ui.add(viewSizeDragBox);
+    viewSizeDragBox.addCallback(value => {
+        fallingNotesView.drawSettings.width = value.x - fallingNotesView.drawSettings.leftX;
+        fallingNotesView.drawSettings.height = value.y - fallingNotesView.drawSettings.topY;
+    })
+
+    ui.add(fallingNotesView);
 
 
     canvas.addEventListener('mousemove', e => ui.mouseMove(e));

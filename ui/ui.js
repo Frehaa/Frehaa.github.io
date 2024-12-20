@@ -12,9 +12,19 @@ class UIElement {
     mouseMove(event) {}
     mouseDown(event) {}
     mouseUp(event) {}
+    updatePosition(x, y) {
+        this.position.x = x;
+        this.position.y = y;
+        
+        // TODO: Fix this monstrosity
+        this.bufferedBoundingBox.xMin = x;
+        this.bufferedBoundingBox.yMin = y;
+        this.bufferedBoundingBox.xMax = x + this.size.width;
+        this.bufferedBoundingBox.yMax = y + this.size.height;
+    }
 }
 
-class InteractableUIELement extends UIElement {
+class InteractableUIELement extends UIElement { // TODO: Relative position of elements
     constructor(topLeft, size, boundingBoxPadding) {
         super(topLeft, size, boundingBoxPadding)
         this.callbacks = [];
@@ -86,6 +96,7 @@ class UI {
     }
 }
 
+// TODO?: Use padding instead of stretch and allow to check if position is within normal area or padded area?
 class UIBoundingBox {
     constructor(x, y, width, height) {
         this.xMin = x;
