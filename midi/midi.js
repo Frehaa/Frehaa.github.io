@@ -121,12 +121,12 @@ function initializeMidiFileInputListeners(callback) {
 }
 
 function initializeMIDIUSBAccess(success, reject) {
-    if (navigator.requestMIDIAccess) { // Check if Web MIDI API is supported
+    if (navigator.requestMIDIAccess) { // Check if Web MIDI API is supported (https://developer.mozilla.org/en-US/docs/Web/API/Navigator/requestMIDIAccess)
         navigator.requestMIDIAccess({sysex: false /* Send and receive system exclusive messages */, software: false /* Utilize installed software synthesizer */})
         .then(success)
         .catch(reject);
     } else {
-        reject("Cannot request MIDI Access");
+        reject("Support Failure");
     }
 }
 
@@ -414,18 +414,63 @@ function initializeDataTransferInterface(fileInput, dragAndDropElement, loadCall
 function main() {
     // const canvas = document.getElementById('note-canvas');
     // const filepicker = document.getElementById('file-input');
-
-
     // function handleFileLoad(arrayBuffer) {
-    //     const parsedData = parseMidiFile(arrayBuffer);
-    //     l(parsedData);
-
+    //     // const parsedData = parseMidiFile(arrayBuffer);
+    //     l(arrayBuffer);
     // }
+    // TODO?: Should this be a class with state that we manage? 
+    // initializeDataTransferInterface(filepicker, canvas, handleFileLoad, errorEvent => l('An error occured trying to handle file loading', errorEvent)) // // TODO: Implement error handling
+    
 
-    doStuffWithParsedMidiFile();
+    // doStuffWithParsedMidiFile();
+    const midiState = {
+        chunks: null,
+        inputs: emptyMap,
+        outputs: emptyMap,
+        currentInput: emptyIO,
+        currentOutput: emptyIO,
+        pause: false,
+        speedMultiplier: 1
+    };
 
-    // // TODO: Implement error handling
-    // initializeDataTransferInterface(filepicker, canvas, handleFileLoad, errorEvent => l('An error occured trying to handle file loading', errorEvent))
+    // We have put all of the file loading and stuff into its own section. Next I think is to have all of the midi interfacing be part of its own thing
+
+    initializeMIDIUSBAccess(midiAccess => { 
+        // TODO?: For some reason both 
+        l("Inputs:", midiAccess.inputs, " - Outputs:", midiAccess.outputs, " - Sysex:", midiAccess.sysexEnabled, midiAccess);
+
+        // TODO: Handle disconnects and reconnects
+        // midiAccess.onglobalMidichange = handleMidiAccessStateChange;
+
+        midiState.inputs = midiAccess.inputs;
+        midiState.outputs = midiAccess.outputs;
+
+        const midiInputSelect = document.getElementById('midi-input-select');
+        const midiOutputSelect = document.getElementById('midi-output-select');
+        midiState.currentInput = addSelectOptionsAndReturnFirst(midiInputSelect, midiAccess.inputs);
+        midiState.currentOutput = addSelectOptionsAndReturnFirst(midiOutputSelect, midiAccess.outputs);
+        l('Midi state after access success', midiState)    
+
+        initializeMidiInputOutputEventListeners(midiState)
+
+
+        // midiState.currentOutput.send([MIDI_EVENT.NOTE_ON+1, 60, 60])
+        // setTimeout(e => {
+        //     midiState.currentOutput.send([MIDI_EVENT.NOTE_OFF+1, 60, 60])
+        // }, 1000)
+
+        midiState.inputs.forEach(input => {
+            l("input", input)
+            input.onmidimessage = event => {
+                l(event)
+            }
+        })
+
+    } , error => { l(error); alert("This browser does not seem to support the MIDI Web API used by this page. Error: " + error.toString()); })
+
+
+    // TODO: GET MIDI ACCESS STUFF WORKING
+
 
 
    
@@ -512,26 +557,37 @@ class FallingNotesView extends InteractableUIELement {
     }
 
     drawNote(ctx, note) {
-        const {leftX, width} = this.drawSettings;
+        const {leftX, width, topY, height, bottomAreaHeight} = this.drawSettings;
 
-        // TODO?: Determine whether to draw note based on note value? We should know which note values are visible in the view.
+        const bottomAreaTopY = topY + height - bottomAreaHeight;
+
+        // TODO?: Determine whether to draw note based on note value, startMs and durationMs? We should know which note values and times are visible in the view. This seems like a very minor optimization though. It would be a lot better to do a simple check and avoid calling drawNote multiple notes. So if 
 
         const noteRect = this.calculateNoteRectangle(note);
         if (noteRect.leftX + noteRect.width < leftX || leftX + width <  noteRect.leftX) { return } ; 
+        if (noteRect.topY + noteRect.height < topY || bottomAreaTopY < noteRect.topY) { return } ; 
 
+        let noteLeft = noteRect.leftX;
+        let noteWidth = noteRect.width;
+        let noteTop = noteRect.topY;
+        let noteHeight = noteRect.height;
 
         if (noteRect.leftX < leftX) { // Case when note is going out of view to the left
-            const noteWidth = noteRect.leftX + noteRect.width - leftX
-            ctx.fillRect(leftX, noteRect.topY, noteWidth, noteRect.height);
-
+            noteWidth = noteRect.leftX + noteRect.width - leftX
+            noteLeft = leftX;
         } else if (noteRect.leftX + noteRect.width > leftX + width) { // Case when note is going out of view to the right
-            const noteWidth = leftX + width - noteRect.leftX;
-            ctx.fillRect(noteRect.leftX, noteRect.topY, noteWidth, noteRect.height);
+            noteWidth = leftX + width - noteRect.leftX;
+        } 
 
-        } else { // Normal case
-            ctx.fillRect(noteRect.leftX, noteRect.topY, noteRect.width, noteRect.height);
-
+        if (noteRect.topY < topY) {
+            noteTop = topY;
+            noteHeight = noteRect.height - (topY - noteRect.topY);
+        } else if (noteRect.topY + noteRect.height > bottomAreaTopY) {
+            noteHeight = bottomAreaTopY - noteRect.topY;
         }
+
+
+        ctx.fillRect(noteLeft, noteTop, noteWidth, noteHeight);
 
     }
 
@@ -539,8 +595,8 @@ class FallingNotesView extends InteractableUIELement {
         this.hoverNote = null;
         const mousePosition = this.ui.mousePosition;
         if (this.dragStart !== null) {
-            const boxingArea = {
-                leftX: Math.min(this.dragStart.x, mousePosition.x),
+            const boxingArea = { // TODO?: Limit selection to those in view?
+                leftX:  Math.min(this.dragStart.x, mousePosition.x),
                 rightX: Math.max(this.dragStart.x, mousePosition.x),
                 topY: Math.min(this.dragStart.y, mousePosition.y),
                 bottomY: Math.max(this.dragStart.y, mousePosition.y),
@@ -566,10 +622,6 @@ class FallingNotesView extends InteractableUIELement {
     }
 
     draw(ctx) {
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = 'green';
-        const {leftX, topY, width, height} = this.drawSettings;
-        ctx.strokeRect(leftX, topY, width, height);
 
         ctx.lineWidth = 1;
         ctx.strokeStyle = 'black';
@@ -577,12 +629,17 @@ class FallingNotesView extends InteractableUIELement {
         this.drawSelectionBox(ctx);
         this.drawBottomArea(ctx);
         this.drawSettingsPanel(ctx); // TODO: Have this part of the UI instead?
+
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'black';
+        const {leftX, topY, width, height} = this.drawSettings;
+        ctx.strokeRect(leftX, topY, width, height);
     }
 
     // TODO: If the user clicks directly on a unit, should it be selected without boxing, or should we still initiate box if we are dragging? Maybe we can do both?
     mouseDown(e) {
         // Boxing functionality 
-        if (e.button === LEFT_MOUSE_BUTTON) {
+        if (e.button === LEFT_MOUSE_BUTTON) { // TODO: Check that the mouse postition is inside the note view 
             this.selectedElements = []
             this.dragStart = this.ui.mousePosition;
         }
@@ -710,12 +767,19 @@ class FallingNotesView extends InteractableUIELement {
     drawSelectionBox(ctx) { // TODO: Don't do drag start and drawing selection box when not clicking in the note view
         if (this.dragStart !== null) {
             const mousePosition = this.ui.mousePosition;
+            const leftX = Math.max(this.drawSettings.leftX, Math.min(this.dragStart.x, mousePosition.x));
+            const topY = Math.max(this.drawSettings.topY, Math.min(this.dragStart.y, mousePosition.y));
+            let width = Math.abs(this.dragStart.x - mousePosition.x)
+            let height = Math.abs(this.dragStart.y - mousePosition.y)
+
             ctx.beginPath();
-            ctx.moveTo(this.dragStart.x, this.dragStart.y);
-            ctx.lineTo(mousePosition.x, this.dragStart.y);
-            ctx.lineTo(mousePosition.x, mousePosition.y);
-            ctx.lineTo(this.dragStart.x, mousePosition.y);
-            ctx.closePath();
+            // ctx.moveTo(this.dragStart.x, this.dragStart.y);
+            // ctx.lineTo(mousePosition.x, this.dragStart.y);
+            // ctx.lineTo(mousePosition.x, mousePosition.y);
+            // ctx.lineTo(this.dragStart.x, mousePosition.y);
+            // ctx.closePath();
+
+            ctx.rect(leftX, topY, width, height)
 
             // Surprisingly nice colors
             ctx.fillStyle = 'rgba(100, 150, 200, 0.5)'; 
@@ -747,10 +811,8 @@ class FallingNotesView extends InteractableUIELement {
         const noteAreaHeight = height - bottomAreaHeight;
         const noteHeight = (noteDurationMs / timeFromTopToBottomMs) * noteAreaHeight;
 
-        // const offsetY = 
         const noteBottom = noteAreaHeight * (1 - tf)
 
-        // l(noteBottom, noteHeight, tf, t, noteBottom - noteHeight)
         return noteBottom - noteHeight;
     }
 
@@ -873,7 +935,7 @@ function doStuffWithParsedMidiFile() {
         // new Note(36, 500, 1000),
     ]; // TODO: Do something based off of melodies
 
-    for (let i = 0; i < 10; ++i) {
+    for (let i = 0; i < 40; ++i) {
         notes.push(new Note(36 + i, 150 * i, 150))
     }
 
@@ -961,6 +1023,7 @@ function doStuffWithParsedMidiFile() {
     canvas.addEventListener('mousemove', e => ui.mouseMove(e));
     canvas.addEventListener('mousedown', e => ui.mouseDown(e));
     canvas.addEventListener('mouseup', e => ui.mouseUp(e));
+    // canvas.addEventListener('mouseenter', e => {}) // TODO: check if mouse button is still held down or not when reentering the view (e.g. for selection box or slider)
 
 
     function myDraw(time) {
