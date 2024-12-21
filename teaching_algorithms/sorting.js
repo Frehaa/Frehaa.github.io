@@ -223,6 +223,53 @@ class QuickSortStepper extends SortStepper {
         // TODO: Implement next
     }
 }
+function insertionSort(data, lo, hi) {
+    function swap(i, j) {
+        const tmp = data[i];
+        data[i] = data[j];
+        data[j] = tmp;
+    }
+    for (let i = lo; i < hi; i++) {
+        for (let j = i-1; j >= lo; j--) {
+            if (data[j+1] < data[j]) { swap(j, j+1); }
+            else { break; }
+        }
+    }
+}
+
+function quicksort(data) {
+    shuffle(data);
+    
+    function swap(i, j) {
+        const tmp = data[i];
+        data[i] = data[j];
+        data[j] = tmp;
+    }
+    function partition(lo, hi) { // We partition based on value in lo
+        const v = data[lo];
+        let i = lo + 1;
+        let j = hi - 1;
+        while (i < j) {
+            while (data[i] < v && i < hi) { i++; }
+            while (data[j] > v && j > lo) { j--; }
+            
+            // Now i points to a value >= v & j points to a value <= v, so unless they have passed each other we can swap
+            if (i < j) swap(i, j);
+        }
+        swap(lo, j); // Finally swap the pivot element to the last element smaller than it
+        return j;
+    }
+
+    function sort(lo, hi) {
+        if ((hi - lo) < 3) return insertionSort(data, lo, hi);
+        const j = partition(lo, hi);
+        sort(lo, j);
+        sort(j + 1, hi);
+    }
+
+    sort(0, data.length);
+}
+
 
 function topDownMergeSort(data) {
     const aux = Array(data.length);
@@ -334,9 +381,17 @@ function onBodyLoad() {
         maxBarHeight: 270
     };
 
-    const n = 133
-    const data = randomArray(n);
-    l(data)
+    const n = 4325
+    // const data = randomArray(n);
+
+    for (let i = 0; i < 1000; i++) {
+        const data = randomArray(n);
+        quicksort(data);
+        assert(isSorted(data), `${data} is not sorted`);
+    }
+
+    return 
+
     // const data = [5, 4, 7, 2, 0, 1, 6, 3];
     const gradient = createGradient({r: 67, g: 83, b: 150}, {r:183, g: 90, b: 43}, );
 
