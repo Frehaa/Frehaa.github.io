@@ -435,6 +435,9 @@ function main() {
 
     // We have put all of the file loading and stuff into its own section. Next I think is to have all of the midi interfacing be part of its own thing
 
+    const notesSet = new Set();
+    const notesMap = new Map();
+
     initializeMIDIUSBAccess(midiAccess => { 
         // TODO?: For some reason both 
         l("Inputs:", midiAccess.inputs, " - Outputs:", midiAccess.outputs, " - Sysex:", midiAccess.sysexEnabled, midiAccess);
@@ -453,16 +456,26 @@ function main() {
 
         initializeMidiInputOutputEventListeners(midiState)
 
-
-        // midiState.currentOutput.send([MIDI_EVENT.NOTE_ON+1, 60, 60])
-        // setTimeout(e => {
-        //     midiState.currentOutput.send([MIDI_EVENT.NOTE_OFF+1, 60, 60])
-        // }, 1000)
-
         midiState.inputs.forEach(input => {
-            l("input", input)
             input.onmidimessage = event => {
-                l(event)
+                const data = event.data;
+                const status = data[0] & 0xF0;
+                const channel = data[0] & 0x0F;
+                if (status === MIDI_EVENT.NOTE_OFF || status === MIDI_EVENT.NOTE_ON) {
+                    const velocity = data[2];
+                    const noteValue = data[1];
+                    if (velocity === 0 || status === MIDI_EVENT.NOTE_OFF) { // NOTE OFF EVENT
+                        assert(notesMap.has(noteValue), "NOTE OFF event was sent without the note being registered.")
+                        const note = notesMap.get(noteValue);
+                        notesSet.delete(note);
+                        notesMap.delete(noteValue);
+                    } else { // ACTUALLY A NOTE ON EVENT
+                        const note = new Note(noteValue, 0, 1000);
+                        notesMap.set(noteValue, note);
+                        notesSet.add(note);
+                    }                 
+
+                }
             }
         })
 
@@ -471,6 +484,28 @@ function main() {
 
     // TODO: GET MIDI ACCESS STUFF WORKING
 
+
+    // What do I mean by "working" here? 
+    // I want to have an interface where I can read midi events from and maybe send them to
+
+    // For the game, I want to know if keys pressed on the piano match the keys required. 
+    // To do this, I need to know which keys are pressed and which are not
+
+    // Maybe a first step is to create something where the FallingNotesView shows the key pressed in the bottom? 
+    // To do this, I simply want from the interface to tell me when a key is pressed and released so I can add and remove it from a set
+
+    const canvas = document.getElementById('note-canvas');
+    const ctx = canvas.getContext('2d');
+
+    const fallingNotesView = new FallingNotesView(canvas, notesSet);
+
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        fallingNotesView.draw(ctx);
+        requestAnimationFrame(draw)
+    }
+    requestAnimationFrame(draw);
 
 
    
