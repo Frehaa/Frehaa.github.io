@@ -111,18 +111,18 @@ class MergeSortStepper extends SortStepper {
     }
     mergeStep() {
         if (this.i < this.mid && this.j < this.hi) {
-            if (this.aux[this.i] < this.aux[this.j]) {
-                this.data[this.l++] = this.aux[this.i++];
+            if (this.data[this.i] < this.data[this.j]) {
+                this.aux[this.l++] = this.data[this.i++];
             } else {
-                this.data[this.l++] = this.aux[this.j++];
+                this.aux[this.l++] = this.data[this.j++];
             }
         } else if (this.i < this.mid) {
-            this.data[this.l++] = this.aux[this.i++];
+            this.aux[this.l++] = this.data[this.i++];
         } else if (this.j < this.hi) {
-            this.data[this.l++] = this.aux[this.j++];
+            this.aux[this.l++] = this.data[this.j++];
         } else { // Finished 
             for (let copyIdx = this.lo; copyIdx < this.hi; copyIdx++) { // Copy back
-                this.aux[copyIdx] = this.data[copyIdx];
+                this.data[copyIdx] = this.aux[copyIdx];
             }
             return true; // Returns true when done with merging the current values
         }
@@ -215,11 +215,37 @@ class BottomUpMergeSortStepper extends MergeSortStepper { // TODO?: Is there a w
     }
 }
 
+
 class QuickSortStepper extends SortStepper {
     constructor(data) {
         super(data);
+        shuffle(data); // TODO?: How should randomness be handled by the stepper? Pick random each step or do a shuffle? Should we step through the shuffle?
+        this.lo = 0;
+        this.hi = data.length;
+
+        this.v = this.data[this.lo];
+        this.i = this.lo + 1;
+        this.j = this.hi - 1;
     }
     step() {
+        if (this.isDone()) return;
+        if (this.i < this.j) {
+            while (this.data[this.i] < this.v && this.i < this.h) { this.i++; }
+            while (this.data[this.j] > this.v && this.j > this.lo) { this.j--; }
+            if (this.i < this.j) { this._swap(this.i, this.j); }
+        } else if (this.data[this.j] < this.v) {
+            this._swap(this.lo, this.j);
+        }
+
+        // We only do right recursion since I am not sure how to go back
+        this.lo = 0;
+        this.hi = this.j;
+        this.v = this.data[this.lo];
+        this.i = this.lo + 1;
+        this.j = this.hi - 1;
+
+        this.progress = 1 / this.hi
+
         // TODO: Implement next
     }
 }
@@ -245,7 +271,9 @@ function quicksort(data) {
         data[i] = data[j];
         data[j] = tmp;
     }
-    function partition(lo, hi) { // We partition based on value in lo
+
+    // We partition based on value in lo by moving two pointers from the second element toward the end and from the last element toward the first.
+    function partition(lo, hi) {
         const v = data[lo];
         let i = lo + 1;
         let j = hi - 1;
@@ -254,14 +282,15 @@ function quicksort(data) {
             while (data[j] > v && j > lo) { j--; }
             
             // Now i points to a value >= v & j points to a value <= v, so unless they have passed each other we can swap
-            if (i < j) swap(i, j);
+            if (i < j) { swap(i, j); } 
         }
-        swap(lo, j); // Finally swap the pivot element to the last element smaller than it
+        // Finally swap the pivot element to the last element smaller than it. The check is to handle the case for lo + 1 = hi - 1 correctly since j data[j] may not be smaller than data[lo] in this case.
+        if (data[j] < data[lo]) { swap(lo, j); }
         return j;
     }
 
     function sort(lo, hi) {
-        if ((hi - lo) < 3) return insertionSort(data, lo, hi);
+        if ((hi - lo) < 1) return insertionSort(data, lo, hi);
         const j = partition(lo, hi);
         sort(lo, j);
         sort(j + 1, hi);
@@ -347,6 +376,24 @@ function bottomUpMergeSort(data) {
 }
 
 
+// function drawIndices(ctx, indices, drawSettings) {
+function drawIndices(ctx, sortStepper, {leftX, width, topY, height}) {
+    const barWidth = width / sortStepper.data.length;
+    function drawIndex(i, name, topOffset) {
+        let x = leftX + i * barWidth + barWidth / 2; 
+        let y = topY + topOffset;
+        ctx.fillText(name, x, y);
+    }
+    ctx.fillStyle = 'black';
+    ctx.font = 'Ariel 26px'
+    ctx.textAlign = 'center'
+    if (sortStepper.lo !== undefined) { drawIndex(sortStepper.lo, "lo", 10); }
+    if (sortStepper.hi !== undefined) { drawIndex(sortStepper.hi, "hi", 20); }
+    if (sortStepper.mid !== undefined) { drawIndex(sortStepper.mid, "mid", 30); } 
+    if (sortStepper.i !== undefined) { drawIndex(sortStepper.i, "i", 40); }
+    if (sortStepper.j !== undefined) { drawIndex(sortStepper.j, "j", 50); }
+}
+
 function drawData(ctx, data, gradient, {leftX, topY, width, height, minBarHeight, maxBarHeight, maxValue}) {
     // ctx.clearRect(leftX, topY, width, height);
 
@@ -381,16 +428,17 @@ function onBodyLoad() {
         maxBarHeight: 270
     };
 
-    const n = 4325
-    // const data = randomArray(n);
+    const n = 8000
+    // TODO: Different interesting types of unsorted data to show how things behave in non-random settings.
+    const data = randomArray(n);
 
-    for (let i = 0; i < 1000; i++) {
-        const data = randomArray(n);
-        quicksort(data);
-        assert(isSorted(data), `${data} is not sorted`);
-    }
+    // for (let i = 0; i < 1000; i++) {
+    //     const data = randomArray(n);
+    //     quicksort(data);
+    //     assert(isSorted(data), `${data} is not sorted`);
+    // }
 
-    return 
+    // return 
 
     // const data = [5, 4, 7, 2, 0, 1, 6, 3];
     const gradient = createGradient({r: 67, g: 83, b: 150}, {r:183, g: 90, b: 43}, );
@@ -398,7 +446,7 @@ function onBodyLoad() {
     // const maxSpeed = (n * n) / 100;      // Nice max speed for quadratic time algorithms
     // let stepsPerFrame = maxSpeed / 100;
     const maxSpeed = n * Math.log2(n) / 100; // This does not seem to be perfect for small arrays
-    let stepsPerFrame = maxSpeed / 100;
+    let stepsPerFrame = 0.01; //maxSpeed / 100;
 
     let ui = new UI();
     const speedSlider = new HorizontalSlider({
@@ -433,8 +481,13 @@ function onBodyLoad() {
             sortStepper.step();
         }
         drawData(ctx, data, gradient, drawSettings);
+        drawIndices(ctx, sortStepper, drawSettings); // TODO: Drawing indices makes the copying to auxiliary array very weird. 
+        // TODO?: Maybe highlight the interesting columns? This may be useless for big n, so only show it for small
+        // TODO?: Maybe show i and j from below?
+
 
         if (sortStepper.aux) { // If the sorting algorithm has an auxiliary array, draw it too
+            // TODO: For merge sorts, also draw l as an index in this view
             drawData(ctx, sortStepper.aux, gradient, {
                 ...drawSettings,
                 leftX: 600
