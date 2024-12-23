@@ -46,26 +46,123 @@ class SortStepper {
     }
 }
 
+// SELECTION SORT
+//  for (let i = 0; i < data.length; i++) {
+//      let m = i;
+//      for (let j = i + 1; j < data.length; j++) {
+//          if (data[j] < data[m]) {
+//              m = j;
+//          }
+//      }
+//      swap(i, m);
+//  }
+
+// TODO?: Write values to the right? 
+class SelectionSortStateStepper extends SortStepper {
+    static STATES = {
+        LOOP_INITIALIZE_I: 0,
+        LOOP_COMPARE_I: 1,
+        LOOP_INCREMENT_I: 2,
+        INITIALIZE_M: 3,
+        LOOP_INITIALIZE_J: 4,
+        LOOP_COMPARE_J: 5,
+        LOOP_INCREMENT_J: 6,
+        COMPARE_J_M: 7,
+        UPDATE_M: 8,
+        SWAP: 9,
+        COMPLETE: 10
+    }
+    constructor(data) {
+        super(data);
+        this.state = SelectionSortStateStepper.STATES.LOOP_INITIALIZE_I;
+        this.i = undefined;
+        this.j = undefined;
+        this.m = undefined;
+    }
+
+    step() {
+        switch (this.state) {
+            case SelectionSortStateStepper.STATES.LOOP_INITIALIZE_I: {
+                this.state = SelectionSortStateStepper.STATES.LOOP_COMPARE_I;
+                this.i = 0;
+            } break;
+            case SelectionSortStateStepper.STATES.LOOP_COMPARE_I: {
+                if (this.i < this.data.length) {
+                    this.state = SelectionSortStateStepper.STATES.INITIALIZE_M;
+                } else {
+                    this.state = SelectionSortStateStepper.STATES.COMPLETE;
+                    this.progress = 1;
+                }
+            } break;
+            case SelectionSortStateStepper.STATES.LOOP_INCREMENT_I: {
+                this.state = SelectionSortStateStepper.STATES.LOOP_COMPARE_I;
+                this.i++;
+            } break;
+            case SelectionSortStateStepper.STATES.INITIALIZE_M: {
+                this.state = SelectionSortStateStepper.STATES.LOOP_INITIALIZE_J;
+                this.m = this.i;
+            } break;
+            case SelectionSortStateStepper.STATES.LOOP_INITIALIZE_J: {
+                this.state = SelectionSortStateStepper.STATES.LOOP_COMPARE_J;
+                this.j = this.i + 1;
+            } break;
+            case SelectionSortStateStepper.STATES.LOOP_COMPARE_J: {
+                if (this.j < this.data.length) {
+                    this.state = SelectionSortStateStepper.STATES.COMPARE_J_M;
+                } else {
+                    this.state = SelectionSortStateStepper.STATES.SWAP;
+                    this.j = undefined; // Exit loop
+                }
+            } break;
+            case SelectionSortStateStepper.STATES.LOOP_INCREMENT_J: {
+                this.state = SelectionSortStateStepper.STATES.LOOP_COMPARE_J;
+                this.j++;
+            } break;
+            case SelectionSortStateStepper.STATES.COMPARE_J_M: {
+                if (this.data[this.j] < this.data[this.m]) {
+                    this.state = SelectionSortStateStepper.STATES.UPDATE_M;
+                } else {
+                    this.state = SelectionSortStateStepper.STATES.LOOP_INCREMENT_J;
+                }
+            } break;
+            case SelectionSortStateStepper.STATES.UPDATE_M: {
+                this.state = SelectionSortStateStepper.STATES.LOOP_INCREMENT_J;
+                this.m = this.j;
+            } break;
+            case SelectionSortStateStepper.STATES.SWAP: {
+                this.state = SelectionSortStateStepper.STATES.LOOP_INCREMENT_I;
+                this._swap(this.i, this.m);
+                this.m = undefined;
+            } break;
+            case SelectionSortStateStepper.STATES.COMPLETE: {
+                return true; // Return true when complete
+            }
+        }
+        return false;
+    }
+
+}
+
 class SelectionSortStepper extends SortStepper{
     constructor(data) {
         super(data);
         this.i = 0;
         this.j = 1;
-        this.t = 0;
+        this.m = 0;
     }
     // TODO?: Implement as state automata?
     step() {
         if (this.isDone()) return;
         if (this.j < this.data.length) {
-            if (this.data[this.j] < this.data[this.t]) this.t = this.j;
+            if (this.data[this.j] < this.data[this.m]) this.m = this.j;
             this.j += 1
         }
         else {
-            this._swap(this.t, this.i);
+            this._swap(this.m, this.i);
             this.i += 1;
             this.progress = this.i / this.data.length; // TODO: Calculate better notion of progress since selection sort always does the same amount of work
             this.j = this.i + 1;
-            this.t = this.i;
+            this.m = this.i;
         }
     }
 }
@@ -428,9 +525,10 @@ function onBodyLoad() {
         maxBarHeight: 270
     };
 
-    const n = 8000
+    const n = 100
     // TODO: Different interesting types of unsorted data to show how things behave in non-random settings.
     const data = randomArray(n);
+
 
     // for (let i = 0; i < 1000; i++) {
     //     const data = randomArray(n);
@@ -443,10 +541,10 @@ function onBodyLoad() {
     // const data = [5, 4, 7, 2, 0, 1, 6, 3];
     const gradient = createGradient({r: 67, g: 83, b: 150}, {r:183, g: 90, b: 43}, );
 
-    // const maxSpeed = (n * n) / 100;      // Nice max speed for quadratic time algorithms
-    // let stepsPerFrame = maxSpeed / 100;
-    const maxSpeed = n * Math.log2(n) / 100; // This does not seem to be perfect for small arrays
-    let stepsPerFrame = 0.01; //maxSpeed / 100;
+    const maxSpeed = (n * n) / 100;      // Nice max speed for quadratic time algorithms
+    let stepsPerFrame = maxSpeed / 100;
+    // const maxSpeed = n * Math.log2(n) / 100; // This does not seem to be perfect for small arrays
+    // let stepsPerFrame = 0.01; //maxSpeed / 100;
 
     let ui = new UI();
     const speedSlider = new HorizontalSlider({
@@ -458,7 +556,9 @@ function onBodyLoad() {
     canvas.addEventListener('mouseup', e => ui.mouseUp(e));
     canvas.addEventListener('mousemove', e => ui.mouseMove(e));
 
-    let sortStepper = new TopDownMergeSortStepper(data);
+    let sortStepper = new SelectionSortStateStepper(data);
+
+    
 
     speedSlider.addCallback(value => {
         stepsPerFrame = value * maxSpeed;
