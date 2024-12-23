@@ -27,39 +27,6 @@ function addSelectOptionsAndReturnFirst(select, list) {
     return emptyIO;
 }
 
-function initializeCanvasEventListeners(midiState) {
-    const canvas = document.getElementById('note-canvas');
-    const ctx = canvas.getContext('2d');
-    const fileInput = document.getElementById('file-input');
-
-    // TODO: Center and pick font
-    ctx.font = '36px Aria';
-    ctx.fillText("Click to pick a MIDI file", 100, 500);
-    ctx.fillText("or drag and drop it in the window", 100, 540);
-
-    canvas.addEventListener('click', (e) => {
-        if (midiState.chunks === null) {
-            fileInput.click();
-        }
-    });
-
-    canvas.addEventListener('dragover', e => {
-        e.preventDefault(); // This is required for drop event
-    });
-
-    canvas.addEventListener('drop', e => {
-        if (e.dataTransfer.files.length == 0) return;
-        e.preventDefault(); // This prevents the downloading of file
-
-        // Add the dropped file and dispatch the change event to the fileInput
-        fileInput.files = e.dataTransfer.files;
-        const changeEvent = new Event('change', { bubbles: true });
-        fileInput.dispatchEvent(changeEvent);
-    });
-
-
-}
-
 function initializeMidiInputOutputEventListeners(midiState) {
     const getOrEmptyIO = (value, map) => {
         return map.has(value)? map.get(value) : emptyIO;
@@ -81,7 +48,7 @@ function initializeMidiInputOutputEventListeners(midiState) {
 function initializeMidiStateRelatedListeners(midiState) {
     initializeMidiInputOutputEventListeners(midiState);
     initializeCanvasEventListeners(midiState);
-    initializeMIDIUSBAccess(
+    requestMidiAccess(
         midiAccess => {
             l("Inputs:", midiAccess.inputs, " - Outputs:", midiAccess.outputs, " - Sysex:", midiAccess.sysexEnabled, midiAccess);
 
@@ -105,28 +72,13 @@ function initializeMidiStateRelatedListeners(midiState) {
 }
 
 
-function initializeMidiFileInputListeners(callback) {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-        callback(event.target.result);
-    };
-
-    const fileInput = document.getElementById('file-input');
-    fileInput.addEventListener('change', (event) => {
-        assert(fileInput.files.length > 0, `File input change event fired even though it contained no files`);
-        const file = fileInput.files[0]; 
-        reader.readAsArrayBuffer(file)
-    });
-
-}
-
-function initializeMIDIUSBAccess(success, reject) {
+function requestMidiAccess(success, reject) {
     if (navigator.requestMIDIAccess) { // Check if Web MIDI API is supported (https://developer.mozilla.org/en-US/docs/Web/API/Navigator/requestMIDIAccess)
         navigator.requestMIDIAccess({sysex: false /* Send and receive system exclusive messages */, software: false /* Utilize installed software synthesizer */})
         .then(success)
         .catch(reject);
     } else {
-        reject("Support Failure");
+        reject("requestMIDIAccess is undefined");
     }
 }
 
@@ -422,7 +374,8 @@ function main() {
     // initializeDataTransferInterface(filepicker, canvas, handleFileLoad, errorEvent => l('An error occured trying to handle file loading', errorEvent)) // // TODO: Implement error handling
     
 
-    // doStuffWithParsedMidiFile();
+    doStuffWithParsedMidiFile();
+    return 
     const midiState = {
         chunks: null,
         inputs: emptyMap,
@@ -438,12 +391,11 @@ function main() {
     const notesSet = new Set();
     const notesMap = new Map();
 
-    initializeMIDIUSBAccess(midiAccess => { 
-        // TODO?: For some reason both 
+    requestMidiAccess(midiAccess => { 
         l("Inputs:", midiAccess.inputs, " - Outputs:", midiAccess.outputs, " - Sysex:", midiAccess.sysexEnabled, midiAccess);
 
         // TODO: Handle disconnects and reconnects
-        // midiAccess.onglobalMidichange = handleMidiAccessStateChange;
+        midiAccess.onglobalMidichange = event => { l("Global MIDI Change Event Happened", event) };
 
         midiState.inputs = midiAccess.inputs;
         midiState.outputs = midiAccess.outputs;
@@ -497,15 +449,29 @@ function main() {
     const canvas = document.getElementById('note-canvas');
     const ctx = canvas.getContext('2d');
 
-    const fallingNotesView = new FallingNotesView(canvas, notesSet);
+    const fallingNotesView = new FallingNotesView({
+        leftX: 100, 
+        topY: 50,
+        width: 800,
+        height: 500
+    }, notesSet);
 
 
-    function draw() {
+    let elapsedTime = 0;
+    let previousTime = 0;
+    function draw(time) {
+        let dt = time - previousTime;
+        elapsedTime += dt;
+        l(previousTime, time, elapsedTime, dt)
+        previousTime = time;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         fallingNotesView.draw(ctx);
         requestAnimationFrame(draw)
     }
-    requestAnimationFrame(draw);
+    requestAnimationFrame(time => {
+        previousTime = time;
+        draw(time);
+    });
 
 
    
@@ -559,42 +525,47 @@ function main() {
 // We have some settings. Simple setting is selection. We want to use the mouse to select. 
 
 class FallingNotesView extends InteractableUIELement {
-    constructor(canvas, notes) {
-        super({x: 0, y: 0}, {width: canvas.width, height: canvas.height}, 0)
+    constructor(position, size, fallingNotes, pressedKeysSet, drawSettings) {
+        super(position, size, 0)
         this.elapsedTimeMs = 0;
+        this.position = position;
+        this.size = size;
 
-        this.drawSettings = { // This view consists of a bottom UI and a note view. The top of thi
-            topY: 50, 
-            leftX: 80,
-            width: 1000, 
-            height: 400,
-            leftmostNoteValue: 60 - 1*12 + 0.5, // 2 Octaves from middle C
-            rightMostNoteValue: 60 + 12.5,
-            whiteToBlackRatio: 0.8, // Initially we assume they have identical width
-            partitionerHeight: 45,
+        this.drawSettings = { // This view consists of a bottom UI and a note view. 
             bottomAreaHeight: 120,
-            canvas: canvas,
             timeFromTopToBottomMs: 2000,
-            windowX: 0,
+            maxOctaves: 8,
+            windowX: 0, // For displaying different subsets of keys. Keys are drawn starting from x = 0 with note value 0 and continue 8 octaves
             whiteKeyWidth: 24,   // 23.5 mm 
             blackKeyWidth: 13,   // 9-14 mm
+            ...drawSettings, 
         };
 
         this.hoverNote = null;
         this.dragStart = null;
         this.selectedElements = [];
         this.boxedElements = [];
-        this.notes = notes;
+        this.notes = fallingNotes || [];
+        this.pressedKeys = pressedKeysSet || new Set();
     }
 
     setElapsedTimeMs(elapsedTimeMs) {
         this.elapsedTimeMs = elapsedTimeMs;
     }
 
-    drawNote(ctx, note) {
-        const {leftX, width, topY, height, bottomAreaHeight} = this.drawSettings;
+    _getRect() { // TODO: Do something smarter which doesn't make me create an object every frame
+        return {
+            leftX: this.position.x,
+            topY: this.position.y,
+            width: this.size.width,
+            height: this.size.height
+        };
+    }
 
-        const bottomAreaTopY = topY + height - bottomAreaHeight;
+    drawNote(ctx, note) {
+        const {leftX, topY, width, height} = this._getRect();
+
+        const bottomAreaTopY = topY + height - this.drawSettings.bottomAreaHeight;
 
         // TODO?: Determine whether to draw note based on note value, startMs and durationMs? We should know which note values and times are visible in the view. This seems like a very minor optimization though. It would be a lot better to do a simple check and avoid calling drawNote multiple notes. So if 
 
@@ -620,10 +591,7 @@ class FallingNotesView extends InteractableUIELement {
         } else if (noteRect.topY + noteRect.height > bottomAreaTopY) {
             noteHeight = bottomAreaTopY - noteRect.topY;
         }
-
-
         ctx.fillRect(noteLeft, noteTop, noteWidth, noteHeight);
-
     }
 
     mouseMove(e) {
@@ -664,10 +632,12 @@ class FallingNotesView extends InteractableUIELement {
         this.drawSelectionBox(ctx);
         this.drawBottomArea(ctx);
         this.drawSettingsPanel(ctx); // TODO: Have this part of the UI instead?
+        this.bufferedBoundingBox.draw(ctx);
 
         ctx.lineWidth = 3;
         ctx.strokeStyle = 'black';
-        const {leftX, topY, width, height} = this.drawSettings;
+
+        const {leftX, topY, width, height} = this._getRect();
         ctx.strokeRect(leftX, topY, width, height);
     }
 
@@ -705,7 +675,7 @@ class FallingNotesView extends InteractableUIELement {
         }
     }
 
-    calculateNoteOffsetX2(noteValue, whiteKeyWidth, blackKeyWidth) {
+    calculateNoteOffsetX(noteValue, whiteKeyWidth, blackKeyWidth) {
         const octave = Math.floor(noteValue / 12); // 12 is the number of keys in an octave
         const octaveNoteValue = noteValue % 12;
         let offsetX = whiteKeyWidth * octave * 7;
@@ -727,8 +697,9 @@ class FallingNotesView extends InteractableUIELement {
         }
     }
 
-    _drawBottomAreaWhiteNotes(ctx, whiteKeyWidth, maxOctaves, leftX, width, windowX, bottomAreaTop, whiteKeyLength) {
+    _drawBottomAreaWhiteKeys(ctx, whiteKeyWidth, maxOctaves, leftX, width, windowX, bottomAreaTop, whiteKeyLength) {
         const whiteKeysInOctave = 7;
+        const iToNoteValue = [0, 2, 4, 5, 7, 9, 11]
         // TODO?: Should we use rect or lineTo to draw the white keys?
         for (let i = 0; i < whiteKeysInOctave * maxOctaves; i++) {
             const noteLeftX = leftX + i * whiteKeyWidth - windowX;
@@ -736,6 +707,13 @@ class FallingNotesView extends InteractableUIELement {
             if (noteLeftX < leftX) { continue; } // Outside of view to the left
             ctx.moveTo(noteLeftX, bottomAreaTop);
             ctx.lineTo(noteLeftX, bottomAreaTop + whiteKeyLength);
+
+            const noteValue = Math.floor(i / 7) * 12 + iToNoteValue[i % 7];
+            if (this.pressedKeys.has(noteValue)) {
+                ctx.fillStyle = 'red'
+                ctx.fillRect(noteLeftX, bottomAreaTop, whiteKeyWidth, whiteKeyLength);
+            }
+
         }
         // Top line
         ctx.moveTo(leftX, bottomAreaTop);
@@ -744,7 +722,7 @@ class FallingNotesView extends InteractableUIELement {
         ctx.lineWidth = 2;
         ctx.stroke()
     }
-    _drawBottomAreaBlackNotes(ctx, whiteKeyWidth, blackKeyWidth, maxOctaves, leftX, width, windowX, bottomAreaTop, blackKeyLength) {
+    _drawBottomAreaBlackKeys(ctx, whiteKeyWidth, blackKeyWidth, maxOctaves, leftX, width, windowX, bottomAreaTop, blackKeyLength) {
         const whiteKeysInOctave = 7;
         const octaveWidth = whiteKeysInOctave * whiteKeyWidth;
         const blackKeyOffsets = [
@@ -754,15 +732,25 @@ class FallingNotesView extends InteractableUIELement {
             5 * whiteKeyWidth - 1/2 * blackKeyWidth, 
             6 * whiteKeyWidth - 1/4 * blackKeyWidth
         ];
-        ctx.beginPath();
+        const jToNoteValue = [1, 3, 6, 8, 10];
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 2;
         for (let i = 0; i < maxOctaves; i++) {
             const octaveOffset = i * octaveWidth;
             if (octaveOffset - windowX > leftX + width) break
             for (let j = 0; j < blackKeyOffsets.length; j++) {
+                ctx.beginPath();
                 const noteLeftX = leftX + octaveOffset + blackKeyOffsets[j] - windowX;
 
                 if (noteLeftX + blackKeyWidth < leftX) { continue; } // Outside of view to the left
                 if (leftX + width < noteLeftX) { continue; } // Outside of view to the right
+
+                const noteValue = Math.floor(i) * 12 + jToNoteValue[j];
+                if (this.pressedKeys.has(noteValue)) {
+                    ctx.fillStyle = 'red';
+                } else {
+                    ctx.fillStyle = 'black';
+                }
 
                 if (noteLeftX < leftX) { // Partially out of view to the left
                     const diff = leftX - noteLeftX;
@@ -773,37 +761,37 @@ class FallingNotesView extends InteractableUIELement {
                 } else {
                     ctx.rect(noteLeftX, bottomAreaTop, blackKeyWidth, blackKeyLength);
                 }
+                ctx.fill()
+                ctx.stroke()
+
             }
         }
-        ctx.fillStyle = 'black';
-        ctx.fill()
+        // ctx.fillStyle = 'black';
+        // ctx.fill()
     }
 
     drawBottomArea(ctx) { 
+        const {leftX, topY, width, height} = this._getRect();
         const {
-            topY,
-            leftX, 
-            width,
-            height,
             bottomAreaHeight,
             windowX,
             whiteKeyWidth,
-            blackKeyWidth
+            blackKeyWidth,
+            maxOctaves
             } = this.drawSettings;
 
         const bottomAreaTop = topY + height - bottomAreaHeight;
         const blackKeyLength = 2/3 * bottomAreaHeight;
-        const maxOctaves = 8;
 
-        this._drawBottomAreaWhiteNotes(ctx, whiteKeyWidth, maxOctaves, leftX, width, windowX, bottomAreaTop, bottomAreaHeight);
-        this._drawBottomAreaBlackNotes(ctx, whiteKeyWidth, blackKeyWidth, maxOctaves, leftX, width, windowX, bottomAreaTop, blackKeyLength);
+        this._drawBottomAreaWhiteKeys(ctx, whiteKeyWidth, maxOctaves, leftX, width, windowX, bottomAreaTop, bottomAreaHeight);
+        this._drawBottomAreaBlackKeys(ctx, whiteKeyWidth, blackKeyWidth, maxOctaves, leftX, width, windowX, bottomAreaTop, blackKeyLength);
     }
 
     drawSelectionBox(ctx) { // TODO: Don't do drag start and drawing selection box when not clicking in the note view
         if (this.dragStart !== null) {
             const mousePosition = this.ui.mousePosition;
-            const leftX = Math.max(this.drawSettings.leftX, Math.min(this.dragStart.x, mousePosition.x));
-            const topY = Math.max(this.drawSettings.topY, Math.min(this.dragStart.y, mousePosition.y));
+            const leftX = Math.max(this.position.x, Math.min(this.dragStart.x, mousePosition.x));
+            const topY = Math.max(this.position.y, Math.min(this.dragStart.y, mousePosition.y));
             let width = Math.abs(this.dragStart.x - mousePosition.x)
             let height = Math.abs(this.dragStart.y - mousePosition.y)
 
@@ -829,21 +817,15 @@ class FallingNotesView extends InteractableUIELement {
 
     }
 
-    // Calculates a notes offset from the left of the view
-    calculateNoteOffsetX(noteValue, leftmostNoteValue, noteWidth) {
-        const fromLeftMost = noteValue - leftmostNoteValue;
-        return noteWidth * fromLeftMost;
-    }
-
     // Calculates a notes offset from the top of the view
     calculateNoteOffsetY(noteDurationMs, noteStartMs) {
-        const {height, timeFromTopToBottomMs, bottomAreaHeight} = this.drawSettings;
+        const {timeFromTopToBottomMs} = this.drawSettings;
         
         const t = (noteStartMs - this.elapsedTimeMs); // Normalization, we now treat the note as being t ms after 0
 
         const tf = t / timeFromTopToBottomMs; // This gives a fraction of how far up the note is from the bottom 
 
-        const noteAreaHeight = height - bottomAreaHeight;
+        const noteAreaHeight = this.size.height - this.drawSettings.bottomAreaHeight;
         const noteHeight = (noteDurationMs / timeFromTopToBottomMs) * noteAreaHeight;
 
         const noteBottom = noteAreaHeight * (1 - tf)
@@ -857,9 +839,10 @@ class FallingNotesView extends InteractableUIELement {
     }
 
     calculateNoteRectangle(note) {
-        const {topY, leftX, windowX, height, timeFromTopToBottomMs, bottomAreaHeight, whiteKeyWidth, blackKeyWidth} = this.drawSettings;
+        const {leftX, topY, width, height} = this._getRect();
+        const {windowX, timeFromTopToBottomMs, bottomAreaHeight, whiteKeyWidth, blackKeyWidth} = this.drawSettings;
 
-        const noteLeftX = -windowX + leftX + this.calculateNoteOffsetX2(note.value, whiteKeyWidth, blackKeyWidth);
+        const noteLeftX = -windowX + leftX + this.calculateNoteOffsetX(note.value, whiteKeyWidth, blackKeyWidth);
         const noteTopY = topY + this.calculateNoteOffsetY(note.durationMs, note.startMs);
 
         const noteAreaHeight = height - bottomAreaHeight;
@@ -925,17 +908,21 @@ class Note {
         this.durationMs = durationMs;
     }
 
-    shift(change) {
-        this.value += change;
+    isWhiteKey() {
+        return Note.noteValueIsWhiteKey(this.noteValue);
+    }
+    isBlackKey() {
+        return Note.noteValueIsBlackKey(this.noteValue);
     }
 
-    isWhiteKey() {
-        const octaveNoteValue = this.value % 12;
+    static noteValueIsWhiteKey(noteValue) { // TODO?: Should this be part of the FallingNotes view instead? It does not really seem like the responsibility of the Note to tell whether it is black or white.
+        const octaveNoteValue = noteValue % 12;
         const types = [true,false,true,false,true,true,false,true,false,true,false,true];
         return types[octaveNoteValue];
     }
-    isBlackKey() {
-        return !this.isWhiteKey();
+
+    static noteValueIsBlackKey(noteValue) { 
+        return !Note.noteValueIsWhiteKey(noteValue)
     }
 
     // Note name is given as a string of 1 or 2 letters and a digit indicating which octave the note is from. Middle C is C4
@@ -978,7 +965,7 @@ function doStuffWithParsedMidiFile() {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const fallingNotesView = new FallingNotesView(canvas, notes);
+    const fallingNotesView = new FallingNotesView({x: 100, y: 50}, {width: 800, height: 450}, notes);
 
     const sliderGeneralDrawSettings = {
         size: {width: 300, height: 30},
@@ -999,8 +986,8 @@ function doStuffWithParsedMidiFile() {
     });
 
     windowXViewSlider.addCallback(value => {
-        const maxOctaves = 8; // TODO: Put this setting into drawSettings
-        const max =  fallingNotesView.drawSettings.whiteKeyWidth * 7 * maxOctaves - fallingNotesView.drawSettings.width;
+        const maxOctaves = fallingNotesView.drawSettings.maxOctaves; // TODO: Put this setting into drawSettings
+        const max =  fallingNotesView.drawSettings.whiteKeyWidth * 7 * maxOctaves - fallingNotesView.size.width;
         fallingNotesView.drawSettings.windowX = value * max;
     })
 
@@ -1020,36 +1007,35 @@ function doStuffWithParsedMidiFile() {
     const dragBoxWidth = 30;
     const viewPositionDragBox = new DragBox({ 
         position: { 
-            x: fallingNotesView.drawSettings.leftX - dragBoxWidth /2,
-            y: fallingNotesView.drawSettings.topY - dragBoxWidth /2
+            x: fallingNotesView.position.x - dragBoxWidth /2,
+            y: fallingNotesView.position.y - dragBoxWidth /2
         }, 
         size: {width: dragBoxWidth, height: dragBoxWidth}, 
         lineWidth: 4
     });
     ui.add(viewPositionDragBox);
     viewPositionDragBox.addCallback(value => {
-        fallingNotesView.drawSettings.leftX = value.x;
-        fallingNotesView.drawSettings.topY = value.y;
-
+        fallingNotesView.updatePosition(value.x, value.y);
 
         viewSizeDragBox.updatePosition(
-            fallingNotesView.drawSettings.leftX + fallingNotesView.drawSettings.width - dragBoxWidth /2,
-            fallingNotesView.drawSettings.topY + fallingNotesView.drawSettings.height - dragBoxWidth /2
+            fallingNotesView.position.x + fallingNotesView.size.width - dragBoxWidth /2,
+            fallingNotesView.position.y + fallingNotesView.size.height - dragBoxWidth /2
         );
     })
 
     const viewSizeDragBox = new DragBox({
         position: {
-            x: fallingNotesView.drawSettings.leftX + fallingNotesView.drawSettings.width - dragBoxWidth /2,
-            y: fallingNotesView.drawSettings.topY + fallingNotesView.drawSettings.height - dragBoxWidth /2
+            x: fallingNotesView.position.x + fallingNotesView.size.width - dragBoxWidth /2,
+            y: fallingNotesView.position.y + fallingNotesView.size.height - dragBoxWidth /2
         }, 
         size: {width: dragBoxWidth, height: dragBoxWidth}, 
         lineWidth: 4
     })
     ui.add(viewSizeDragBox);
     viewSizeDragBox.addCallback(value => {
-        fallingNotesView.drawSettings.width = value.x - fallingNotesView.drawSettings.leftX;
-        fallingNotesView.drawSettings.height = value.y - fallingNotesView.drawSettings.topY;
+        fallingNotesView.size.width = value.x - fallingNotesView.position.x;
+        fallingNotesView.size.height = value.y - fallingNotesView.position.y;
+        fallingNotesView.updatePosition(fallingNotesView.position.x, fallingNotesView.position.y); // TODO: This is an ugly way to update bounding box. Maybe the bounding box should be the only place where I store position and size?
     })
 
     ui.add(fallingNotesView);
