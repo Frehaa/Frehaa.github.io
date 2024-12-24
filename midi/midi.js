@@ -325,9 +325,6 @@ function handleMidiIOglobalMidiChange(event) {
     l('MidiIO globalMidi Change', event);
 }
 
-// #####################################################
-// ##################### MAIN ##########################
-// #####################################################
 
 // Function for handling initializing the UI elements which deal with file transfer
 // The UI elements should be a file input (<input type="file">) element an element which supports drag and drop since the FileReader can only access those files: https://developer.mozilla.org/en-US/docs/Web/API/FileReader
@@ -363,6 +360,36 @@ function initializeDataTransferInterface(fileInput, dragAndDropElement, loadCall
     });
 }
 
+class MidiListener {
+    constructor(midiAccess) {
+        this.midiAccess = midiAccess;
+        // TODO?: Be able to listen for events on specific channels? Or all of them and be told which?
+        const callbacks = {};
+        this.callbacks = callbacks;
+        for (const eventType in MIDI_EVENT) {
+            this.callbacks[MIDI_EVENT[eventType]] = [];
+        }
+
+        midiAccess.inputs.forEach(input => {
+            input.onmidimessage = event => {
+                const data = event.data;
+                let status = data[0] & 0xF0;
+                // const channel = data[0] & 0x0F;
+
+                // If velocity is 0 of a NOTE ON event then it is really a NOTE OFF event
+                if (status === MIDI_EVENT.NOTE_ON && data[2] === 0) { 
+                    status = MIDI_EVENT.NOTE_OFF ;
+                } 
+                callbacks[status].forEach(c => c(data[1], data[2]));
+            }
+        })
+    }
+    addEventListener(eventName, callback) {
+        assert(this.callbacks.hasOwnProperty(eventName), "Invalid event.");
+        this.callbacks[eventName].push(callback);
+    } 
+}
+
 function main() {
     // const canvas = document.getElementById('note-canvas');
     // const filepicker = document.getElementById('file-input');
@@ -374,8 +401,6 @@ function main() {
     // initializeDataTransferInterface(filepicker, canvas, handleFileLoad, errorEvent => l('An error occured trying to handle file loading', errorEvent)) // // TODO: Implement error handling
     
 
-    doStuffWithParsedMidiFile();
-    return 
     const midiState = {
         chunks: null,
         inputs: emptyMap,
@@ -388,49 +413,34 @@ function main() {
 
     // We have put all of the file loading and stuff into its own section. Next I think is to have all of the midi interfacing be part of its own thing
 
-    const notesSet = new Set();
-    const notesMap = new Map();
+    const pressedKeys = new Set();
 
-    requestMidiAccess(midiAccess => { 
-        l("Inputs:", midiAccess.inputs, " - Outputs:", midiAccess.outputs, " - Sysex:", midiAccess.sysexEnabled, midiAccess);
+    let successCount = 0;
+    let failCount = 0;
+    function handleGameKeyPress(noteValue) {
+        const timeMarginMs = 100; // How many milliseconds can be before or after a note should be pressed to the press
 
-        // TODO: Handle disconnects and reconnects
-        midiAccess.onglobalMidichange = event => { l("Global MIDI Change Event Happened", event) };
-
-        midiState.inputs = midiAccess.inputs;
-        midiState.outputs = midiAccess.outputs;
-
-        const midiInputSelect = document.getElementById('midi-input-select');
-        const midiOutputSelect = document.getElementById('midi-output-select');
-        midiState.currentInput = addSelectOptionsAndReturnFirst(midiInputSelect, midiAccess.inputs);
-        midiState.currentOutput = addSelectOptionsAndReturnFirst(midiOutputSelect, midiAccess.outputs);
-        l('Midi state after access success', midiState)    
-
-        initializeMidiInputOutputEventListeners(midiState)
-
-        midiState.inputs.forEach(input => {
-            input.onmidimessage = event => {
-                const data = event.data;
-                const status = data[0] & 0xF0;
-                const channel = data[0] & 0x0F;
-                if (status === MIDI_EVENT.NOTE_OFF || status === MIDI_EVENT.NOTE_ON) {
-                    const velocity = data[2];
-                    const noteValue = data[1];
-                    if (velocity === 0 || status === MIDI_EVENT.NOTE_OFF) { // NOTE OFF EVENT
-                        assert(notesMap.has(noteValue), "NOTE OFF event was sent without the note being registered.")
-                        const note = notesMap.get(noteValue);
-                        notesSet.delete(note);
-                        notesMap.delete(noteValue);
-                    } else { // ACTUALLY A NOTE ON EVENT
-                        const note = new Note(noteValue, 0, 1000);
-                        notesMap.set(noteValue, note);
-                        notesSet.add(note);
-                    }                 
-
-                }
+        let success = false;
+        for (const note of notes) {
+            // If our note press matches a note in notes for the given elapsed time, then success, otherwise failure
+            if (note.value === noteValue && note.startMs - timeMarginMs <= elapsedTimeMs && elapsedTimeMs <= note.startMs + timeMarginMs) {
+                success = true;
+                break;
             }
-        })
+        }
+        if (success) {
+            successCount += 1;
+        } else {
+            failCount += 1;
+        }
+    }
 
+    let midiListener = null;
+    requestMidiAccess(midiAccess => { 
+        midiListener = new MidiListener(midiAccess);
+        midiListener.addEventListener(MIDI_EVENT.NOTE_ON, (noteValue) => {pressedKeys.add(noteValue)});
+        midiListener.addEventListener(MIDI_EVENT.NOTE_OFF, (noteValue) => {pressedKeys.delete(noteValue)});
+        midiListener.addEventListener(MIDI_EVENT.NOTE_ON, handleGameKeyPress);
     } , error => { l(error); alert("This browser does not seem to support the MIDI Web API used by this page. Error: " + error.toString()); })
 
 
@@ -449,29 +459,73 @@ function main() {
     const canvas = document.getElementById('note-canvas');
     const ctx = canvas.getContext('2d');
 
-    const fallingNotesView = new FallingNotesView({
-        leftX: 100, 
-        topY: 50,
-        width: 800,
-        height: 500
-    }, notesSet);
 
 
-    let elapsedTime = 0;
+    let playing = true;
+
+    document.addEventListener('keydown', e =>{
+        // l(e)
+        if (e.code === 'Space') playing = !playing;
+    })
+
+    const notes = [
+        new Note(60, 1000, 250),
+        new Note(64, 1250, 250),
+        new Note(67, 1500, 250),
+    ];
+
+    // Press Any Key to Start
+    // We 
+
+
+    const startTime = 1000;
+    const noteDuration = 250;
+    for (let i = 0; i < 190; i++) {
+        notes.push(
+            new Note(60, startTime + i * 3 * noteDuration, noteDuration),
+            new Note(64, startTime + noteDuration + i * 3 * noteDuration, noteDuration),
+            new Note(67, startTime + 2 * noteDuration + i * 3 * noteDuration, noteDuration),
+        )
+    }
+
+
+    function findNotesByTime(notes, timeMs) {
+        return notes.filter(n => n.startMs <= timeMs && timeMs <= n.startMs + n.durationMs);
+    }
+
+    const fallingNotesView = new FallingNotesView({x: 100, y: 50}, {width: 800, height: 500}, notes, pressedKeys)
+    fallingNotesView.drawSettings.windowX = 500;
+    let elapsedTimeMs = 0;
     let previousTime = 0;
     function draw(time) {
         let dt = time - previousTime;
-        elapsedTime += dt;
-        l(previousTime, time, elapsedTime, dt)
+        if (playing) {
+            elapsedTimeMs += dt;
+        }
+        // l(previousTime, time, elapsedTime, dt)
         previousTime = time;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // TODO: I really like the strong border lines that happens when not clearing between draws. How can we make sure they are always like that? I think I dislike the blurry borders.
+        fallingNotesView.setElapsedTimeMs(elapsedTimeMs);
         fallingNotesView.draw(ctx);
+        
+        ctx.font = "18px Ariel"
+        ctx.fillText(playing? "Playing" : "Paused", 910, 60);
+        ctx.fillText("Timer:" + (elapsedTimeMs/1000).toFixed(0) + "s", 910, 80);
+        ctx.fillText("Delta Time:" + dt.toFixed(0) + "ms", 910, 100);
+        ctx.fillText("Time:" + time.toFixed(0) + "ms", 910, 120);
+
+        ctx.font = "24px Ariel"
+        ctx.fillText("Successes:" + successCount, 910, 160);
+        ctx.fillText("Failures:" + failCount, 910, 180);
+
         requestAnimationFrame(draw)
     }
     requestAnimationFrame(time => {
         previousTime = time;
         draw(time);
     });
+
+     
 
 
    
@@ -657,9 +711,7 @@ class FallingNotesView extends InteractableUIELement {
         if (this.dragStart !== null) {
             this.selectedElements = this.boxedElements;
             this.boxedElements = [];
-            // l(this.selectedElements, this.notes)
             this.dragStart = null;
-            
 
 
             if (this.selectedElements.length > 0) return false;
@@ -839,7 +891,7 @@ class FallingNotesView extends InteractableUIELement {
     }
 
     calculateNoteRectangle(note) {
-        const {leftX, topY, width, height} = this._getRect();
+        const {leftX, topY, height} = this._getRect();
         const {windowX, timeFromTopToBottomMs, bottomAreaHeight, whiteKeyWidth, blackKeyWidth} = this.drawSettings;
 
         const noteLeftX = -windowX + leftX + this.calculateNoteOffsetX(note.value, whiteKeyWidth, blackKeyWidth);
@@ -909,10 +961,10 @@ class Note {
     }
 
     isWhiteKey() {
-        return Note.noteValueIsWhiteKey(this.noteValue);
+        return Note.noteValueIsWhiteKey(this.value);
     }
     isBlackKey() {
-        return Note.noteValueIsBlackKey(this.noteValue);
+        return Note.noteValueIsBlackKey(this.value);
     }
 
     static noteValueIsWhiteKey(noteValue) { // TODO?: Should this be part of the FallingNotes view instead? It does not really seem like the responsibility of the Note to tell whether it is black or white.
