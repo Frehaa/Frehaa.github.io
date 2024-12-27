@@ -20,3 +20,26 @@ function d(...m) {
 [].__proto__.clear = function() {
     this.splice(0, this.length);
 }
+
+function getTextHeight(ctx, text) {
+    const textMetrics = ctx.measureText(text);
+    return textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
+}
+
+function isNullOrUndefined(o) {
+    return o === null || o === undefined;
+}
+
+function isSorted(values) {
+    if (values.length === 0) return true;
+    let result = true;
+    let current = values[0];
+    for (let i = 1; i < values.length; i++) {
+        const value = values[i];
+        if (value < current) {
+            result = false;
+            break;
+        }
+    }
+    return result;
+}
