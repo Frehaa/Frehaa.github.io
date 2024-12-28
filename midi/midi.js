@@ -243,23 +243,72 @@ class MidiListener {
 }
 
 class TrainingGameManager {
+    togglePause() { 
+        l('pause');
+        this.settings.paused = !this.settings.paused; 
+    }
+    _getEarliestNoteTime(notes) {
+        return Math.min(...notes.map(n => n.startMs));
+    }
+    reset() { 
+        this.elapsedTimeMs = this.resetTime; 
+        this.successNotes.clear();
+        this.failedNotes.clear();
+    }
+    // TODO: Make speed ups and downs in a set interval
+    speedUp() { 
+        this.settings.speedMultiplier = Math.min(5, this.settings.speedMultiplier + this.settings.speedIncrement); 
+    } 
+    speedDown() { 
+        this.settings.speedMultiplier = Math.max(0.1, this.settings.speedMultiplier - this.settings.speedIncrement); 
+    } 
+
+    setSavePoint() {
+        this.resetTime = this.elapsedTimeMs;
+    } 
+    static CONTROL_KEYS = {
+        21: m => m.togglePause(),
+        23: m => m.reset(), 
+        25: m => m.speedDown(),
+        27: m => m.speedUp(),
+        108: m => m.setSavePoint(),
+    }
     constructor(midiAccess) {
         this.notesToPlay = new Set();
         this.pressedKeys = new Set();
         this.successNotes = new Set();
         this.failedNotes = new Set();
+        this.controlKeys = new Set(Object.keys(TrainingGameManager.CONTROL_KEYS).map(v => Number(v))) // TODO: Let this be set somewhere else? LOW PRIORITY
         this.settings = {
-            startTime: 3000 // TODO: Base this off of the tact to play in i.e. wait one octave in the speed of the song 
+            startWaitMs: 1500, // TODO: Base this off of the tact to play in i.e. wait one octave in the speed of the song 
+            speedMultiplier: 1,
+            speedIncrement: 0.1,
+            paused: false
         }
+        this.resetTime = 0;
         this.elapsedTimeMs = 0; // TODO: Base this off of first note to play - some start time
 
         this.midiListener = new MidiListener(midiAccess);
         this.midiListener.addEventListener(MIDI_EVENT.NOTE_ON, (noteValue) => {this.pressedKeys.add(noteValue)});
         this.midiListener.addEventListener(MIDI_EVENT.NOTE_OFF, (noteValue) => {this.pressedKeys.delete(noteValue)});
-        this.midiListener.addEventListener(MIDI_EVENT.NOTE_ON, noteValue => this.handleGameKeyPress(noteValue));
+        this.midiListener.addEventListener(MIDI_EVENT.NOTE_ON, noteValue => this.handleKeyPress(noteValue));
 
         this.failedPressCount = 0;
     }
+
+    setNotesToPlay(notesToPlay) {
+        this.notesToPlay = new Set(notesToPlay);
+        this.successNotes = new Set();
+        this.failedNotes = new Set();
+        this.resetTime = this._getEarliestNoteTime(notesToPlay) - m.settings.startWaitMs;
+        this.reset(this);
+    }
+
+    incrementElapsedTime(deltaTimeMs) {
+        if (this.settings.paused) { return; }
+        this.elapsedTimeMs += deltaTimeMs * this.settings.speedMultiplier;
+    }
+
     getNoteType(note) {
         if (this.successNotes.has(note)) {
             return "success"
@@ -271,8 +320,23 @@ class TrainingGameManager {
             return "unknown"
         }
     }
+
     isKeyPressed(noteValue) {
         return this.pressedKeys.has(noteValue);
+    }
+
+    handleKeyPress(noteValue) {
+        l('Pressed:', noteValue)
+        if (this.controlKeys.has(noteValue)) {
+            this.handleControlKeyPress(noteValue);
+        } else {
+            this.handleGameKeyPress(noteValue);
+        }
+    }
+
+    handleControlKeyPress(noteValue) {
+        l(noteValue)
+        TrainingGameManager.CONTROL_KEYS[noteValue](this);
     }
 
     handleGameKeyPress(noteValue) {
@@ -293,7 +357,6 @@ class TrainingGameManager {
             this.failedPressCount += 1
         }
     }
-    
 
     checkForFailedNotes() {
         for (const note of this.notesToPlay) {
@@ -319,35 +382,22 @@ function main() {
     // initializeDataTransferInterface(filepicker, canvas, handleFileLoad, errorEvent => l('An error occured trying to handle file loading', errorEvent)) // // TODO: Implement error handling
     
 
-    const midiState = {
-        chunks: null,
-        inputs: emptyMap,
-        outputs: emptyMap,
-        currentInput: emptyIO,
-        currentOutput: emptyIO,
-        pause: false,
-        speedMultiplier: 1
-    };
+    // const midiState = {
+    //     chunks: null,
+    //     inputs: emptyMap,
+    //     outputs: emptyMap,
+    //     currentInput: emptyIO,
+    //     currentOutput: emptyIO,
+    //     pause: false,
+    //     speedMultiplier: 1
+    // };
 
     // We have put all of the file loading and stuff into its own section. Next I think is to have all of the midi interfacing be part of its own thing
 
-    // TODO: Make it more clear when I hit or don't hit a key
-    // TODO: Restart section 
-    // TODO: Interface for selecting section
+    // TODO: Interface for selecting section. This requires selection box to work and to have a scroll of the view when paused. 
 
-
-    let trainingGameManager = null;
     requestMidiAccess(midiAccess => { 
-        trainingGameManager = new TrainingGameManager(midiAccess);
-        trainingGameManager.notesToPlay = new Set(notes)
-
-        requestAnimationFrame(time => {
-            previousTime = time;
-            draw(time);
-        });
-
-
-
+        startTrainingGame(midiAccess)
     } , error => { l(error); alert("This browser does not seem to support the MIDI Web API used by this page. Error: " + error.toString()); })
 
 
@@ -363,82 +413,88 @@ function main() {
     // Maybe a first step is to create something where the FallingNotesView shows the key pressed in the bottom? 
     // To do this, I simply want from the interface to tell me when a key is pressed and released so I can add and remove it from a set
 
-    const canvas = document.getElementById('note-canvas');
-    const ctx = canvas.getContext('2d');
+    function startTrainingGame(midiAccess) {
+        const trainingGameManager = new TrainingGameManager(midiAccess);
 
-    let playing = true;
-    document.addEventListener('keydown', e =>{
-        if (e.code === 'Space') playing = !playing;
-    })
+        const canvas = document.getElementById('note-canvas');
+        const ctx = canvas.getContext('2d');
 
-    const startTime = 1000;
-    const noteDuration = 250;
-    const notes = [];
-    for (let i = 0; i < 190; i++) {
-        notes.push(
-            new Note(60, startTime + i * 3 * noteDuration, noteDuration),
-            new Note(64, startTime + noteDuration + i * 3 * noteDuration, noteDuration),
-            new Note(67, startTime + 2 * noteDuration + i * 3 * noteDuration, noteDuration),
-        )
-    }
+        document.addEventListener('keydown', e =>{
+            if (e.code === 'Space') {trainingGameManager.togglePause();}
+        })
 
-    function customNoteFill(note) {
-        switch (trainingGameManager.getNoteType(note)) {
-            case "success": { 
-                ctx.fillStyle = 'rgb(36, 180, 67)'
-            } break;
-            case "failed": { 
-                ctx.fillStyle = 'rgb(231, 0, 0)'
-            } break;
-            case "play": { 
-                ctx.fillStyle = 'rgb(0, 0, 0)'
-            } break;
-            case "unknown": { 
-                ctx.fillStyle = 'rgba(182, 212, 212, 0.15)'
-            } break;
+        const startTime = 1000;
+        const noteDuration = 250;
+        const notes = [];
+        for (let i = 0; i < 190; i++) {
+            notes.push(
+                new Note(60, startTime + i * 3 * noteDuration, noteDuration),
+                new Note(64, startTime + noteDuration + i * 3 * noteDuration, noteDuration),
+                new Note(67, startTime + 2 * noteDuration + i * 3 * noteDuration, noteDuration),
+            )
         }
-        return true;
-    }
 
-    function customKeyFill(noteValue) {
-        if (trainingGameManager.isKeyPressed(noteValue)) {
-            ctx.fillStyle = 'red'
+        trainingGameManager.setNotesToPlay(notes);
+
+        function customNoteFill(note) {
+            switch (trainingGameManager.getNoteType(note)) {
+                case "success": { 
+                    ctx.fillStyle = 'rgb(36, 180, 67)'
+                } break;
+                case "failed": { 
+                    ctx.fillStyle = 'rgb(231, 0, 0)'
+                } break;
+                case "play": { 
+                    ctx.fillStyle = 'rgb(0, 0, 0)'
+                } break;
+                case "unknown": { 
+                    ctx.fillStyle = 'rgba(182, 212, 212, 0.15)'
+                } break;
+            }
             return true;
         }
-    }
 
-
-    const fallingNotesView = new FallingNotesView({x: 100, y: 50}, {width: 800, height: 500}, notes, customNoteFill, customKeyFill);
-    fallingNotesView.drawSettings.windowX = 500;
-    let timeMultiplier = 0.5;
-    let elapsedTimeMs = 0;
-    let previousTime = 0;
-    function draw(time) {
-        let dt = time - previousTime;
-        if (playing) {
-            elapsedTimeMs += dt * timeMultiplier;
-            trainingGameManager.elapsedTimeMs = elapsedTimeMs;
+        function customKeyFill(noteValue) {
+            if (trainingGameManager.isKeyPressed(noteValue)) {
+                ctx.fillStyle = 'red'
+                return true;
+            }
         }
 
-        trainingGameManager.checkForFailedNotes();
+        const fallingNotesView = new FallingNotesView({x: 100, y: 50}, {width: 800, height: 500}, notes, customNoteFill, customKeyFill,{windowX: 500});
 
-        // l(previousTime, time, elapsedTime, dt)
-        previousTime = time;
-        ctx.clearRect(0, 0, canvas.width, canvas.height); // TODO: I really like the strong border lines that happens when not clearing between draws. How can we make sure they are always like that? I think I dislike the blurry borders.
-        fallingNotesView.setElapsedTimeMs(elapsedTimeMs);
-        fallingNotesView.draw(ctx);
-        
-        ctx.font = "18px Ariel"
-        ctx.fillText(playing? "Playing" : "Paused", 910, 60);
-        ctx.fillText("Timer:" + (elapsedTimeMs/1000).toFixed(0) + "s", 910, 80);
-        ctx.fillText("Delta Time:" + dt.toFixed(0) + "ms", 910, 100);
-        ctx.fillText("Time:" + time.toFixed(0) + "ms", 910, 120);
+        let previousTime = 0;
+        function draw(time) {
+            let dt = time - previousTime;
+            previousTime = time;
+            //! Update
+            trainingGameManager.incrementElapsedTime(dt); // Automatically checks if paused
+            trainingGameManager.checkForFailedNotes();
 
-        ctx.font = "24px Ariel"
-        ctx.fillText("Successes:" + trainingGameManager.successNotes.size + " / " + trainingGameManager.notesToPlay.size, 910, 160);
-        ctx.fillText("Failures:" + trainingGameManager.getFailedNotesCount(), 910, 180);
+            //! Drawing
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // TODO: I really like the strong border lines that happens when not clearing between draws. How can we make sure they are always like that? I think I dislike the blurry borders.
+            fallingNotesView.setElapsedTimeMs(trainingGameManager.elapsedTimeMs);
+            fallingNotesView.draw(ctx);
+            
+            
+            //! Debug info
+            ctx.font = "18px Ariel"
+            ctx.fillText(trainingGameManager.settings.paused? "Paused" : "Playing", 910, 60);
+            ctx.fillText("Timer:" + (trainingGameManager.elapsedTimeMs/1000).toFixed(0) + "s", 910, 80);
+            ctx.fillText("Delta Time:" + dt.toFixed(0) + "ms", 910, 100);
+            ctx.fillText("Time:" + time.toFixed(0) + "ms", 910, 120);
 
-        requestAnimationFrame(draw)
+            ctx.font = "24px Ariel"
+            ctx.fillText("Successes:" + trainingGameManager.successNotes.size + " / " + trainingGameManager.notesToPlay.size, 910, 160);
+            ctx.fillText("Failures:" + trainingGameManager.getFailedNotesCount(), 910, 180);
+
+            requestAnimationFrame(draw)
+        }
+
+        requestAnimationFrame(time => {
+            previousTime = time;
+            draw(time);
+        });
     }
 
     return ;
