@@ -1,12 +1,6 @@
-class Slider {
+ // Requires loading the ui.js file before the slider
+class Slider extends InteractableUIELement {
     // TODO if maybe some stuff is common for vertical and horizontal sliders
-}
-
-class VerticalSlider {
-    // TODO if I want to create a general class for vertical sliders too
-}
-
-class HorizontalSlider extends InteractableUIELement { // Requires loading the ui.js file before the slider
     constructor({position, size, lineWidth, initialSliderMarkerRatio}) {
         const boundingBoxPosition = { x: position.x - size.height/2, y: position.y };
         const boundingBoxSize = { width: size.width + size.height, height: size.height };
@@ -29,35 +23,9 @@ class HorizontalSlider extends InteractableUIELement { // Requires loading the u
             slider.sliderMarkerRatio = (value - slider.state.min) / (slider.state.max - slider.state.min);
         })
     }
-    draw(ctx) {
-        const leftX = this.position.x;
-        const topY = this.position.y;
-        const {width, height} = this.size;
-        const centerY = topY + height /2;
-
-        ctx.strokeStyle = 'black';
-        ctx.lineWidth = this.lineWidth
-
-        ctx.beginPath()
-        ctx.arc(leftX + width, centerY, height / 2, -Math.PI/2, Math.PI/2, false);
-        ctx.arc(leftX, centerY, height / 2, Math.PI/2, -Math.PI/2, false);
-        ctx.closePath()
-        ctx.stroke()
-
-        if (this.isDragging){
-            this._fillCircle(ctx, lerp(leftX, leftX + width, this.sliderMarkerRatio), centerY, height / 2 + this.lineWidth)
-        } else {
-            this._fillCircle(ctx, lerp(leftX, leftX + width, this.sliderMarkerRatio), centerY, height / 2 - 2)
-        }
+    draw(ctx) { throw new Error('Use either HorizontalSlider or VerticalSlider') }
 
 
-    }
-
-    updateState(position) { 
-        const x = clamp(position.x, this.position.x, this.position.x + this.size.width);
-        const percentage = (x - this.position.x) / this.size.width;
-        this._setValue(lerp(this.state.min, this.state.max, percentage));
-    }
     mouseDown(event) {
         const mousePosition = this.ui.mousePosition;
         if (!this.bufferedBoundingBox.contains(mousePosition)) return;
@@ -83,5 +51,71 @@ class HorizontalSlider extends InteractableUIELement { // Requires loading the u
     _setValue(value) {
         this.state.value = value;
         this.triggerCallbacks(value);
+    }
+
+}
+
+class VerticalSlider extends Slider {
+    constructor(settings) {
+        super(settings);
+    }
+    draw(ctx) {
+        const leftX = this.position.x;
+        const topY = this.position.y;
+        const {width, height} = this.size;
+        const centerX = leftX + width /2;
+
+        ctx.beginPath()
+        ctx.arc(centerX, topY + height, width / 2, 0, Math.PI, false);
+        ctx.arc(centerX, topY,          width / 2, Math.PI, 0, false);
+        ctx.closePath()
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = this.lineWidth
+        ctx.stroke()
+
+        if (this.isDragging){
+            this._fillCircle(ctx, centerX, lerp(topY, topY + height, this.sliderMarkerRatio), width / 2 + this.lineWidth)
+        } else {
+            this._fillCircle(ctx, centerX, lerp(topY, topY + height, this.sliderMarkerRatio), width / 2 - 2)
+        }
+    }
+    updateState(position) { 
+        const y = clamp(position.y, this.position.y, this.position.y + this.size.height);
+        const percentage = (y - this.position.y) / this.size.height;
+        this._setValue(lerp(this.state.min, this.state.max, percentage));
+    }
+}
+
+class HorizontalSlider extends Slider { 
+    constructor(settings) {
+        super(settings);
+    }
+    draw(ctx) {
+        const leftX = this.position.x;
+        const topY = this.position.y;
+        const {width, height} = this.size;
+        const centerY = topY + height /2;
+
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = this.lineWidth
+
+        ctx.beginPath()
+        ctx.arc(leftX + width, centerY, height / 2, -Math.PI/2, Math.PI/2, false);
+        ctx.arc(leftX, centerY, height / 2, Math.PI/2, -Math.PI/2, false);
+        ctx.closePath()
+        ctx.stroke()
+
+        if (this.isDragging){
+            this._fillCircle(ctx, lerp(leftX, leftX + width, this.sliderMarkerRatio), centerY, height / 2 + this.lineWidth)
+        } else {
+            this._fillCircle(ctx, lerp(leftX, leftX + width, this.sliderMarkerRatio), centerY, height / 2 - 2)
+        }
+
+
+    }
+    updateState(position) { 
+        const x = clamp(position.x, this.position.x, this.position.x + this.size.width);
+        const percentage = (x - this.position.x) / this.size.width;
+        this._setValue(lerp(this.state.min, this.state.max, percentage));
     }
 }
