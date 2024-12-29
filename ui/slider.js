@@ -2,8 +2,8 @@
 class Slider extends InteractableUIELement {
     // TODO if maybe some stuff is common for vertical and horizontal sliders
     constructor({position, size, lineWidth, initialSliderMarkerRatio}) {
-        const boundingBoxPosition = { x: position.x - size.height/2, y: position.y };
-        const boundingBoxSize = { width: size.width + size.height, height: size.height };
+        const boundingBoxPosition = { x: position.x, y: position.y };
+        const boundingBoxSize = { width: size.width, height: size.height };
         super(boundingBoxPosition, boundingBoxSize, 5)
 
         this.position = position;
@@ -65,23 +65,32 @@ class VerticalSlider extends Slider {
         const {width, height} = this.size;
         const centerX = leftX + width /2;
 
+        const circleTop = topY + width / 2;
+        const circleBottom = topY + height - width / 2;
+
         ctx.beginPath()
-        ctx.arc(centerX, topY + height, width / 2, 0, Math.PI, false);
-        ctx.arc(centerX, topY,          width / 2, Math.PI, 0, false);
+        ctx.arc(centerX, circleBottom, width / 2, 0, Math.PI, false);
+        ctx.arc(centerX, circleTop,    width / 2, Math.PI, 0, false);
         ctx.closePath()
         ctx.strokeStyle = 'black';
         ctx.lineWidth = this.lineWidth
         ctx.stroke()
 
+
+
         if (this.isDragging){
-            this._fillCircle(ctx, centerX, lerp(topY, topY + height, this.sliderMarkerRatio), width / 2 + this.lineWidth)
+            this._fillCircle(ctx, centerX, lerp(circleTop, circleBottom, this.sliderMarkerRatio), width / 2 + this.lineWidth)
         } else {
-            this._fillCircle(ctx, centerX, lerp(topY, topY + height, this.sliderMarkerRatio), width / 2 - 2)
+            this._fillCircle(ctx, centerX, lerp(circleTop, circleBottom, this.sliderMarkerRatio), width / 2 - 2)
         }
+        this.bufferedBoundingBox.draw(ctx)
     }
     updateState(position) { 
-        const y = clamp(position.y, this.position.y, this.position.y + this.size.height);
-        const percentage = (y - this.position.y) / this.size.height;
+        const circleTop = this.position.y + this.size.width / 2;
+        const circleBottom = this.position.y + this.size.height - this.size.width / 2;
+
+        const y = clamp(position.y, circleTop, circleBottom);
+        const percentage = (y - circleTop) / (circleBottom - circleTop);
         this._setValue(lerp(this.state.min, this.state.max, percentage));
     }
 }
@@ -110,10 +119,8 @@ class HorizontalSlider extends Slider {
         } else {
             this._fillCircle(ctx, lerp(leftX, leftX + width, this.sliderMarkerRatio), centerY, height / 2 - 2)
         }
-
-
     }
-    updateState(position) { 
+    updateState(position) {  // TODO: Fix like for vertical slider. Right now the ball doesn't center perfectly around the mouse
         const x = clamp(position.x, this.position.x, this.position.x + this.size.width);
         const percentage = (x - this.position.x) / this.size.width;
         this._setValue(lerp(this.state.min, this.state.max, percentage));
