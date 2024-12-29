@@ -244,7 +244,6 @@ class MidiListener {
 
 class TrainingGameManager {
     togglePause() { 
-        l('pause');
         this.settings.paused = !this.settings.paused; 
     }
     _getEarliestNoteTime(notes) {
@@ -254,6 +253,7 @@ class TrainingGameManager {
         this.elapsedTimeMs = this.resetTime; 
         this.successNotes.clear();
         this.failedNotes.clear();
+        this.failedPressCount = 0;
     }
     // TODO: Make speed ups and downs in a set interval
     speedUp() { 
@@ -266,7 +266,7 @@ class TrainingGameManager {
     setSavePoint() {
         this.resetTime = this.elapsedTimeMs;
     } 
-    static CONTROL_KEYS = {
+    static CONTROL_KEYS = { // TODO: Let these be set somewhere else? LOW PRIORITY
         21: m => m.togglePause(),
         23: m => m.reset(), 
         25: m => m.speedDown(),
@@ -278,7 +278,7 @@ class TrainingGameManager {
         this.pressedKeys = new Set();
         this.successNotes = new Set();
         this.failedNotes = new Set();
-        this.controlKeys = new Set(Object.keys(TrainingGameManager.CONTROL_KEYS).map(v => Number(v))) // TODO: Let this be set somewhere else? LOW PRIORITY
+        this.controlKeys = new Set(Object.keys(TrainingGameManager.CONTROL_KEYS).map(v => Number(v))); // Set of piano keys reserved for controlling the game
         this.settings = {
             startWaitMs: 1500, // TODO: Base this off of the tact to play in i.e. wait one octave in the speed of the song 
             speedMultiplier: 1,
@@ -286,7 +286,8 @@ class TrainingGameManager {
             paused: false
         }
         this.resetTime = 0;
-        this.elapsedTimeMs = 0; // TODO: Base this off of first note to play - some start time
+        this.elapsedTimeMs = 0; 
+        this.maxTime = 0;
 
         this.midiListener = new MidiListener(midiAccess);
         this.midiListener.addEventListener(MIDI_EVENT.NOTE_ON, (noteValue) => {this.pressedKeys.add(noteValue)});
@@ -296,11 +297,17 @@ class TrainingGameManager {
         this.failedPressCount = 0;
     }
 
+    getMaxTime() {
+        return this.maxTime; 
+    }
+
     setNotesToPlay(notesToPlay) {
         this.notesToPlay = new Set(notesToPlay);
+        assert(this.controlKeys.intersection(this.notesToPlay).size === 0, "There should be no overlap in notes to play and control keys");
+        this.maxTime = 200000
         this.successNotes = new Set();
         this.failedNotes = new Set();
-        this.resetTime = this._getEarliestNoteTime(notesToPlay) - m.settings.startWaitMs;
+        this.resetTime = this._getEarliestNoteTime(notesToPlay) - this.settings.startWaitMs;
         this.reset(this);
     }
 
@@ -372,6 +379,11 @@ class TrainingGameManager {
 }
 
 function main() {
+
+    // doStuffWithParsedMidiFile();return
+
+    // TODO: Make the experience of opening the page less annoying with the constant popup. There should be some better flow. We only ask for access when you want to start practicing. Maybe we can use a default song even, so you don't have to find a MIDI file. 
+
     // const canvas = document.getElementById('note-canvas');
     // const filepicker = document.getElementById('file-input');
     // function handleFileLoad(arrayBuffer) {
@@ -396,12 +408,12 @@ function main() {
 
     // TODO: Interface for selecting section. This requires selection box to work and to have a scroll of the view when paused. 
 
-    requestMidiAccess(midiAccess => { 
-        startTrainingGame(midiAccess)
-    } , error => { l(error); alert("This browser does not seem to support the MIDI Web API used by this page. Error: " + error.toString()); })
+    startTrainingGame({inputs: []}) // TODO: Make this less annoying
 
+    // requestMidiAccess(midiAccess => { 
+    //     startTrainingGame(midiAccess)
+    // } , error => { l(error); alert("This browser does not seem to support the MIDI Web API used by this page. Error: " + error.toString()); })
 
-    // TODO: GET MIDI ACCESS STUFF WORKING
 
 
     // What do I mean by "working" here? 
@@ -435,7 +447,7 @@ function main() {
         }
 
         trainingGameManager.setNotesToPlay(notes);
-
+        trainingGameManager.togglePause();
         function customNoteFill(note) {
             switch (trainingGameManager.getNoteType(note)) {
                 case "success": { 
@@ -453,7 +465,6 @@ function main() {
             }
             return true;
         }
-
         function customKeyFill(noteValue) {
             if (trainingGameManager.isKeyPressed(noteValue)) {
                 ctx.fillStyle = 'red'
@@ -461,7 +472,27 @@ function main() {
             }
         }
 
+        const ui = new UI();
+        const elapsedTimeSlider = new VerticalSlider({
+            position: {x: 910, y: 70},
+            size: {width: 30, height: 360},
+            lineWidth: 3,
+            initialSliderMarkerRatio: 1.0
+        });
+
+        elapsedTimeSlider.addCallback(value => {
+            const maxTime = trainingGameManager.getMaxTime();
+            trainingGameManager.elapsedTimeMs = maxTime * (1 - value); // Inverse direction
+        })
+        ui.add(elapsedTimeSlider);
         const fallingNotesView = new FallingNotesView({x: 100, y: 50}, {width: 800, height: 500}, notes, customNoteFill, customKeyFill,{windowX: 500});
+
+        ui.add(fallingNotesView);
+
+        canvas.addEventListener('mousemove', e => ui.mouseMove(e));
+        canvas.addEventListener('mousedown', e => ui.mouseDown(e));
+        canvas.addEventListener('mouseup', e => ui.mouseUp(e));
+        
 
         let previousTime = 0;
         function draw(time) {
@@ -469,24 +500,27 @@ function main() {
             previousTime = time;
             //! Update
             trainingGameManager.incrementElapsedTime(dt); // Automatically checks if paused
+            elapsedTimeSlider.sliderMarkerRatio = 1 - (trainingGameManager.elapsedTimeMs / trainingGameManager.getMaxTime());
             trainingGameManager.checkForFailedNotes();
 
             //! Drawing
             ctx.clearRect(0, 0, canvas.width, canvas.height); // TODO: I really like the strong border lines that happens when not clearing between draws. How can we make sure they are always like that? I think I dislike the blurry borders.
             fallingNotesView.setElapsedTimeMs(trainingGameManager.elapsedTimeMs);
-            fallingNotesView.draw(ctx);
+
+            ui.draw(ctx);
             
             
             //! Debug info
+            const debugInfoLeftX = 950;
             ctx.font = "18px Ariel"
-            ctx.fillText(trainingGameManager.settings.paused? "Paused" : "Playing", 910, 60);
-            ctx.fillText("Timer:" + (trainingGameManager.elapsedTimeMs/1000).toFixed(0) + "s", 910, 80);
-            ctx.fillText("Delta Time:" + dt.toFixed(0) + "ms", 910, 100);
-            ctx.fillText("Time:" + time.toFixed(0) + "ms", 910, 120);
+            ctx.fillText(trainingGameManager.settings.paused? "Paused" : "Playing", debugInfoLeftX, 60);
+            ctx.fillText("Timer:" + (trainingGameManager.elapsedTimeMs/1000).toFixed(0) + "s", debugInfoLeftX, 80);
+            ctx.fillText("Delta Time:" + dt.toFixed(0) + "ms", debugInfoLeftX, 100);
+            ctx.fillText("Time:" + time.toFixed(0) + "ms", debugInfoLeftX, 120);
 
             ctx.font = "24px Ariel"
-            ctx.fillText("Successes:" + trainingGameManager.successNotes.size + " / " + trainingGameManager.notesToPlay.size, 910, 160);
-            ctx.fillText("Failures:" + trainingGameManager.getFailedNotesCount(), 910, 180);
+            ctx.fillText("Successes:" + trainingGameManager.successNotes.size + " / " + trainingGameManager.notesToPlay.size, debugInfoLeftX, 160);
+            ctx.fillText("Failures:" + trainingGameManager.getFailedNotesCount(), debugInfoLeftX, 180);
 
             requestAnimationFrame(draw)
         }
@@ -642,8 +676,7 @@ function doStuffWithParsedMidiFile() {
     });
 
     windowXViewSlider.addCallback(value => {
-        const maxOctaves = fallingNotesView.drawSettings.maxOctaves; // TODO: Put this setting into drawSettings
-        const max =  fallingNotesView.drawSettings.whiteKeyWidth * 7 * maxOctaves - fallingNotesView.size.width;
+        const max =  fallingNotesView.drawSettings.whiteKeyWidth * 7 * fallingNotesView.drawSettings.maxOctaves - fallingNotesView.size.width;
         fallingNotesView.drawSettings.windowX = value * max;
     })
 
