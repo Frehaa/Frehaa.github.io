@@ -23,6 +23,19 @@ class FallingNotesView extends InteractableUIELement {
         this.notes = fallingNotes || [];
         this.customKeyFill = customDrawKey || (_ => false); 
         this.customNoteFill = customDrawNote || (_ => {});
+
+        this.shiftKeyDown = false;
+    }
+    getNoteType(note) {
+        if (this.hoverNote === note) {
+            return 'hovered'
+        } else if (this.selectedElements.includes(note)) {
+            return 'selected'
+        } else if (this.boxedElements.includes(note)) {
+            return 'boxed'
+        } else {
+            return 'normal';
+        }
     }
 
     setElapsedTimeMs(elapsedTimeMs) {
@@ -73,7 +86,7 @@ class FallingNotesView extends InteractableUIELement {
         ctx.fillRect(noteLeft, noteTop, noteWidth, noteHeight);
     }
 
-    mouseMove(e) {
+    mouseMove(e) { // TODO: Selection box should not be enabled when playing and it should be possible to 
         this.hoverNote = null;
         const mousePosition = this.ui.mousePosition;
         if (this.dragStart !== null) {
@@ -104,7 +117,6 @@ class FallingNotesView extends InteractableUIELement {
     }
 
     draw(ctx) {
-
         ctx.lineWidth = 1;
         ctx.strokeStyle = 'black';
         this.drawNotes(ctx);
@@ -121,11 +133,11 @@ class FallingNotesView extends InteractableUIELement {
     }
 
     // TODO: If the user clicks directly on a unit, should it be selected without boxing, or should we still initiate box if we are dragging? Maybe we can do both?
-    mouseDown(e) {
+    mouseDown(e) { // TODO: Shift click does not clear selected elements
         if (!this.bufferedBoundingBox.contains(this.ui.mousePosition)) return;
         // Boxing functionality 
         if (e.button === LEFT_MOUSE_BUTTON) { // TODO: Check that the mouse postition is inside the note view 
-            this.selectedElements = []
+            if (!this.shiftKeyDown) { this.selectedElements.clear(); }
             this.dragStart = this.ui.mousePosition;
         }
     }
@@ -135,10 +147,11 @@ class FallingNotesView extends InteractableUIELement {
         // Boxing functionality
         if (e.button !== LEFT_MOUSE_BUTTON) return false;
         if (this.dragStart !== null) {
-            this.selectedElements = this.boxedElements;
+            l(this.selectedElements, this.boxedElements);
+            this.selectedElements = this.selectedElements.concat(...this.boxedElements);
+            l(this.selectedElements);
             this.boxedElements = [];
             this.dragStart = null;
-
 
             if (this.selectedElements.length > 0) return false;
             const mousePosition = this.ui.mousePosition;

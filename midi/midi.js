@@ -245,6 +245,7 @@ class MidiListener {
 class TrainingGameManager {
     togglePause() { 
         this.settings.paused = !this.settings.paused; 
+        this.callbacks['pause'].forEach(c => (c(this.settings.paused)));
     }
     _getEarliestNoteTime(notes) {
         return Math.min(...notes.map(n => n.startMs));
@@ -295,10 +296,18 @@ class TrainingGameManager {
         this.midiListener.addEventListener(MIDI_EVENT.NOTE_ON, noteValue => this.handleKeyPress(noteValue));
 
         this.failedPressCount = 0;
+
+        this.callbacks = {
+            "pause": []
+        }
     }
 
     getMaxTime() {
         return this.maxTime; 
+    }
+
+    addCallback(type, callback) {
+        this.callbacks[type].push(callback);
     }
 
     setNotesToPlay(notesToPlay) {
@@ -366,6 +375,7 @@ class TrainingGameManager {
     }
 
     checkForFailedNotes() {
+        if (this.settings.paused) { return; } 
         for (const note of this.notesToPlay) {
             if (this.successNotes.has(note) || this.failedNotes.has(note) || this.elapsedTimeMs < note.startMs) { continue } ;
             this.failedNotes.add(note);
@@ -376,6 +386,10 @@ class TrainingGameManager {
         return this.failedPressCount + this.failedNotes.size;
     }
 
+}
+
+function addControls() {
+    // TODO?: Move all the key and scroll events to seperate function
 }
 
 function main() {
@@ -404,8 +418,6 @@ function main() {
     //     speedMultiplier: 1
     // };
 
-    // We have put all of the file loading and stuff into its own section. Next I think is to have all of the midi interfacing be part of its own thing
-
     // TODO: Interface for selecting section. This requires selection box to work and to have a scroll of the view when paused. 
 
     startTrainingGame({inputs: []}) // TODO: Make this less annoying
@@ -432,7 +444,7 @@ function main() {
         const ctx = canvas.getContext('2d');
 
         document.addEventListener('keydown', e =>{
-            if (e.code === 'Space') {trainingGameManager.togglePause();}
+            if (e.code === 'Space') { trainingGameManager.togglePause(); }
         })
 
         const startTime = 1000;
@@ -449,6 +461,24 @@ function main() {
         trainingGameManager.setNotesToPlay(notes);
         trainingGameManager.togglePause();
         function customNoteFill(note) {
+            switch (fallingNotesView.getNoteType(note)) {
+                case "hovered": {
+                    ctx.fillStyle = 'rgb(90, 156, 218)'
+                    return true;
+                } break;
+                case "boxed": {
+                    ctx.fillStyle = 'rgb(171, 61, 175)'
+                    return true;
+                } break; 
+                case "selected": {
+                    ctx.fillStyle = 'rgb(163, 235, 31)'
+                    return true;
+                } break; 
+                case "normal": {
+                    // DO NOTHING
+                } break;
+            }
+
             switch (trainingGameManager.getNoteType(note)) {
                 case "success": { 
                     ctx.fillStyle = 'rgb(36, 180, 67)'
@@ -479,13 +509,39 @@ function main() {
             lineWidth: 3,
             initialSliderMarkerRatio: 1.0
         });
+        trainingGameManager.addCallback("pause", paused => {
+            elapsedTimeSlider.enabled = paused; // TODO?: Grey out the slider when not enabled?
+        })
 
         elapsedTimeSlider.addCallback(value => {
             const maxTime = trainingGameManager.getMaxTime();
-            trainingGameManager.elapsedTimeMs = maxTime * (1 - value); // Inverse direction
+            const elapsedTime = maxTime * (1 - value); // Inverse direction
+            fallingNotesView.setElapsedTimeMs(elapsedTime);
         })
         ui.add(elapsedTimeSlider);
         const fallingNotesView = new FallingNotesView({x: 100, y: 50}, {width: 800, height: 500}, notes, customNoteFill, customKeyFill,{windowX: 500});
+
+        document.addEventListener('keydown', e => {
+            if (e.code === 'ShiftLeft') {
+                fallingNotesView.shiftKeyDown = true;
+            }
+        });
+        document.addEventListener('keyup', e => {
+            if (e.code === 'ShiftLeft') {
+                fallingNotesView.shiftKeyDown = false;
+            }
+        });
+
+        // TODO?: Make this part of the ui events? 
+        document.addEventListener('wheel', e => { // TODO?: Make the falling notes view selection box based on 
+            if (trainingGameManager.settings.paused) {
+                const min = -trainingGameManager.settings.startWaitMs;
+                const max = trainingGameManager.getMaxTime();
+                const newElapsedTime = clamp(fallingNotesView.elapsedTimeMs + e.deltaY * 5, min, max);
+                fallingNotesView.elapsedTimeMs = newElapsedTime;
+                elapsedTimeSlider.sliderMarkerRatio = 1 - (newElapsedTime / max);
+            }
+        })
 
         ui.add(fallingNotesView);
 
@@ -499,13 +555,15 @@ function main() {
             let dt = time - previousTime;
             previousTime = time;
             //! Update
-            trainingGameManager.incrementElapsedTime(dt); // Automatically checks if paused
-            elapsedTimeSlider.sliderMarkerRatio = 1 - (trainingGameManager.elapsedTimeMs / trainingGameManager.getMaxTime());
-            trainingGameManager.checkForFailedNotes();
+            if (!trainingGameManager.settings.paused) {
+                trainingGameManager.incrementElapsedTime(dt); // Automatically checks if paused
+                elapsedTimeSlider.sliderMarkerRatio = 1 - (trainingGameManager.elapsedTimeMs / trainingGameManager.getMaxTime());
+                trainingGameManager.checkForFailedNotes();
+                fallingNotesView.setElapsedTimeMs(trainingGameManager.elapsedTimeMs);
+            }
 
             //! Drawing
             ctx.clearRect(0, 0, canvas.width, canvas.height); // TODO: I really like the strong border lines that happens when not clearing between draws. How can we make sure they are always like that? I think I dislike the blurry borders.
-            fallingNotesView.setElapsedTimeMs(trainingGameManager.elapsedTimeMs);
 
             ui.draw(ctx);
             

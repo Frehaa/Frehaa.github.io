@@ -83,7 +83,6 @@ class VerticalSlider extends Slider {
         } else {
             this._fillCircle(ctx, centerX, lerp(circleTop, circleBottom, this.sliderMarkerRatio), width / 2 - 2)
         }
-        this.bufferedBoundingBox.draw(ctx)
     }
     updateState(position) { 
         const circleTop = this.position.y + this.size.width / 2;

@@ -7,6 +7,7 @@ class UIElement {
             size.height
         );
         this.bufferedBoundingBox.stretchBox(boundingBoxPadding);
+        this.enabled = true;
     }
     draw(ctx) {}
     mouseMove(event) {}
@@ -76,7 +77,7 @@ class UI {
     mouseDown(mouseDownEvent) {
         this.mousePosition = this._getMousePosition(mouseDownEvent);
         for (const uiElement of this.uiElements) {
-            if (uiElement.mouseDown(mouseDownEvent)) return true;
+            if (uiElement.enabled && uiElement.mouseDown(mouseDownEvent)) return true;
         }
         return false;
     }
