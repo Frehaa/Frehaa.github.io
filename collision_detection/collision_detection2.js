@@ -218,6 +218,10 @@ function createKeyDown(state) {
 function main() {
     const canvas = document.getElementById('canvas');
 
+    // TODO: Calculate relative velocity of objects
+    
+    
+
     const state = {
         entities: [],
         snapshots: [],
@@ -230,7 +234,7 @@ function main() {
 
     const ui = new UI();
     const slider = new HorizontalSlider({
-        position: {x: (1920 - 700)/2, y: 1000},
+        position: {x: (1920 - 700)/2, y: 500},
         size: {width: 700, height: 50},
         lineWidth: 3,
         initialSliderMarkerRatio: 0
@@ -257,13 +261,16 @@ function main() {
 
     const tests = [
         setup_collision_test_head_on_collision,
-        setup_collision_test_same_direction
+        setup_collision_test_same_direction,
+        setup_collision_test_pushing_left,
+        setup_collision_test_pushing_right
     ]
 
     // Setup tests keybind
     document.addEventListener('keydown', function(e) {
         if (!isNaN(parseInt(e.key))) {
             tests[e.key](state);
+            slider._setValue(0);
             simulate(state);
             state.currentSnapShotIndex = 0;
             state.drawSnapshotIndex = null;
@@ -321,6 +328,7 @@ function updateEntityPositionsEx(dt, state) {
             // HOW TO MOVE AROUND EACH OTHER
             // We want to push a bit if the other isn't an enemy / isn't on hold position
             b.newPosition = b.position; // NAIVE: NOBODY MOVES
+
 
         } else if (b.direction.length() === 0) {
             // HOW TO MOVE AROUND EACH OTHER
@@ -700,14 +708,14 @@ function debugDrawEntity(ctx, entity) {
     ctx.arc(entity.newPosition.x, entity.newPosition.y, 1, 0, 2 * Math.PI);
     ctx.stroke();
 
-    const radius = entity.radius;
-    const normVelocity = entity.velocity.normalize().scale(radius);
-    l(normVelocity)
-    ctx.beginPath();
-    ctx.moveTo(x + normVelocity.x, y + normVelocity.y);
-    ctx.lineTo(x + 1.5 * normVelocity.x, y + 1.5 * normVelocity.y);
-    ctx.stroke();
-
+    if (entity.velocity.length() >= 0) {
+        const radius = entity.radius;
+        const normVelocity = entity.velocity.normalize().scale(radius);
+        ctx.beginPath();
+        ctx.moveTo(x + normVelocity.x, y + normVelocity.y);
+        ctx.lineTo(x + 1.5 * normVelocity.x, y + 1.5 * normVelocity.y);
+        ctx.stroke();
+    }
 }
 
 function drawSnapshot(state) {
@@ -742,6 +750,42 @@ function drawSnapshot(state) {
     state.ui.draw(ctx);
 
     return requestAnimationFrame(dt => drawSnapshot(state));
+}
+
+function setup_collision_test_pushing_left(state) {
+    state.entities.clear();
+
+    const rightMovingEntity = new Entity({
+        position: new Vec2(300, 300),
+        speed: 40,
+        direction: new Vec2(0, 0)
+    });
+
+    const nonMoving = new Entity({
+        position: new Vec2(500, 300),
+        speed: 20,
+        direction: new Vec2(-1, 0),
+        radius: 20
+    });
+    state.entities.push(rightMovingEntity, nonMoving);
+}
+
+function setup_collision_test_pushing_right(state) {
+    state.entities.clear();
+
+    const rightMovingEntity = new Entity({
+        position: new Vec2(300, 300),
+        speed: 40,
+        direction: new Vec2(1, 0)
+    });
+
+    const nonMoving = new Entity({
+        position: new Vec2(500, 300),
+        speed: 20,
+        direction: new Vec2(0, 0),
+        radius: 20
+    });
+    state.entities.push(rightMovingEntity, nonMoving);
 }
 
 function setup_collision_test_head_on_collision(state) {
