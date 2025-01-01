@@ -41,7 +41,7 @@ const camera = {
 const gameState = {
     selectedEntities: [],
     keys: {
-        shiftDown: false
+        shiftDown: false // TODO: There is a bug where if I right click and open the context menu, shift can be released without triggering keyUp event
     },
     paused: false,
     elapsedTime: 0,
@@ -631,24 +631,25 @@ function isPositionInPolygon(polygon, position) {
 // The tricky part seems to be corners, but I will try to ignore this in the beginning.
 
 class Entity {
-    constructor(x, y, speed, width, height) {
-        // TODO: Implement acceleration to move. The unit should have some acceleration which is used to change the velocity up till the units max velocity.
+    constructor(x, y, maxVelocity, width, height) {
+        
         this.position = new Vec2(x, y);
         this.selected = false;
         this.hovered = false;
-        this.speed = speed;
+        this.maxVelocity = maxVelocity;
         this.moveTarget = [];
         this.size = { width, height };
         this.direction = new Vec2(0, 0);
         this.newPosition = new Vec2(x, y);
         this.velocity = new Vec2(0, 0);
+        this.acceleration = 10; // TODO: Implement acceleration to move. The unit should have some acceleration which is used to change the velocity up till the units max velocity.
+        this.deceleration = 100;
         
         this.currentNavMeshTileIndex = null;
         for (let i = 0; i < navigationMesh.faces.length; i++) {
             const convex = navigationMesh.faces[i];
             if (isPositionInPolygon(convex, this.position)) {
                 this.currentNavMeshTileIndex = i;
-                l(i)
                 break;
             }
         }
@@ -717,24 +718,33 @@ class Entity {
 
         const nextMove = this.moveTarget[0];
         this.direction =  nextMove.subtract(this.position).normalize();
-        this.velocity = this.direction.scale((dt/1000) * this.speed);
-        this.newPosition = this.velocity.add(this.position);
+
+        const velocityChange = this.direction.scale(this.acceleration * dt/1000);
+
+        this.velocity = this.velocity.add(velocityChange);
+
+        const velocityLength = this.velocity.length();
+        if (velocityLength > this.maxVelocity) {
+            this.velocity = this.velocity.scale(this.maxVelocity / velocityLength);
+        }
+        this.newPosition = this.position.add(this.velocity);
 
         // TODO: Properly handle the multimove. Right now we don't move the full
         // distance we could. So we need to calculate how much we moved and how
         // much movement is left
-        // Make sure target stops exactly where we click and no longer tries to move after
-        if (pointBetween(nextMove, this.position, this.newPosition)) {
-            this.newPosition = new Vec2(nextMove.x, nextMove.y);
-            // TODO: OPTIMIZATION: use a queue instead or something
-            this.moveTarget.shift(); // REMOVE THE NEXT MOVE
-            // TODO: If there is some collision and a bit delta time, then the
-            // entity can think it can reach all the way to the moveTarget and
-            // removes it from the queue, but it stops due to the collision
-        }
+        // // Make sure target stops exactly where we click and no longer tries to move after
+        // if (pointBetween(nextMove, this.position, this.newPosition)) { // TODO: If I remove this, then acceleration causes the entity to be unable to stop. Maybe implement deceleration
+        //     this.newPosition = new Vec2(nextMove.x, nextMove.y); // TODO: It seems like due to introducting acceleration, there is a bug where multi move makes the entity teleport to the next position
+        //     // TODO: OPTIMIZATION: use a queue instead or something
+        //     this.moveTarget.shift(); // REMOVE THE NEXT MOVE
+        //     // TODO: If there is some collision and a bit delta time, then the
+        //     // entity can think it can reach all the way to the moveTarget and
+        //     // removes it from the queue, but it stops due to the collision
+        // }
         if (this.moveTarget.length === 0) {
             // MICRO OPTIMIZATION: Use a stored static 0 vector instead of creating a new all the time
             this.direction = new Vec2(0, 0); //TODO: Reset direction when finished moving
+            this.velocity = new Vec2(0, 0);
         } 
 
     }
@@ -912,7 +922,6 @@ function stepSimulation(time) {
 
         const radius = entity.size.width;
         const normVelocity = entity.velocity.normalize().scale(radius);
-        l(normVelocity)
         ctx.beginPath();
         ctx.moveTo(x + normVelocity.x, y + normVelocity.y);
         ctx.lineTo(x + 2 * normVelocity.x, y + 2 * normVelocity.y);
@@ -926,34 +935,34 @@ function stepSimulation(time) {
     requestAnimationFrame(stepSimulation);
 }
 function initialize() {
-    const tests = [
-        setup_collision_test_cross_movement,
-        setup_collision_test_head_on_collision,
-        setup_collision_test_head_on_collision_huge,
-        setup_collision_test_same_direction,
-        setup_collision_test_same_direction_huge,
-        setup_collision_test_same_direction_huge_next_to_each_other,
-        setup_collision_test_same_location_next_to_each_other,
-        setup_enemy_test_melee_aggro_range
-    ]
+    // const tests = [
+    //     setup_collision_test_cross_movement,
+    //     setup_collision_test_head_on_collision,
+    //     setup_collision_test_head_on_collision_huge,
+    //     setup_collision_test_same_direction,
+    //     setup_collision_test_same_direction_huge,
+    //     setup_collision_test_same_direction_huge_next_to_each_other,
+    //     setup_collision_test_same_location_next_to_each_other,
+    //     setup_enemy_test_melee_aggro_range
+    // ]
 
-    // Setup tests keybind
-    document.addEventListener('keydown', function(e) {
-        if (!isNaN(parseInt(e.key))) {
-            try {
-                tests[e.key]();
-            } catch(e) { /* Ignore */ }
-        }
-    });
+    // // Setup tests keybind
+    // document.addEventListener('keydown', function(e) {
+    //     if (!isNaN(parseInt(e.key))) {
+    //         try {
+    //             tests[e.key]();
+    //         } catch(e) { /* Ignore */ }
+    //     }
+    // });
 
-    tests[0]();
+    // tests[0]();
 
-    requestAnimationFrame(time => {
-        stepSimulation.lastTime = time;
-        stepSimulation(time);
-    });
+    // requestAnimationFrame(time => {
+    //     stepSimulation.lastTime = time;
+    //     stepSimulation(time);
+    // });
 
-    return
+    // return
 
     const canvas = document.getElementById('canvas');
     camera.canvas = canvas;
@@ -1135,7 +1144,14 @@ function initialize() {
         }
     });
 
+    // setup_collision_test_cross_movement()
+    // entities.clear();
+    entities.push(new Entity(300, 200, 100, 30, 30));
 
+    requestAnimationFrame(time => {
+        handleAnimationFrame.lastTime = time;
+        handleAnimationFrame(time);
+    });
 }
 
 
