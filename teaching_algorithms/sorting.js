@@ -1,5 +1,76 @@
 'use strict';
 
+class QubicBezierCurve {
+    constructor(x0, y0, cx0, cy0, cx1, cy1, x1, y1) {
+        this.x0  = x0; 
+        this.y0  = y0;
+        this.cx0 = cx0;
+        this.cy0 = cy0;
+        this.cx1 = cx1;
+        this.cy1 = cy1;
+        this.x1  = x1;
+        this.y1  = y1;
+    }
+
+    getPoint(t) {
+        // assert(0 <= t && t <= 1, "t should be between 0 and 1");
+
+        const lx0 = lerp(this.x0, this.cx0, t);
+        const lx1 = lerp(this.cx0, this.cx1, t);
+        const lx2 = lerp(this.cx1, this.x1, t);
+        const lx3 = lerp(lx0, lx1, t);
+        const lx4 = lerp(lx1, lx2, t);
+        const x = lerp(lx3, lx4, t);
+
+        const ly0 = lerp(this.y0, this.cy0, t);
+        const ly1 = lerp(this.cy0, this.cy1, t);
+        const ly2 = lerp(this.cy1, this.y1, t);
+        const ly3 = lerp(ly0, ly1, t);
+        const ly4 = lerp(ly1, ly2, t);
+        const y = lerp(ly3, ly4, t);
+
+        return [x, y];
+    }
+
+    initializeCurvePoints(numberOfPointsToCreate) {
+        this.curvePoints = [];
+        for (let i = 0; i <= numberOfPointsToCreate-1; i++) {
+            const t = i / numberOfPointsToCreate;
+            const lerpPoints = this.getLerpPoints(t);
+            this.curvePoints.push(lerpPoints[lerpPoints.length-1]);
+        }
+    }
+    
+    drawControlLines(ctx) {
+        ctx.strokeStyle = drawSettings.controlLineColor;
+        ctx.lineWidth = drawSettings.controlLineWidth; 
+        ctx.beginPath();
+        let currentPoint = this.points[0];
+        ctx.moveTo(currentPoint.position.x, currentPoint.position.y);
+        for (let i = 1; i < this.n; i++) {
+            currentPoint = this.points[i];
+            ctx.lineTo(currentPoint.position.x, currentPoint.position.y);
+        }
+        ctx.stroke();
+    }
+    getLerpPoints(t) {
+        const points = this.points.map(p => p.position);
+        return this._getLerpPointsRec(t, [], points);
+    }
+    _getLerpPointsRec(t, result, points) {
+        if (points.length === 1) return result;
+        const newPoints = [];
+        for (let i = 1; i < points.length; i++) {
+            const previousPoint = points[i-1];
+            const currentPoint = points[i];
+            const newPoint = previousPoint.lerp(currentPoint, t);
+            newPoints.push(newPoint);
+            result.push(newPoint);
+        }
+        return this._getLerpPointsRec(t, result, newPoints);
+    }
+}
+
 function randomArray(n) {
     const result = [];
     for (let i = 0; i < n; i++) {
@@ -491,6 +562,7 @@ function drawIndices(ctx, sortStepper, {leftX, width, topY, height}) {
     if (sortStepper.j !== undefined) { drawIndex(sortStepper.j, "j", 50); }
 }
 
+
 function drawData(ctx, data, gradient, {leftX, topY, width, height, minBarHeight, maxBarHeight, maxValue}) {
     // ctx.clearRect(leftX, topY, width, height);
 
@@ -509,6 +581,184 @@ function drawData(ctx, data, gradient, {leftX, topY, width, height, minBarHeight
 }
 
 function onBodyLoad() {
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    // const data = randomArray(10);
+    const data = [ 8, 5, 7, 3, 0, 1, 6, 4, 2, 9 ];
+
+    const drawSettings = {
+        leftX: 100,
+        topY: 100,
+        rectSize: 40,
+        minBarHeight: 30,
+        maxBarHeight: 270
+    };
+    const width = data.length * drawSettings.rectSize;
+    const height = drawSettings.rectSize;
+    const offSetX = width / data.length;
+
+
+    const dataX = []
+    const dataY = []
+    for (let i = 0; i < data.length; i++) {
+        dataX.push(drawSettings.leftX + offSetX * i + offSetX / 2);
+        dataY.push(drawSettings.topY + height / 2);
+        
+    }
+
+
+    // So how do I want this to look? 
+    // とりあえず how do I want to animate the swap?
+
+    // Let us first think about how the swap moves. What is the location of the top of the swap?
+
+    // Let us say we want to swap the second and fourth element.
+    // The middle is the same as the third element
+    
+    const easingFunctions = [
+        easeInSine,
+        easeOutSine, 
+        easeInOutSine,
+        easeInQuad,
+        easeOutQuad,
+        easeInOutQuad,
+        easeInCubic,
+        easeOutCubic,
+        easeInOutCubic,
+        easeInQuart,
+        easeOutQuart,
+        easeInOutQuart,
+        easeInQuint, 
+        easeOutQuint,
+        easeInOutQuint,
+        easeInCirc,
+        easeOutCirc,
+        easeInOutCirc,
+        easeInElastic, 
+        easeOutElastic,
+        easeInOutElastic,
+        easeInExpo,
+        easeOutExpo,
+        easeInOutExpo,
+        easeInBack,
+        easeOutBack,
+        easeInOutBack,
+        easeInBounce,
+        easeOutBounce,
+        easeInOutBounce,
+    ];
+
+    const ui = new UI();
+
+    let topY = 50;
+    for (const f of easingFunctions) {
+        const button = new Button({position: {x: 530, y: topY}, size: {width: 25, height: 15}, lineWidth: 2});
+        button.addCallback(_ => {
+            easingFunction = f;
+        });
+        ui.add(button);
+        topY += 20;
+    }
+
+    canvas.addEventListener('mousedown', e => ui.mouseDown(e));
+    canvas.addEventListener('mouseup', e => ui.mouseUp(e));
+    canvas.addEventListener('mousemove', e => ui.mouseMove(e));
+
+    const i = 1;
+    const j = 7;
+
+    let easingFunction = easingFunctions[0];
+
+    // Can we draw all the lines that the things should follow? 
+    const controlPointDiffY = height * 0.3 * (j - i) + height * 0.3;
+    const upperCurve = new QubicBezierCurve(dataX[j], dataY[j], dataX[j], dataY[j] - controlPointDiffY, dataX[i], dataY[i] - controlPointDiffY, dataX[i], dataY[i]);
+
+    const lowerCurve = new QubicBezierCurve(dataX[i], dataY[i], dataX[i], dataY[i] + controlPointDiffY, dataX[j], dataY[j] + controlPointDiffY, dataX[j], dataY[j]);
+
+    const swapDuration = 1500;
+    const waitDuration = 1000;
+
+    let lastTime;
+    let elapsedTime = 0;
+    function draw(time) {
+        const dt = time - lastTime;
+        elapsedTime += dt;
+        lastTime = time;
+
+        const animationTime = elapsedTime % (swapDuration + waitDuration);
+
+        let t = easingFunction(Math.max(animationTime - waitDuration, 0) / swapDuration);
+        if (animationTime < waitDuration / 2 && elapsedTime > swapDuration + waitDuration) { t = 1 }; 
+
+        // l(t)
+
+        const [lx, ly] = lowerCurve.getPoint(t);
+        const [ux, uy] = upperCurve.getPoint(t);
+
+        dataX[i] = lx;
+        dataY[i] = ly;
+
+        dataX[j] = ux;
+        dataY[j] = uy;
+        
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillText("Current Easing function: " + easingFunction.name, 200, 50)
+
+        ctx.beginPath();
+        ctx.rect(drawSettings.leftX, drawSettings.topY, width, height);
+        for (let i = 1; i < data.length; i++) {
+            ctx.moveTo(drawSettings.leftX + offSetX * i, drawSettings.topY)
+            ctx.lineTo(drawSettings.leftX + offSetX * i, drawSettings.topY + height);
+        }
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+
+        ctx.font = "bold 30px serif";
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        for (let i = 0; i < data.length; i++) {
+            const element = data[i];
+            ctx.fillText(element, dataX[i], dataY[i]);
+        }
+
+        // for (let i = 0; i < data.length; i++) {
+        //     const xi = drawSettings.leftX + offSetX * i + offSetX / 2;
+        //     const y = drawSettings.topY + height / 2;
+        //     for (let j = i+1; j < data.length; j++) {
+        //         const dist = j - i;
+        //         const xj = drawSettings.leftX + offSetX * j + offSetX / 2;
+        //         const cy = y - height * 0.3 * dist - height * 0.2;
+        //         ctx.moveTo(xi, y)
+        //         ctx.bezierCurveTo(xi, cy, xj, cy, xj, y)
+        //     }
+            
+        // }
+        // ctx.stroke();
+
+        ui.draw(ctx);
+
+        ctx.font = "bold 10px serif";
+        let topY = 58;
+        for (const f of easingFunctions) {
+            ctx.fillText(f.name, 600, topY)
+            
+            topY += 20;
+        }
+
+        requestAnimationFrame(draw);
+    }
+    requestAnimationFrame(time => {
+        lastTime = time;
+        draw(time);
+    });
+
+}
+
+function onBodyLoad2() {
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
