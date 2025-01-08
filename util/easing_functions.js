@@ -1,5 +1,5 @@
 const easeInSine = x => 1 - Math.cos((x * Math.PI) / 2);
-const easeOutSine = x => Math.cos((x * Math.PI) / 2);
+const easeOutSine = x => Math.sin((x * Math.PI) / 2);
 const easeInOutSine = x => -(Math.cos(x * Math.PI) - 1) / 2;
 
 const easeInQuad = x => x*x;
@@ -28,12 +28,12 @@ const easeOutQuart = x => {
 }
 const easeInOutQuart = x => {
     if (x < 0.5) { return 8*x*x*x*x; } 
-    const t = 1 - x;
+    const t = 2 - 2 * x;
     return 1 - t*t*t*t / 2;
 }
 const easeInQuint = x => x*x*x*x*x;
 const easeOutQuint = x => {
-    const t = 2 - 2*x;
+    const t = 1 - x;
     return 1 - t*t*t*t*t;
 }
 const easeInOutQuint = x => {
@@ -82,25 +82,40 @@ const easeInOutExpo = x => {
 }
 
 const easeInBack = x => {
-    const b = 1.70158;
-    const c = b + b;
-    return c * x*x*x - b * x*x;
+    const a = 1.70158;
+    const b = 1 + a;
+    return b * x*x*x - a * x*x;
 }
 const easeOutBack = x => {
-    const b = 1.70158;
-    const c = b + b;
-    const t = 1 - x;
-    return 1 + c * t*t*t - b * t*t;
+    const a = 1.70158;
+    const b = 1 + a;
+    const t = x - 1;
+    return 1 + b * t*t*t + a * t*t;
 }
 const easeInOutBack = x => {
-    const b = 1.70158;
-    const c = 2.5949095;
-    if (x < 0.5) { return (4 * x*x * (2 + c*x)) / 2; }
+    const a = 2.5949095;
+    if (x < 0.5) { return (4 * x*x * ((2 + 2 *a)*x - a)) / 2; }
     const t = 2*x - 2;
-    return (t*t * ((c + 1) * t + c2)) / 2; 
+    return 1 + (t*t * ((a + 1) * t + a)) / 2; 
 }
 
+
 const easeInBounce = x => 1 - easeOutBounce(1 - x);
+// function easeOutBounce(x) {
+// const n1 = 7.5625;
+// const d1 = 2.75;
+
+// if (x < 1 / d1) {
+//     return n1 * x * x;
+// } else if (x < 2 / d1) {
+//     return n1 * (x -= 1.5 / d1) * x + 0.75;
+// } else if (x < 2.5 / d1) {
+//     return n1 * (x -= 2.25 / d1) * x + 0.9375;
+// } else {
+//     return n1 * (x -= 2.625 / d1) * x + 0.984375;
+// }
+
+// }
 const easeOutBounce = x => {
     const a = 7.5625;
     if (x < 0.363636363636) { return a * x*x; }
