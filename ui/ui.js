@@ -6,8 +6,7 @@ class UIElement {
             size.width,
             size.height
         );
-        this.bufferedBoundingBox.stretchBox(boundingBoxPadding);
-        this.enabled = true;
+        this.bufferedBoundingBox.setPadding(boundingBoxPadding);
     }
     draw(ctx) {}
     mouseMove(event) {}
@@ -28,6 +27,7 @@ class UIElement {
 class InteractableUIELement extends UIElement { // TODO: Relative position of elements
     constructor(topLeft, size, boundingBoxPadding) {
         super(topLeft, size, boundingBoxPadding)
+        this.enabled = true;
         this.callbacks = [];
     }
     addCallback(callback) {
@@ -43,14 +43,19 @@ class InteractableUIELement extends UIElement { // TODO: Relative position of el
 class UI {
     constructor() {
         this.uiElements = []; // TODO: Order UI Elements and 
+        this.interactableUIElements = [];
         // TODO: Have different frames that can be switched between 
         // TODO: How to implement a UI popup? 
         // TODO: Toggle interactability of UI Elements. Non-interactable elements do not need mouse events. 
         // TODO: Implement something which checks if UI needs to be redrawn. E.g. Check if elements are "dirty"
     }
     add(uiElement) {
+        if (!(uiElement instanceof UIElement)) { throw new Error("Element was not a UIElement."); }
+        if (uiElement instanceof InteractableUIELement) {
+            this.interactableUIElements.push(uiElement);
+        }
         this.uiElements.push(uiElement);
-        uiElement.ui = this;
+        uiElement.ui = this; // TODO: Maybe find a better way to do this
     }
     draw(ctx) {
         for (const uiElement of this.uiElements) {
@@ -69,22 +74,22 @@ class UI {
     }
     mouseMove(mouseMoveEvent) {
         this.mousePosition = this._getMousePosition(mouseMoveEvent); // TODO?: Only call event on elements where the mouse position falls within the bounding box?
-        for (const uiElement of this.uiElements) {
-            if (uiElement.mouseMove(mouseMoveEvent)) return true;
+        for (const uiElement of this.interactableUIElements) {
+            if (uiElement.enabled && uiElement.mouseMove(mouseMoveEvent)) return true;
         }
         return false;
     }
     mouseDown(mouseDownEvent) {
         this.mousePosition = this._getMousePosition(mouseDownEvent);
-        for (const uiElement of this.uiElements) {
+        for (const uiElement of this.interactableUIElements) {
             if (uiElement.enabled && uiElement.mouseDown(mouseDownEvent)) return true;
         }
         return false;
     }
     mouseUp(mouseUpEvent) {
         this.mousePosition = this._getMousePosition(mouseUpEvent);
-        for (const uiElement of this.uiElements) {
-            if (uiElement.mouseUp(mouseUpEvent)) return true;
+        for (const uiElement of this.interactableUIElements) {
+            if (uiElement.enabled && uiElement.mouseUp(mouseUpEvent)) return true;
         }
         return false;
     }
@@ -99,21 +104,24 @@ class UI {
 
 // TODO?: Use padding instead of stretch and allow to check if position is within normal area or padded area?
 class UIBoundingBox {
-    constructor(x, y, width, height) {
+    constructor(x, y, width, height, padding) {
         this.xMin = x;
         this.yMin = y;
         this.xMax = x + width;
         this.yMax = y + height;
+        this.padding = padding || 0;
     }
-    stretchBox(value) { 
-        this.xMin -= value;
-        this.yMin -= value;
-        this.xMax += value;
-        this.yMax += value;
+    setPadding(value) { 
+        this.strech = value;
     }
     contains(position) {
         return (this.xMin <= position.x && position.x <= this.xMax &&
                 this.yMin <= position.y && position.y <= this.yMax)
+    }
+    containsPadded(position) {
+        return (this.xMin - this.padding <= position.x && position.x <= this.xMax + this.padding &&
+                this.yMin - this.padding <= position.y && position.y <= this.yMax + this.padding)
+
     }
     draw(ctx) {
         ctx.lineWidth = 2;

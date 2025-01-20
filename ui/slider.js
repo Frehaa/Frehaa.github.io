@@ -1,7 +1,7 @@
  // Requires loading the ui.js file before the slider
 class Slider extends InteractableUIELement {
     // TODO if maybe some stuff is common for vertical and horizontal sliders
-    constructor({position, size, lineWidth, initialSliderMarkerRatio}) {
+    constructor({position, size, lineWidth, initialSliderMarkerRatio, inverseSliderMarkerPosition}) {
         const boundingBoxPosition = { x: position.x, y: position.y };
         const boundingBoxSize = { width: size.width, height: size.height };
         super(boundingBoxPosition, boundingBoxSize, 5)
@@ -9,6 +9,7 @@ class Slider extends InteractableUIELement {
         this.position = position;
         this.size = size;
         this.lineWidth = lineWidth;
+        this.inverseSliderMarkerPosition = false;
 
         this.isDragging = false;
         this.state = {
@@ -17,6 +18,7 @@ class Slider extends InteractableUIELement {
             max: 1
         };
 
+        this.inverseSliderMarkerPosition = inverseSliderMarkerPosition;
         this.sliderMarkerRatio = initialSliderMarkerRatio;
         const slider = this;
         this.addCallback(value => {
@@ -42,8 +44,7 @@ class Slider extends InteractableUIELement {
         this.updateState(this.ui.mousePosition);
     }
 
-    _fillCircle(ctx, x, y, radius, color = 'black') {
-        ctx.fillStyle = color;
+    _fillCircle(ctx, x, y, radius) {
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, 2 * Math.PI);
         ctx.fill();
@@ -72,16 +73,25 @@ class VerticalSlider extends Slider {
         ctx.arc(centerX, circleBottom, width / 2, 0, Math.PI, false);
         ctx.arc(centerX, circleTop,    width / 2, Math.PI, 0, false);
         ctx.closePath()
-        ctx.strokeStyle = 'black';
+        if (this.enabled) {
+            ctx.strokeStyle = 'black';
+            ctx.fillStyle = 'black';
+        } else {
+            ctx.strokeStyle = 'grey';
+            ctx.fillStyle = 'grey';
+        }
         ctx.lineWidth = this.lineWidth
         ctx.stroke()
 
-
+        let markerRatio = this.sliderMarkerRatio;
+        if (this.inverseSliderMarkerPosition) {
+            markerRatio = 1 - this.sliderMarkerRatio;
+        }
 
         if (this.isDragging){
-            this._fillCircle(ctx, centerX, lerp(circleTop, circleBottom, this.sliderMarkerRatio), width / 2 + this.lineWidth)
+            this._fillCircle(ctx, centerX, lerp(circleTop, circleBottom, markerRatio), width / 2 + this.lineWidth)
         } else {
-            this._fillCircle(ctx, centerX, lerp(circleTop, circleBottom, this.sliderMarkerRatio), width / 2 - 2)
+            this._fillCircle(ctx, centerX, lerp(circleTop, circleBottom, markerRatio), width / 2 - 2)
         }
     }
     updateState(position) { 
@@ -90,7 +100,11 @@ class VerticalSlider extends Slider {
 
         const y = clamp(position.y, circleTop, circleBottom);
         const percentage = (y - circleTop) / (circleBottom - circleTop);
-        this._setValue(lerp(this.state.min, this.state.max, percentage));
+        if (this.inverseSliderMarkerPosition) {
+            this._setValue(lerp(this.state.min, this.state.max, 1 - percentage));
+        } else {
+            this._setValue(lerp(this.state.min, this.state.max, percentage));
+        }
     }
 }
 

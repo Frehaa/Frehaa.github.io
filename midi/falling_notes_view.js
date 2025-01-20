@@ -135,6 +135,7 @@ class FallingNotesView extends InteractableUIELement {
     // TODO: If the user clicks directly on a unit, should it be selected without boxing, or should we still initiate box if we are dragging? Maybe we can do both?
     mouseDown(e) { // TODO: Shift click does not clear selected elements
         if (!this.bufferedBoundingBox.contains(this.ui.mousePosition)) return;
+        
         // Boxing functionality 
         if (e.button === LEFT_MOUSE_BUTTON) { // TODO: Check that the mouse postition is inside the note view 
             if (!this.shiftKeyDown) { this.selectedElements.clear(); }
