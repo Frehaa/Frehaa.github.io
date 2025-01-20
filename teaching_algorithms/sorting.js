@@ -1,5 +1,93 @@
 'use strict';
 
+class SelectionSortCodeDisplay {
+    constructor(drawSettings) {
+        this.drawSettings = {
+            textMargin: 5,
+            font: '18px Consolas, Courier New, monospace',
+            padding: 10,
+            ...drawSettings
+        }
+    }
+    draw(ctx) {
+        ctx.font = this.drawSettings.font;
+        ctx.textBaseline = 'top';
+        ctx.textAlign = 'left';
+
+        const leftX = this.drawSettings.position.x;
+        const textLeftX = leftX + this.drawSettings.padding;
+        const topY = this.drawSettings.position.y;
+        const textTopY = topY + this.drawSettings.padding;
+        const textMeasure = ctx.measureText('()');
+        const lineOffsetY = textMeasure.fontBoundingBoxDescent + this.drawSettings.textMargin;
+
+        // TODO: Do this for different languages? 
+
+        const backgroundColor = '#1f1f1f';
+        const purple = '#C586C0';          // for / if / inner parenthesis 2
+        const brightYellow = '#ffcd0e';    // curly brackets 1, square brackets 1
+        const darkBlue = '#569CD6';        // let / int
+        const blue = '#179fff';             // parenthesis 3
+        const lightBlue = '#9CDCFE';       // variable name
+        const white = '#D4D4D4';           // = / ++ / <
+        const lightGreen = '#B5CEA8';      // 0 / 1
+        const weakYellow = '#DCDCAA';      // swap function call
+        
+
+        const highlightColor = '#8579a8'
+
+        const longestLine = '    for( let j = i + 1; j < a.length; j++) {';
+        const codeblockWidth = ctx.measureText(longestLine).width + 2 * this.drawSettings.padding;
+        const textHeight = 7 * lineOffsetY + 2 * this.drawSettings.padding;
+        ctx.fillStyle = backgroundColor; 
+        ctx.fillRect(leftX, topY, codeblockWidth, textHeight);
+        ctx.strokeRect(leftX, topY, codeblockWidth, textHeight);
+
+        // Try some text highlighting around swap
+        ctx.fillStyle = highlightColor;
+        ctx.fillRect(textLeftX + ctx.measureText('    ').width, textTopY + 5 * lineOffsetY - this.drawSettings.textMargin / 2, ctx.measureText('swap(i, minIdx);').width, lineOffsetY);
+
+        // TODO: Do automatic syntax highlighting? 
+        let lineTextColor = [purple, brightYellow, darkBlue, lightBlue, white, lightGreen, white, lightBlue, white, lightBlue, white, lightBlue, white, lightBlue, white, brightYellow];
+        let line = ['for ', '(', 'let ', 'i ', '= ', '0', '; ', 'i ', '< ', 'a', '.', 'length', '; ', 'i', '++', ') {'];
+        this.fillLine(ctx, line, lineTextColor, textLeftX, textTopY);
+
+        lineTextColor = [darkBlue, lightBlue, white, lightBlue, white];
+        line = ['    let ', 'minIdx ', '= ', 'i',';'];
+        this.fillLine(ctx, line, lineTextColor, textLeftX, textTopY + lineOffsetY);
+
+        lineTextColor = [purple, darkBlue, lightBlue, white, lightBlue, white, lightGreen, white, lightBlue, white, lightBlue, white,lightBlue,white, lightBlue, white, purple];
+        line = ['    for (', 'let ', 'j ', '= ', 'i ', '+ ', '1', '; ', 'j ', '< ', 'a', '.', 'length', ';', 'j', '++', ') {']
+        this.fillLine(ctx, line, lineTextColor, textLeftX, textTopY + 2 * lineOffsetY);
+
+        lineTextColor = [purple, blue, lightBlue, brightYellow, lightBlue, brightYellow, white, lightBlue, brightYellow, lightBlue, brightYellow, blue, lightBlue, white, lightBlue, white];
+        line = ['        if ', '(', 'a', '[', 'j', '] ', '< ', 'a', '[', 'minIdx', ']', ') ', 'minIdx ', '= ', 'j', ';' ];
+        this.fillLine(ctx, line, lineTextColor, textLeftX, textTopY + 3 * lineOffsetY);
+        
+        lineTextColor = [purple];
+        line = ['    }'];
+        this.fillLine(ctx, line, lineTextColor, textLeftX, textTopY + 4 * lineOffsetY);
+
+        lineTextColor = [weakYellow, purple, lightBlue, white, lightBlue, purple, white];
+        line = ['    swap', '(', 'i', ', ', 'minIdx', ')', ';'];
+        this.fillLine(ctx, line, lineTextColor, textLeftX, textTopY + 5 * lineOffsetY);
+
+        lineTextColor = [purple];
+        line = ['}'];
+        this.fillLine(ctx, line, lineTextColor, textLeftX, textTopY + 6 * lineOffsetY);
+    }
+
+    fillLine(ctx, line, lineTextColor, x, y) {
+        let currentX = x;
+        for (let i = 0; i < line.length; i++) {
+            ctx.fillStyle = lineTextColor[i];
+            const text = line[i];
+            ctx.fillText(text, currentX, y);
+            currentX += ctx.measureText(text).width;
+        }
+    }
+}
+
 class QubicBezierCurve {
     constructor(x0, y0, cx0, cy0, cx1, cy1, x1, y1) {
         this.x0  = x0; 
@@ -13,8 +101,6 @@ class QubicBezierCurve {
     }
 
     getPoint(t) {
-        // assert(0 <= t && t <= 1, "t should be between 0 and 1");
-
         const lx0 = lerp(this.x0, this.cx0, t);
         const lx1 = lerp(this.cx0, this.cx1, t);
         const lx2 = lerp(this.cx1, this.x1, t);
@@ -30,44 +116,6 @@ class QubicBezierCurve {
         const y = lerp(ly3, ly4, t);
 
         return [x, y];
-    }
-
-    initializeCurvePoints(numberOfPointsToCreate) {
-        this.curvePoints = [];
-        for (let i = 0; i <= numberOfPointsToCreate-1; i++) {
-            const t = i / numberOfPointsToCreate;
-            const lerpPoints = this.getLerpPoints(t);
-            this.curvePoints.push(lerpPoints[lerpPoints.length-1]);
-        }
-    }
-    
-    drawControlLines(ctx) {
-        ctx.strokeStyle = drawSettings.controlLineColor;
-        ctx.lineWidth = drawSettings.controlLineWidth; 
-        ctx.beginPath();
-        let currentPoint = this.points[0];
-        ctx.moveTo(currentPoint.position.x, currentPoint.position.y);
-        for (let i = 1; i < this.n; i++) {
-            currentPoint = this.points[i];
-            ctx.lineTo(currentPoint.position.x, currentPoint.position.y);
-        }
-        ctx.stroke();
-    }
-    getLerpPoints(t) {
-        const points = this.points.map(p => p.position);
-        return this._getLerpPointsRec(t, [], points);
-    }
-    _getLerpPointsRec(t, result, points) {
-        if (points.length === 1) return result;
-        const newPoints = [];
-        for (let i = 1; i < points.length; i++) {
-            const previousPoint = points[i-1];
-            const currentPoint = points[i];
-            const newPoint = previousPoint.lerp(currentPoint, t);
-            newPoints.push(newPoint);
-            result.push(newPoint);
-        }
-        return this._getLerpPointsRec(t, result, newPoints);
     }
 }
 
@@ -580,16 +628,118 @@ function drawData(ctx, data, gradient, {leftX, topY, width, height, minBarHeight
     ctx.strokeRect(leftX, topY, width, height);
 }
 
+// class Animation {
+//     constructor(duration) {
+//         this.duration = duration;
+//         this.remaining = duration;
+//         this.endCallbacks = [];
+//     }
+//     then(callback) {
+//         this.endCallbacks.push(callback);
+//     } 
+//     step(deltaTimeMs) {
+//         this.remaining -= deltaTimeMs;
+//         if (this.remaining < 0) {
+//             this.remaining = 0;
+//             this.endCallbacks.forEach(c => c());
+//         }
+//     }
+// }
+
+// Maybe the best way to do this is to precompute everything and then do it?
+// For the stepping we could do this on the fly because it was instant, 
+// but for animation it might make more sense to do it beforehand 
+// because when one thing ends we need to start the next thing which 
+// we could do by checking the current animation in a frame to see if 
+// it was done and then calculate the new animation and set it to start the next 
+// frame. 
+
+// Animate i enter
+// Animate compare i to n
+// Animate minIdx enter
+// animate j enter
+// animate compare j to n
+// animate a[j] < a[minIdx] comparison
+// animate minIdx update
+// animate increment j 
+// .... 
+// animate swap
+
+// Alternatively
+// animate Swap 
+// animate next Swap
+// ...
+
+// Is it important
+
+class Animation {
+    constructor(duration) {
+        this.duration = duration;
+    }
+    animate(t) {}
+}
+
+class WaitAnimation extends Animation {
+    constructor(duration) {
+        super(duration);
+    }
+}
+
+class SwapAnimation extends Animation {
+    constructor(duration, a, b, easingFunction) {
+        super(duration);
+        this.a = a;
+        this.b = b;
+        this.easingFunction = easingFunction;
+
+        const diff = Math.abs(a.position.x - b.position.x);
+        const controlPointDiffY = 0.3 * diff;
+        this.upperCurve = new QubicBezierCurve(a.position.x, a.position.y, a.position.x, a.position.y - controlPointDiffY, b.position.x, b.position.y - controlPointDiffY, b.position.x, b.position.y);
+        this.lowerCurve = new QubicBezierCurve(b.position.x, b.position.y, b.position.x, b.position.y + controlPointDiffY, a.position.x, a.position.y + controlPointDiffY, a.position.x, a.position.y);
+    }
+    animate(t) {
+        t = this.easingFunction(t);
+        const [lx, ly] = this.lowerCurve.getPoint(t);
+        const [ux, uy] = this.upperCurve.getPoint(t);
+
+        this.a.position.x = ux;
+        this.a.position.y = uy;
+
+        this.b.position.x = lx;
+        this.b.position.y = ly;
+    }
+
+}
+
+class AnimationHandler {
+    constructor(animations) {
+        this.animations = animations;
+        l(animations)
+    }
+    animate(elapsed) {
+        let remaining = elapsed;
+        for (const a of this.animations) {
+            if (remaining > a.duration) {
+                a.animate(1);
+                remaining -= a.duration;
+            } else {
+                a.animate(remaining / a.duration);
+                break;
+            }
+        }
+
+    }
+}
+
+
 function onBodyLoad() {
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
-    // const data = randomArray(10);
     const data = [ 8, 5, 7, 3, 0, 1, 6, 4, 2, 9 ];
-
     const drawSettings = {
         leftX: 100,
-        topY: 100,
+        topY: 200,
         rectSize: 40,
         minBarHeight: 30,
         maxBarHeight: 270
@@ -598,24 +748,37 @@ function onBodyLoad() {
     const height = drawSettings.rectSize;
     const offSetX = width / data.length;
 
+    // const data = randomArray(10);
+    const swaps = [];
 
-    const dataX = []
-    const dataY = []
+
+    const objects = [];
     for (let i = 0; i < data.length; i++) {
-        dataX.push(drawSettings.leftX + offSetX * i + offSetX / 2);
-        dataY.push(drawSettings.topY + height / 2);
-        
+        objects.push({ 
+            value: data[i],
+            position: {
+                x: drawSettings.leftX + offSetX * i + offSetX / 2,
+                y: drawSettings.topY + height / 2
+            }
+        });
     }
+    l(objects)
 
+    function swap(i, j) {
+        const tmpO = objects[i];
+        objects[i] = objects[j];
+        objects[j] = tmpO;
+        swaps.push([objects[j], objects[i]]);
+    }
+    for (let i = 0; i < objects.length; ++i) {
+        let minIdx = i;
+        for (let j = i + 1; j < objects.length; ++j) {
+            if (objects[j].value < objects[minIdx].value) minIdx = j;
+        }
+        swap(i, minIdx)
+    }
+    l(swaps)
 
-    // So how do I want this to look? 
-    // とりあえず how do I want to animate the swap?
-
-    // Let us first think about how the swap moves. What is the location of the top of the swap?
-
-    // Let us say we want to swap the second and fourth element.
-    // The middle is the same as the third element
-    
     const easingFunctions = [
         easeInSine,
         easeOutSine, 
@@ -649,6 +812,46 @@ function onBodyLoad() {
         easeInOutBounce,
     ];
 
+
+    let easingFunction = easingFunctions[0];
+    let changingEasingFunction = t => {
+        return easingFunction(t);
+    }
+
+    const swapDuration = 1500;
+    const waitDuration = 1000;
+    const animations = [];
+    for (const [a, b] of swaps) { // We have an issue right now where I'm defining the animations beforehand, but the same element might be moved twice, but the second move is only calculated based on the the initial position.
+        l(a, b)
+        animations.push(new WaitAnimation(waitDuration));
+        animations.push(new SwapAnimation(swapDuration, a, b, changingEasingFunction));
+    } // We need to swap 'a' and 'b' and when we swap 'b' with 'c' we need to use the new position of 'b'
+
+    const animationHandler = new AnimationHandler(animations);
+
+
+
+    const selectionSortCode = new SelectionSortCodeDisplay({
+        position: {x: 900, y: 50},
+        padding: 10,
+        font: '18px Consolas, Courier New, monospace',
+    })
+
+
+
+
+    // TODO: Draw index pointers
+    // TODO: Animate update of index pointer values
+
+
+    // So how do I want this to look? 
+    // とりあえず how do I want to animate the swap?
+
+    // Let us first think about how the swap moves. What is the location of the top of the swap?
+
+    // Let us say we want to swap the second and fourth element.
+    // The middle is the same as the third element
+    
     const ui = new UI();
 
     let topY = 50;
@@ -665,19 +868,7 @@ function onBodyLoad() {
     canvas.addEventListener('mouseup', e => ui.mouseUp(e));
     canvas.addEventListener('mousemove', e => ui.mouseMove(e));
 
-    const i = 1;
-    const j = 7;
 
-    let easingFunction = easingFunctions[0];
-
-    // Can we draw all the lines that the things should follow? 
-    const controlPointDiffY = height * 0.3 * (j - i) + height * 0.3;
-    const upperCurve = new QubicBezierCurve(dataX[j], dataY[j], dataX[j], dataY[j] - controlPointDiffY, dataX[i], dataY[i] - controlPointDiffY, dataX[i], dataY[i]);
-
-    const lowerCurve = new QubicBezierCurve(dataX[i], dataY[i], dataX[i], dataY[i] + controlPointDiffY, dataX[j], dataY[j] + controlPointDiffY, dataX[j], dataY[j]);
-
-    const swapDuration = 1500;
-    const waitDuration = 1000;
 
     let lastTime;
     let elapsedTime = 0;
@@ -685,27 +876,20 @@ function onBodyLoad() {
         const dt = time - lastTime;
         elapsedTime += dt;
         lastTime = time;
+        ctx.fillStyle = 'black'
 
-        const animationTime = elapsedTime % (swapDuration + waitDuration);
+        // const animationTime = elapsedTime % (swapDuration + waitDuration);
+        // let t = easingFunction(Math.max(animationTime - waitDuration, 0) / swapDuration);
+        // if (animationTime < waitDuration / 2 && elapsedTime > swapDuration + waitDuration) { t = 1 }; 
 
-        let t = easingFunction(Math.max(animationTime - waitDuration, 0) / swapDuration);
-        if (animationTime < waitDuration / 2 && elapsedTime > swapDuration + waitDuration) { t = 1 }; 
+        animationHandler.animate(elapsedTime);
 
-        // l(t)
-
-        const [lx, ly] = lowerCurve.getPoint(t);
-        const [ux, uy] = upperCurve.getPoint(t);
-
-        dataX[i] = lx;
-        dataY[i] = ly;
-
-        dataX[j] = ux;
-        dataY[j] = uy;
-        
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+        ctx.font = "bold 18px serif";
         ctx.fillText("Current Easing function: " + easingFunction.name, 200, 50)
 
+        // ! Draw boxes
         ctx.beginPath();
         ctx.rect(drawSettings.leftX, drawSettings.topY, width, height);
         for (let i = 1; i < data.length; i++) {
@@ -716,38 +900,29 @@ function onBodyLoad() {
         ctx.lineWidth = 2;
         ctx.stroke();
 
-
+        // ! Draw numbers
         ctx.font = "bold 30px serif";
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        for (let i = 0; i < data.length; i++) {
-            const element = data[i];
-            ctx.fillText(element, dataX[i], dataY[i]);
+        for (let i = 0; i < objects.length; i++) {
+            const element = objects[i].value;
+            const {x, y} = objects[i].position;
+            ctx.fillText(element, x, y);
         }
 
-        // for (let i = 0; i < data.length; i++) {
-        //     const xi = drawSettings.leftX + offSetX * i + offSetX / 2;
-        //     const y = drawSettings.topY + height / 2;
-        //     for (let j = i+1; j < data.length; j++) {
-        //         const dist = j - i;
-        //         const xj = drawSettings.leftX + offSetX * j + offSetX / 2;
-        //         const cy = y - height * 0.3 * dist - height * 0.2;
-        //         ctx.moveTo(xi, y)
-        //         ctx.bezierCurveTo(xi, cy, xj, cy, xj, y)
-        //     }
-            
-        // }
-        // ctx.stroke();
-
+        // ! Draw easing fuctions buttons
         ui.draw(ctx);
 
+        // ! Draw easing fuctions button text
         ctx.font = "bold 10px serif";
         let topY = 58;
         for (const f of easingFunctions) {
             ctx.fillText(f.name, 600, topY)
-            
             topY += 20;
         }
+        
+        // ! Code
+        selectionSortCode.draw(ctx);
 
         requestAnimationFrame(draw);
     }
@@ -755,6 +930,13 @@ function onBodyLoad() {
         lastTime = time;
         draw(time);
     });
+
+
+    // So we can animate the swaps now
+    // Next step is to combine the stepping stuff from before with the animation stuff.
+
+    // Maybe as a intermediate step is to do the code stuff 
+
 
 }
 

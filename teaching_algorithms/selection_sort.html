@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Selection Sort</title>
+  <style>
+
+  </style>
+<script src="./../util/general_helper_functions.js"></script>
+<script src="./../util/math.js"></script>
+<script src="./../util/easing_functions.js"></script>
+<script src='../ui/ui.js'></script>
+<script src='../ui/slider.js'></script>
+<script src='../ui/button.js'></script>
+<script src="sorting.js"></script>
+</head>
+<body onload="onBodyLoad()">
+<canvas id="canvas" width="1700" height="900"></canvas>
+
+Selection Sort is perhaps one of the simplest sorting algorithms. The idea
+behind the algorithm is simply to search for the smallest element in the 
+list, put it in the first position, then find the second smallest element 
+and put it in its position and so on. 
+
+This can be described in code as follows. We have two loops nested. The first
+loop goes through every possible position i = (0, ..., n-1) in the list. The
+second loop searches for element element to put in that position. After we have
+found the smallest element and put it in its place (i = 0), when we need to find
+the element to put in the next position (i = 1), we simply need to find the
+smallest element again, excluding the the previous position we have already
+finished. 
+
+It should be clear that Selection Sort is correct, since after each iteration of
+the outer loop, every element in places smaller than i has to be in the correct 
+place. We say than Selection Sort maintains the "invariant" that every k &lt; i 
+is in the correct position. Note how swap is only used to move an element into 
+the position where it is going to stay. 
+
+The running time of Selection Sort might be a bit tricky the first time you see
+it. We can try to count the number of comparisons between elements in the list. 
+Let us say the list contains n elements, the first iteration of the outer loop
+(i = 0), j goes from 1 to n-1, so that is n - 2 comparisons, in the next
+iteration of the outer loop, j goes from 2 to n-1, so that is n - 3 comparisons.
+This continous until j = n - 1 and there is just 1 comparison. So if we sum these 
+up we get (n - 2) + (n - 3) + (n - 4) + ... + 1. This is just summing the numbers 
+from 1 to n-2. 
+
+
+
+# Brainstorm
+What are some exercises to understand Selection Sort better
+
+
+</body>
+</html>
