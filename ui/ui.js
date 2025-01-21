@@ -4,14 +4,11 @@ class UIElement {
             topLeft.x,
             topLeft.y,
             size.width,
-            size.height
+            size.height,
+            boundingBoxPadding
         );
-        this.bufferedBoundingBox.setPadding(boundingBoxPadding);
     }
     draw(ctx) {}
-    mouseMove(event) {}
-    mouseDown(event) {}
-    mouseUp(event) {}
     updatePosition(x, y) {
         this.position.x = x;
         this.position.y = y;
@@ -22,6 +19,7 @@ class UIElement {
         this.bufferedBoundingBox.xMax = x + this.size.width;
         this.bufferedBoundingBox.yMax = y + this.size.height;
     }
+    // TODO: Make bounding box stuff part of the UIElement itself
 }
 
 class InteractableUIELement extends UIElement { // TODO: Relative position of elements
@@ -36,6 +34,9 @@ class InteractableUIELement extends UIElement { // TODO: Relative position of el
     triggerCallbacks(value) {
         this.callbacks.forEach(callback => callback(value));
     }
+    mouseMove(event) {} 
+    mouseDown(event) {}
+    mouseUp(event) {}
 }
 
 
@@ -48,6 +49,8 @@ class UI {
         // TODO: How to implement a UI popup? 
         // TODO: Toggle interactability of UI Elements. Non-interactable elements do not need mouse events. 
         // TODO: Implement something which checks if UI needs to be redrawn. E.g. Check if elements are "dirty"
+        // TODO: Check for mouse leaving mouse event area. E.g. to guard against the case when the mouse up event is not triggered because it happened outside window
+
     }
     add(uiElement) {
         if (!(uiElement instanceof UIElement)) { throw new Error("Element was not a UIElement."); }
@@ -102,17 +105,30 @@ class UI {
     }
 }
 
-// TODO?: Use padding instead of stretch and allow to check if position is within normal area or padded area?
 class UIBoundingBox {
-    constructor(x, y, width, height, padding) {
+    constructor(x, y, width, height, padding = 0) {
         this.xMin = x;
         this.yMin = y;
         this.xMax = x + width;
         this.yMax = y + height;
-        this.padding = padding || 0;
+        this.padding = padding;
+    }
+    moveBy(dx, dy) {
+        this.xMax += dx;
+        this.xMin += dx;
+        this.yMax += dy;
+        this.yMin += dy;
+    }
+    moveTo(x, y) {
+        const width = this.xMax - this.xMin;
+        const height = this.yMax - this.yMin;
+        this.xMin = x;
+        this.yMin = y;
+        this.xMax = x + width;
+        this.yMax = y + height;        
     }
     setPadding(value) { 
-        this.strech = value;
+        this.padding = value;
     }
     contains(position) {
         return (this.xMin <= position.x && position.x <= this.xMax &&
@@ -127,5 +143,9 @@ class UIBoundingBox {
         ctx.lineWidth = 2;
         ctx.strokeStyle = 'teal';
         ctx.strokeRect(this.xMin, this.yMin, this.xMax - this.xMin, this.yMax - this.yMin);
+
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'turquise';
+        ctx.strokeRect(this.xMin - this.padding, this.yMin - this.padding, this.xMax - this.xMin + 2 * this.padding, this.yMax - this.yMin + 2 * this.padding);
     }
 }

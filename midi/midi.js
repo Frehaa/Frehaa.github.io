@@ -501,7 +501,7 @@ function main() {
         }
 
         const ui = new UI();
-        const elapsedTimeSlider = new VerticalSlider({
+        const elapsedTimeSlider = new VerticalSlider({ // TODO?: Do the slider as a mini-view of the melody? Similar to VS Code
             position: {x: 910, y: 70},
             size: {width: 30, height: 360},
             lineWidth: 3,

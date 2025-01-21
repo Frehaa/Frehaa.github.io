@@ -1,4 +1,4 @@
-class FallingNotesView extends InteractableUIELement {
+class FallingNotesView extends InteractableUIELement { 
     constructor(position, size, fallingNotes, customDrawNote, customDrawKey, drawSettings) {
         super(position, size, 0)
         this.elapsedTimeMs = 0;
@@ -9,15 +9,18 @@ class FallingNotesView extends InteractableUIELement {
             bottomAreaHeight: 120,
             timeFromTopToBottomMs: 2000,
             maxOctaves: 8,
-            windowX: 0, // For displaying different subsets of keys. Keys are drawn starting from x = 0 with note value 0 and continue 8 octaves
-            whiteKeyWidth: 24,   // 23.5 mm 
-            blackKeyWidth: 13,   // 9-14 mm
+            windowX: 0, // For displaying different subsets of keys. Keys are drawn starting from x = 0 with note value 0 and continue maxOctave octaves
+            whiteKeyWidth: 24,   // Correct values found in documentation for white keys = 23.5 mm
+            blackKeyWidth: 13,   // Correct values found in documentation for black keys = 9-14 mm
             defaultNoteFill: 'black',
-            ...drawSettings, 
+            ...drawSettings, // For overwriting defaults
         };
 
+        this.dragScrollSpeedX = 100;
+        this.dragScrollSpeedY = 50;
+
         this.hoverNote = null;
-        this.dragStart = null;
+        this.dragStartPosition = null;
         this.selectedElements = [];
         this.boxedElements = [];
         this.notes = fallingNotes || [];
@@ -40,9 +43,10 @@ class FallingNotesView extends InteractableUIELement {
 
     setElapsedTimeMs(elapsedTimeMs) {
         this.elapsedTimeMs = elapsedTimeMs;
+        // TODO: Clear and recheck for note hover
     }
 
-    _getRect() { // TODO: Do something smarter which doesn't make me create an object every frame
+    _getRect() { // TODO?: Do something smarter which doesn't make me create an object every frame
         return {
             leftX: this.position.x,
             topY: this.position.y,
@@ -89,12 +93,12 @@ class FallingNotesView extends InteractableUIELement {
     mouseMove(e) { // TODO: Selection box should not be enabled when playing and it should be possible to 
         this.hoverNote = null;
         const mousePosition = this.ui.mousePosition;
-        if (this.dragStart !== null) {
+        if (this.dragStartPosition !== null) {
             const boxingArea = { // TODO?: Limit selection to those in view?
-                leftX:  Math.min(this.dragStart.x, mousePosition.x),
-                rightX: Math.max(this.dragStart.x, mousePosition.x),
-                topY: Math.min(this.dragStart.y, mousePosition.y),
-                bottomY: Math.max(this.dragStart.y, mousePosition.y),
+                leftX:  Math.min(this.dragStartPosition.x, mousePosition.x),
+                rightX: Math.max(this.dragStartPosition.x, mousePosition.x),
+                topY: Math.min(this.dragStartPosition.y, mousePosition.y),
+                bottomY: Math.max(this.dragStartPosition.y, mousePosition.y),
             }
             this.boxedElements = this.selectElementsInRectangle( // TODO?: Right now we do a complete recomputation, would it be better to somehow reuse the previous result?
                 this.notes,
@@ -131,15 +135,22 @@ class FallingNotesView extends InteractableUIELement {
         const {leftX, topY, width, height} = this._getRect();
         ctx.strokeRect(leftX, topY, width, height);
     }
+    positionInNotesView(position) {
+        const {leftX, topY, width, height} = this._getRect();
+        return (leftX <= position.x && position.x <= leftX + width &&
+                topY <= position.y && position.y <= topY + (height - this.drawSettings.bottomAreaHeight));
+    }
 
     // TODO: If the user clicks directly on a unit, should it be selected without boxing, or should we still initiate box if we are dragging? Maybe we can do both?
     mouseDown(e) { // TODO: Shift click does not clear selected elements
         if (!this.bufferedBoundingBox.contains(this.ui.mousePosition)) return;
         
         // Boxing functionality 
-        if (e.button === LEFT_MOUSE_BUTTON) { // TODO: Check that the mouse postition is inside the note view 
+        if (e.button === LEFT_MOUSE_BUTTON && this.positionInNotesView(this.ui.mousePosition)) {
+
             if (!this.shiftKeyDown) { this.selectedElements.clear(); }
-            this.dragStart = this.ui.mousePosition;
+            this.dragStartPosition = this.ui.mousePosition;
+            this.dragStartTime = this.elapsedTimeMs;
         }
     }
     
@@ -147,12 +158,12 @@ class FallingNotesView extends InteractableUIELement {
         // TODO: Check if hovering an element when releasing the button
         // Boxing functionality
         if (e.button !== LEFT_MOUSE_BUTTON) return false;
-        if (this.dragStart !== null) {
+        if (this.dragStartPosition !== null) {
             l(this.selectedElements, this.boxedElements);
             this.selectedElements = this.selectedElements.concat(...this.boxedElements);
             l(this.selectedElements);
             this.boxedElements = [];
-            this.dragStart = null;
+            this.dragStartPosition = null;
 
             if (this.selectedElements.length > 0) return false;
             const mousePosition = this.ui.mousePosition;
@@ -258,6 +269,23 @@ class FallingNotesView extends InteractableUIELement {
         }
     }
 
+    // TODO: Give an update function to be called each frame. This is necessary to do scrolling view with selection box 
+    update(dt) {
+        if (this.dragStartPosition !== null) {
+            if (this.ui.mousePosition.x < this.position.x) {
+                this.drawSettings.windowX += this.dragScrollSpeedX * dt / 1000;
+            } else if (this.ui.mousePosition.x > this.position.x + this.size.width) {
+                this.drawSettings.windowX += this.dragScrollSpeedX * dt / 1000;
+            }
+            
+            if (this.ui.mousePosition.y < this.position.y) {
+                this.elapsedTimeMs += this.dragScrollSpeedY * dt / 1000;
+            } else if (this.ui.mousePosition.y > this.position.y + this.size.height - this.drawSettings.bottomAreaHeight) {
+                this.elapsedTimeMs += this.dragScrollSpeedY * dt / 1000;
+            }
+        }
+    }
+
     drawBottomArea(ctx) { 
         const {leftX, topY, width, height} = this._getRect();
         const {
@@ -275,13 +303,29 @@ class FallingNotesView extends InteractableUIELement {
         this._drawBottomAreaBlackKeys(ctx, whiteKeyWidth, blackKeyWidth, maxOctaves, leftX, width, windowX, bottomAreaTop, blackKeyLength);
     }
 
-    drawSelectionBox(ctx) { // TODO: Don't do drag start and drawing selection box when not clicking in the note view
-        if (this.dragStart !== null) {
+    drawSelectionBox(ctx) {
+        if (this.dragStartPosition !== null) {
             const mousePosition = this.ui.mousePosition;
-            const leftX = Math.max(this.position.x, Math.min(this.dragStart.x, mousePosition.x));
-            const topY = Math.max(this.position.y, Math.min(this.dragStart.y, mousePosition.y));
-            let width = Math.abs(this.dragStart.x - mousePosition.x)
-            let height = Math.abs(this.dragStart.y - mousePosition.y)
+            let leftX = Math.min(this.dragStartPosition.x, mousePosition.x);
+            let topY = Math.min(this.dragStartPosition.y, mousePosition.y);
+            let width = Math.abs(this.dragStartPosition.x - mousePosition.x)
+            let height = Math.abs(this.dragStartPosition.y - mousePosition.y)
+
+            // TODO: Draw not only based off of mouse position but also time elapsed, such that if we change the time elapsed the selection box sticks to the elapsed time it was started at
+
+            if (leftX < this.position.x) {
+                width = width - (this.position.x - leftX);
+                leftX = this.position.x
+            } else if (leftX + width > this.position.x + this.size.width) { 
+                width = this.size.width + this.position.x - leftX;
+            }
+
+            if (topY < this.position.y) {
+                height = height - (this.position.y - topY);
+                topY = this.position.y
+            } else if (topY + height> this.position.y + this.size.height - this.drawSettings.bottomAreaHeight) {
+                height = this.size.height + this.position.y - this.drawSettings.bottomAreaHeight - topY;
+            }
 
             ctx.beginPath();
             // ctx.moveTo(this.dragStart.x, this.dragStart.y);
