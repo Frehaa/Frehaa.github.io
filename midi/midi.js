@@ -458,7 +458,7 @@ function main() {
 
         trainingGameManager.setNotesToPlay(notes);
         trainingGameManager.togglePause();
-        function customNoteFill(note) {
+        function customNoteFill(note) { // TODO?: Maybe it is a bit confusing that this sets the ctx.fillStyle (Seems like a side effect)
             switch (fallingNotesView.getNoteType(note)) {
                 case "hovered": {
                     ctx.fillStyle = 'rgb(90, 156, 218)'
@@ -574,7 +574,6 @@ function main() {
                 trainingGameManager.checkForFailedNotes();
                 fallingNotesView.setElapsedTimeMs(trainingGameManager.elapsedTimeMs);
             }
-            l("slider", elapsedTimeSlider.sliderMarkerRatio, "training elapsed", trainingGameManager.elapsedTimeMs, fallingNotesView.elapsedTimeMs)
 
             //! Drawing
             ctx.clearRect(0, 0, canvas.width, canvas.height); // TODO: I really like the strong border lines that happens when not clearing between draws. How can we make sure they are always like that? I think I dislike the blurry borders.
@@ -650,17 +649,6 @@ function main() {
 // We have out notes. The notes are characterized by a note value, a duration, and a start time, possibly 
 // We have a view which takes a note and draws it. The view calculates how the notes are seen. 
 // We have some settings. Simple setting is selection. We want to use the mouse to select. 
-
-
-
-function pointInRectange(p, a) {
-    return a.leftX <= p.x && p.x <= a.leftX + a.width && a.topY <= p.y && p.y <= a.topY + a.height;
-}
-
-function rectangleOverlap(a, b) {
-    return !(a.rightX < b.leftX || b.rightX < a.leftX || a.bottomY < b.topY || b.bottomY < a.topY);
-}
-
 
 class Note {
     // TODO: Maybe record original time values and have something to convert to time

@@ -1,3 +1,12 @@
+// Helper functions
+function isPointInRectangle(p, a) {
+    return a.leftX <= p.x && p.x <= a.leftX + a.width && a.topY <= p.y && p.y <= a.topY + a.height;
+}
+
+function doesRectanglesOverlap(a, b) {
+    return !(a.rightX < b.leftX || b.rightX < a.leftX || a.bottomY < b.topY || b.bottomY < a.topY);
+}
+
 class FallingNotesView extends InteractableUIELement { 
     constructor(position, size, fallingNotes, customDrawNote, customDrawKey, drawSettings) {
         super(position, size, 0)
@@ -43,7 +52,9 @@ class FallingNotesView extends InteractableUIELement {
 
     setElapsedTimeMs(elapsedTimeMs) {
         this.elapsedTimeMs = elapsedTimeMs;
-        // TODO: Clear and recheck for note hover
+        // A bit of a hack 
+        const mousePosition = this.ui? this.ui.mousePosition : {x: -1, y: -1};
+        this.hoverNote = this.findHoverNote(mousePosition);
     }
 
     _getRect() { // TODO?: Do something smarter which doesn't make me create an object every frame
@@ -90,7 +101,7 @@ class FallingNotesView extends InteractableUIELement {
         ctx.fillRect(noteLeft, noteTop, noteWidth, noteHeight);
     }
 
-    mouseMove(e) { // TODO: Selection box should not be enabled when playing and it should be possible to 
+    mouseMove(e) { 
         this.hoverNote = null;
         const mousePosition = this.ui.mousePosition;
         if (this.dragStartPosition !== null) {
@@ -100,7 +111,7 @@ class FallingNotesView extends InteractableUIELement {
                 topY: Math.min(this.dragStartPosition.y, mousePosition.y),
                 bottomY: Math.max(this.dragStartPosition.y, mousePosition.y),
             }
-            this.boxedElements = this.selectElementsInRectangle( // TODO?: Right now we do a complete recomputation, would it be better to somehow reuse the previous result?
+            this.boxedElements = this.selectElementsInRectangle( // TODO? (Premature Optimization): Right now we do a complete recomputation, would it be better to somehow reuse the previous result?
                 this.notes,
                 boxingArea.leftX,
                 boxingArea.rightX,
@@ -109,15 +120,19 @@ class FallingNotesView extends InteractableUIELement {
             );
 
         } else {
-            // Handle hover of notes
-            for (const note of this.notes) {
-                const rect = this.calculateNoteRectangle(note);
-                if (pointInRectange(mousePosition, rect)) {
-                    this.hoverNote = note;
-                    break;
-                }
+            this.hoverNote = this.findHoverNote(mousePosition);
+        }
+    }
+    
+    // Returns first note with bounding box around position or null
+    findHoverNote(position) {
+        for (const note of this.notes) {
+            const rect = this.calculateNoteRectangle(note);
+            if (isPointInRectangle(position, rect)) {
+                return note;
             }
         }
+        return null;
     }
 
     draw(ctx) {
@@ -134,8 +149,9 @@ class FallingNotesView extends InteractableUIELement {
 
         const {leftX, topY, width, height} = this._getRect();
         ctx.strokeRect(leftX, topY, width, height);
+        ctx.strokeRect(leftX, topY, width, height); // Double draw make the lines sharper
     }
-    positionInNotesView(position) {
+    isPositionInNotesView(position) {
         const {leftX, topY, width, height} = this._getRect();
         return (leftX <= position.x && position.x <= leftX + width &&
                 topY <= position.y && position.y <= topY + (height - this.drawSettings.bottomAreaHeight));
@@ -146,8 +162,7 @@ class FallingNotesView extends InteractableUIELement {
         if (!this.bufferedBoundingBox.contains(this.ui.mousePosition)) return;
         
         // Boxing functionality 
-        if (e.button === LEFT_MOUSE_BUTTON && this.positionInNotesView(this.ui.mousePosition)) {
-
+        if (e.button === LEFT_MOUSE_BUTTON && this.isPositionInNotesView(this.ui.mousePosition)) {
             if (!this.shiftKeyDown) { this.selectedElements.clear(); }
             this.dragStartPosition = this.ui.mousePosition;
             this.dragStartTime = this.elapsedTimeMs;
@@ -159,17 +174,17 @@ class FallingNotesView extends InteractableUIELement {
         // Boxing functionality
         if (e.button !== LEFT_MOUSE_BUTTON) return false;
         if (this.dragStartPosition !== null) {
-            l(this.selectedElements, this.boxedElements);
-            this.selectedElements = this.selectedElements.concat(...this.boxedElements);
-            l(this.selectedElements);
+            this.selectedElements = this.selectedElements.concat(...this.boxedElements); // Concat to previously selected elements (e.g. when holding shift)
             this.boxedElements = [];
             this.dragStartPosition = null;
 
             if (this.selectedElements.length > 0) return false;
+
+            // Handle single click instead of boxing 
             const mousePosition = this.ui.mousePosition;
             for (const note of this.notes) {
                 const rect = this.calculateNoteRectangle(note);
-                if (pointInRectange(mousePosition, rect)) {
+                if (isPointInRectangle(mousePosition, rect)) {
                     this.selectedElements = [note];
                     break;
                 }
@@ -345,6 +360,7 @@ class FallingNotesView extends InteractableUIELement {
         }
     }
     
+    // TODO?: Have this be done by a different module
     drawSettingsPanel() {
 
     }
@@ -389,14 +405,14 @@ class FallingNotesView extends InteractableUIELement {
     selectElementsInRectangle(notes, leftX, rightX, topY, bottomY) {
         const result = [];
         for (const note of notes) {
-            const noteRectangle = this.calculateNoteRectangle(note);
+            const noteRectangle = this.calculateNoteRectangle(note); // TODO?: Is this really the best way to do this?
             const noteCorners = {
                 leftX: noteRectangle.leftX,
                 rightX: noteRectangle.leftX + noteRectangle.width,
                 topY: noteRectangle.topY,
                 bottomY: noteRectangle.topY + noteRectangle.height
             }
-            if (rectangleOverlap(noteCorners, {leftX, rightX, bottomY, topY})) 
+            if (doesRectanglesOverlap(noteCorners, {leftX, rightX, bottomY, topY})) 
             {
                 result.push(note);
             }
@@ -404,20 +420,19 @@ class FallingNotesView extends InteractableUIELement {
         return result;
     }
 
+    // No Longer Used 
     getNoteFillStyle(note) {
         if (this.selectedElements.length > 0 && this.selectedElements.includes(note)) {
-            if (note === this.hoverNote) return 'pink'; 
-            else return 'purple'; 
+            if (note === this.hoverNote) { return 'pink'; }
+            else { return 'purple'; }
         }
-        else if (note === this.hoverNote) return 'blue'
-        else if (this.boxedElements.includes(note)) return 'red'; 
-        else return 'black'; 
-        
+        else if (note === this.hoverNote) { return 'blue'; } 
+        else if (this.boxedElements.includes(note)) { return 'red'; }
+        else { return 'black'; }
     }
 
     drawNotes(ctx) {
         for (const note of this.notes) {
-            ctx.fillStyle = this.getNoteFillStyle(note);
             this.drawNote(ctx, note);
         }
     }
