@@ -52,7 +52,13 @@ class FallingNotesView extends InteractableUIELement {
 
     setElapsedTimeMs(elapsedTimeMs) {
         this.elapsedTimeMs = elapsedTimeMs;
-        // A bit of a hack 
+
+        // A bit of a hack to handle hover when changing time
+        if (!this.enabled) { 
+            this.dragStartPosition = null;
+            this.dragStartTime = 0;
+            return; 
+        }
         const mousePosition = this.ui? this.ui.mousePosition : {x: -1, y: -1};
         this.hoverNote = this.findHoverNote(mousePosition);
     }
@@ -111,6 +117,7 @@ class FallingNotesView extends InteractableUIELement {
                 topY: Math.min(this.dragStartPosition.y, mousePosition.y),
                 bottomY: Math.max(this.dragStartPosition.y, mousePosition.y),
             }
+
             this.boxedElements = this.selectElementsInRectangle( // TODO? (Premature Optimization): Right now we do a complete recomputation, would it be better to somehow reuse the previous result?
                 this.notes,
                 boxingArea.leftX,
@@ -144,6 +151,22 @@ class FallingNotesView extends InteractableUIELement {
         this.drawSettingsPanel(ctx); // TODO: Have this part of the UI instead?
         this.bufferedBoundingBox.draw(ctx);
 
+
+        // Let us say we want to draw something in the middle. So we can test for the future draggin box stuff
+        const ms = this.drawSettings.timeFromTopToBottomMs / 2;
+        const msToPx = (this.size.height - this.drawSettings.bottomAreaHeight) / this.drawSettings.timeFromTopToBottomMs;
+        const y = ms * msToPx;
+
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'black';
+        ctx.beginPath();
+        ctx.moveTo(0 , y + this.position.y);
+        ctx.lineTo(2000 , y + this.position.y);
+        ctx.stroke();
+
+
+
+
         ctx.lineWidth = 3;
         ctx.strokeStyle = 'black';
 
@@ -158,38 +181,33 @@ class FallingNotesView extends InteractableUIELement {
     }
 
     // TODO: If the user clicks directly on a unit, should it be selected without boxing, or should we still initiate box if we are dragging? Maybe we can do both?
-    mouseDown(e) { // TODO: Shift click does not clear selected elements
+    mouseDown(e) { 
         if (!this.bufferedBoundingBox.contains(this.ui.mousePosition)) return;
+
+        
         
         // Boxing functionality 
         if (e.button === LEFT_MOUSE_BUTTON && this.isPositionInNotesView(this.ui.mousePosition)) {
-            if (!this.shiftKeyDown) { this.selectedElements.clear(); }
+            if (!this.shiftKeyDown) { this.selectedElements.clear(); } // TODO: Ctrl click for removing an element from currently selected elements.
             this.dragStartPosition = this.ui.mousePosition;
             this.dragStartTime = this.elapsedTimeMs;
         }
     }
     
     mouseUp(e) { // TODO?: Right now we don't recalculate the boxed elements based on the mouse position of the mouseUp event, but rely on the last mouseMove event instead. This can in theory result in inaccuracies if the mouseUp event is performed between two mouseMove events. Should we recalculate the boxedElements for the mouseUp event?
-        // TODO: Check if hovering an element when releasing the button
         // Boxing functionality
         if (e.button !== LEFT_MOUSE_BUTTON) return false;
         if (this.dragStartPosition !== null) {
-            this.selectedElements = this.selectedElements.concat(...this.boxedElements); // Concat to previously selected elements (e.g. when holding shift)
-            this.boxedElements = [];
             this.dragStartPosition = null;
-
-            if (this.selectedElements.length > 0) return false;
-
-            // Handle single click instead of boxing 
-            const mousePosition = this.ui.mousePosition;
-            for (const note of this.notes) {
-                const rect = this.calculateNoteRectangle(note);
-                if (isPointInRectangle(mousePosition, rect)) {
-                    this.selectedElements = [note];
-                    break;
+            if (this.boxedElements.length > 0) {
+                this.selectedElements = this.selectedElements.concat(this.boxedElements); // Concat to previously selected elements (e.g. when holding shift)
+                this.boxedElements = [];
+            } else {
+                // Handle single click instead of boxing 
+                if (this.hoverNote !== null) {
+                    this.selectedElements.push(this.hoverNote);
                 }
             }
-
         }
     }
 
@@ -342,6 +360,8 @@ class FallingNotesView extends InteractableUIELement {
                 height = this.size.height + this.position.y - this.drawSettings.bottomAreaHeight - topY;
             }
 
+
+
             ctx.beginPath();
             // ctx.moveTo(this.dragStart.x, this.dragStart.y);
             // ctx.lineTo(mousePosition.x, this.dragStart.y);
@@ -374,16 +394,20 @@ class FallingNotesView extends InteractableUIELement {
         const tf = t / timeFromTopToBottomMs; // This gives a fraction of how far up the note is from the bottom 
 
         const noteAreaHeight = this.size.height - this.drawSettings.bottomAreaHeight;
-        const noteHeight = (noteDurationMs / timeFromTopToBottomMs) * noteAreaHeight;
+        const msToPx = noteAreaHeight / timeFromTopToBottomMs;
+        const noteHeight = noteDurationMs * msToPx;
 
-        const noteBottom = noteAreaHeight * (1 - tf)
+        // const noteBottom =  noteAreaHeight * (1 - tf)
+        // l(noteStartMs)
+        const noteBottom =  noteStartMs * msToPx;
+        // l(noteBottomgcc)
 
         return noteBottom - noteHeight;
     }
 
     calculateNoteHeight(durationMs, timeFromTopToBottomMs, noteAreaHeight) {
-        const noteHeightFraction = durationMs / timeFromTopToBottomMs;
-        return noteHeightFraction * noteAreaHeight;
+        const msToPx = noteAreaHeight / timeFromTopToBottomMs;
+        return durationMs * msToPx;
     }
 
     calculateNoteRectangle(note) {

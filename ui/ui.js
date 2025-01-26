@@ -145,7 +145,7 @@ class UIBoundingBox {
         ctx.strokeRect(this.xMin, this.yMin, this.xMax - this.xMin, this.yMax - this.yMin);
 
         ctx.lineWidth = 1;
-        ctx.strokeStyle = 'turquise';
+        ctx.strokeStyle = 'turquoise';
         ctx.strokeRect(this.xMin - this.padding, this.yMin - this.padding, this.xMax - this.xMin + 2 * this.padding, this.yMax - this.yMin + 2 * this.padding);
     }
 }
