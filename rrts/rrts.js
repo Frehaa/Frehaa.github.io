@@ -935,6 +935,10 @@ function stepSimulation(time) {
     requestAnimationFrame(stepSimulation);
 }
 function initialize() {
+
+    // return combatTesting();
+    return collisionTesting();
+
     // const tests = [
     //     setup_collision_test_cross_movement,
     //     setup_collision_test_head_on_collision,
