@@ -27,7 +27,6 @@ function step(deltaTime) {
     // While collisions (How to do this? Easy when 2 objects, what about more)
     //  Handle collision
 
-
     // RECALCULATE TORQUE AT EVERY STEP
 
     // TODO: THIS IS WRONG BECAUSE THE VECTOR FROM THE POINT MASS TO THE CENTER OF MASS CHANGES AS THE FIGURE ROTATES
@@ -37,55 +36,35 @@ function step(deltaTime) {
     // this.angularAcceleration = this.totalTorque / this.inertia;
 
     // Numerical integration of acceleration and angular acceleration to find velocity and angular velocity.
-    worldState.objects.forEach(object => {
-        let totalTorque = 0;
-        for (let i = 0; i < object.pointMasses.length; i++) {
-            const pointMass = object.pointMasses[i];
-            const force = object.pointMassesCurrentForce[i];
-            totalTorque += pointMass.subtract(object.centerOfMass).perp_dot(force);
-        }
-        object.angularAcceleration = totalTorque / object.inertia;
+    // worldState.objects.forEach(object => {
+    //     let totalTorque = 0;
+    //     for (let i = 0; i < object.pointMasses.length; i++) {
+    //         const pointMass = object.pointMasses[i];
+    //         const force = object.pointMassesCurrentForce[i];
+    //         totalTorque += pointMass.subtract(object.centerOfMass).perp_dot(force);
+    //     }
+    //     object.angularAcceleration = totalTorque / object.inertia;
 
-        object.velocity = object.velocity.add(object.acceleration.scale(deltaTime));
-        object.angularVelocity = object.angularVelocity + object.angularAcceleration * deltaTime;
-    });
+    //     object.velocity = object.velocity.add(object.acceleration.scale(deltaTime));
+    //     object.angularVelocity = object.angularVelocity + object.angularAcceleration * deltaTime;
+    // });
 
     // Numerical integration of velocity to find new position and new orientation
     worldState.objects.forEach(object => {
-        // FIND ALL THE VELOCITIES
-        const veloctiyCM = object.velocity;
-
-        let perpScaledVector = object.position.subtract(object.centerOfMass).perp_scale(object.angularVelocity);
-        let velocityPosition = veloctiyCM.add(perpScaledVector);
-
-        object.newCenterOfMass = object.centerOfMass.add(veloctiyCM.scale(deltaTime));
-        object.newPosition = object.position.add(velocityPosition.scale(deltaTime));
-
-
-        for (let i = 0; i < object.pointMasses.length; i++) {
-            const pointMass = object.pointMasses[i];
-            perpScaledVector = pointMass.subtract(object.centerOfMass).perp_scale(object.angularVelocity);
-            // l(pointMass.toString(), perpScaledVector.toString(), object.angularVelocity)
-            object.pointMasses[i] = pointMass.add(veloctiyCM.add(perpScaledVector).scale(deltaTime));
-
-        }
-
-
-
-        object.newOrientation = object.orientation + object.angularVelocity * deltaTime;
+        object.step(deltaTime);
     });
 
     // Collision detection (NAIVE)
-    worldState.objects.forEach(object => {
-        if (object.newPosition.x < object.radius || 1920-object.radius < object.newPosition.x) {
-            const newX = -object.velocity.x;
-            object.velocity = new Vec2(newX, object.velocity.y);
-        }
-        if (object.newPosition.y < object.radius || 1080-object.radius < object.newPosition.y) {
-            const newY = -object.velocity.y;
-            object.velocity = new Vec2(object.velocity.x, newY);
-        }
-    })
+    // worldState.objects.forEach(object => {
+        // if (object.newPosition.x < object.radius || 1920-object.radius < object.newPosition.x) {
+        //     const newX = -object.velocity.x;
+        //     object.velocity = new Vec2(newX, object.velocity.y);
+        // }
+        // if (object.newPosition.y < object.radius || 1080-object.radius < object.newPosition.y) {
+        //     const newY = -object.velocity.y;
+        //     object.velocity = new Vec2(object.velocity.x, newY);
+        // }
+    // })
 
     // I need to move all of the point masses and recalculate the torque based on the new positions, no? 
     
@@ -98,8 +77,8 @@ function step(deltaTime) {
     // Final updated position after collision detection
     worldState.objects.forEach(object => {
         object.position = object.newPosition; // Add + w r^{OB}_bot
-        object.centerOfMass = object.newCenterOfMass;
-        object.orientation = object.newOrientation;
+        // object.centerOfMass = object.newCenterOfMass;
+        // object.orientation = object.newOrientation;
     });
 }
 
@@ -119,14 +98,14 @@ function draw(ctx) {
     }
     ctx.stroke()
 
-    ctx.strokeStyle = 'black';
-    ctx.beginPath();
-    ctx.moveTo(cmPositions[0].x, cmPositions[0].y);
-    for (let i = 1; i < cmPositions.length; i++) {
-        const p = cmPositions[i];
-        ctx.lineTo(p.x, p.y);
-    }
-    ctx.stroke()
+    // ctx.strokeStyle = 'black';
+    // ctx.beginPath();
+    // ctx.moveTo(cmPositions[0].x, cmPositions[0].y);
+    // for (let i = 1; i < cmPositions.length; i++) {
+    //     const p = cmPositions[i];
+    //     ctx.lineTo(p.x, p.y);
+    // }
+    // ctx.stroke()
 }
 
 function updateFrame(dt) {
@@ -136,21 +115,24 @@ function updateFrame(dt) {
     if (!newPosition.equal(previousPosition)) {
         positions.push(newPosition);
     } 
-    const newCmPosition = worldState.objects[0].centerOfMass;
-    const previousCmPosition = cmPositions[cmPositions.length-1];
-    if (!newCmPosition.equal(previousCmPosition)) {
-        cmPositions.push(newCmPosition);
-    } 
+    // const newCmPosition = worldState.objects[0].centerOfMass;
+    // const previousCmPosition = cmPositions[cmPositions.length-1];
+    // if (!newCmPosition.equal(previousCmPosition)) {
+    //     cmPositions.push(newCmPosition);
+    // } 
 
     const ctx = document.getElementById('canvas').getContext('2d');
     draw(ctx);
 }
 
 function initialize() {
+    // return simpleDrawingBall();
+
     const animationClass = new AnimationFrameRequestManager(updateFrame);
 
     worldState.objects.push(
-        new PhysicsBall(new Vec2(300, 300), 30),
+        new SimpleMassNonRotatingPhysicsBall(new Vec2(300, 300), 30),
+        // new PhysicsBall(new Vec2(300, 300), 30),
     );
     positions.push(worldState.objects[0].position);
     cmPositions.push(worldState.objects[0].centerOfMass);
@@ -158,8 +140,14 @@ function initialize() {
     // Prevent right click from opening context menu
     document.addEventListener('contextmenu', e => e.preventDefault());
     document.addEventListener("keydown", keyDown);
+    document.addEventListener("keyup", keyUp);
+
+    const pressedKeys = new Set()
 
     function keyDown(e) {
+        if (pressedKeys.has(e.code)) { return; }
+        pressedKeys.add(e.code);
+        l(e)
         const o = worldState.objects[0];
         switch (e.code) {
             case 'KeyP': {
@@ -188,5 +176,123 @@ function initialize() {
         }
     }
 
+    function keyUp(e) {
+        assert(pressedKeys.has(e.code), "Key up event of key without key down event.") // I guess this can happen if the window does not have focus for the key down event? 
+
+        pressedKeys.delete(e.code);
+        const o = worldState.objects[0];
+        switch (e.code) {
+            case 'ArrowLeft': {
+                o.applyForce(new Vec2(0.0005, 0), 0);
+            } break;
+            case 'ArrowRight': {
+                o.applyForce(new Vec2(-0.0005, 0), 0);
+            } break;
+            case 'ArrowUp': {
+                o.applyForce(new Vec2(0, 0.0005), 0);
+            } break;
+            case 'ArrowDown': {
+                o.applyForce(new Vec2(0, -0.0005), 0);
+            } break;
+        }
+    }
+
+    animationClass.start();
+}
+
+
+
+// Uses the "most" simple physics object in the "most" simple way to draw a path based on positions the ball has taken. The ball is controlled using arrow keys which applies a constant force while pressed. 
+function simpleDrawingBall() {
+    const size = 15
+
+    const ball = new SimpleMassNonRotatingPhysicsBall(new Vec2(300, 300), size);
+    const positions = [ball.position];
+
+    const animationClass = new AnimationFrameRequestManager(dt => {
+        // UPDATE
+        ball.step(dt);
+
+        // Record position
+        const newPosition = ball.position;
+        const previousPosition = positions[positions.length-1];
+        if (!newPosition.equal(previousPosition)) {
+            positions.push(newPosition);
+        } 
+
+
+        // Clear and draw ball and path
+        const ctx = document.getElementById('canvas').getContext('2d');
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ball.draw(ctx);
+
+        ctx.beginPath();
+        ctx.moveTo(positions[0].x, positions[0].y);
+        for (let i = 1; i < positions.length; i++) {
+            const p = positions[i];
+            ctx.lineTo(p.x, p.y);
+        }
+        ctx.lineWidth = size;
+        ctx.strokeStyle = 'pink';
+        ctx.stroke()
+    });
+
+    // Event Listeners 
+    document.addEventListener('contextmenu', e => e.preventDefault()); // Prevent right click from opening context menu
+    document.addEventListener("keydown", keyDown);
+    document.addEventListener("keyup", keyUp);
+
+    const pressedKeys = new Set()
+    function keyDown(e) {
+        if (pressedKeys.has(e.code)) { return; }
+        pressedKeys.add(e.code);
+        switch (e.code) {
+            case 'KeyP': {
+                animationClass.togglePause();
+            } break;
+            case 'KeyD': {
+                for (let i = 0; i < o.pointMasses.length; i++) {
+                    ball.applyForce(new Vec2(-0.00001, 0), i);
+                }
+            } break;
+            case 'ArrowLeft': {
+                ball.applyForce(new Vec2(-0.0005, 0), 0);
+            } break;
+            case 'ArrowRight': {
+                ball.applyForce(new Vec2(0.0005, 0), 0);
+            } break;
+            case 'ArrowUp': {
+                ball.applyForce(new Vec2(0, -0.0005), 0);
+            } break;
+            case 'ArrowDown': {
+                ball.applyForce(new Vec2(0, 0.0005), 0);
+            } break;
+            case 'KeyA': {
+                l(ball)
+            }
+        }
+    }
+
+    function keyUp(e) {
+        assert(pressedKeys.has(e.code), "Key up event of key without key down event.") // I guess this can happen if the window does not have focus for the key down event? 
+
+        pressedKeys.delete(e.code);
+        switch (e.code) {
+            case 'ArrowLeft': {
+                ball.applyForce(new Vec2(0.0005, 0), 0);
+            } break;
+            case 'ArrowRight': {
+                ball.applyForce(new Vec2(-0.0005, 0), 0);
+            } break;
+            case 'ArrowUp': {
+                ball.applyForce(new Vec2(0, 0.0005), 0);
+            } break;
+            case 'ArrowDown': {
+                ball.applyForce(new Vec2(0, -0.0005), 0);
+            } break;
+        }
+    }
+
+    // Start 
     animationClass.start();
 }
