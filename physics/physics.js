@@ -126,14 +126,18 @@ function updateFrame(dt) {
 }
 
 function initialize() {
-    // return simpleDrawingBall();
+    // return simpleBall();
+    // return rotatingDrawingBall();
+    return centerOfMassBall();
 
     const animationClass = new AnimationFrameRequestManager(updateFrame);
 
     worldState.objects.push(
-        new SimpleMassNonRotatingPhysicsBall(new Vec2(300, 300), 30),
-        // new PhysicsBall(new Vec2(300, 300), 30),
+        // new SimpleMassNonRotatingPhysicsBall(new Vec2(300, 300), 30),
+        new PhysicsBall(new Vec2(300, 300), 30),
     );
+
+    l(worldState.objects[0])
     positions.push(worldState.objects[0].position);
     cmPositions.push(worldState.objects[0].centerOfMass);
 
@@ -203,10 +207,119 @@ function initialize() {
 
 
 // Uses the "most" simple physics object in the "most" simple way to draw a path based on positions the ball has taken. The ball is controlled using arrow keys which applies a constant force while pressed. 
-function simpleDrawingBall() {
+function simpleBall() {
     const size = 15
 
     const ball = new SimpleMassNonRotatingPhysicsBall(new Vec2(300, 300), size);
+    const positions = [ball.position];
+
+    const maxVelocity = 5.5
+    const force = 0.01; // 0.01 force with -0.001 drag gives a max velocty of 10 it seems like. Can this be computed?
+    ball.addConditionalForce(b => b.velocity.scale(-force/maxVelocity));
+
+    const animationClass = new AnimationFrameRequestManager(dt => {
+        // UPDATE
+        ball.step(dt);
+
+        // Record position
+        const newPosition = ball.position;
+        const previousPosition = positions[positions.length-1];
+        if (!newPosition.equal(previousPosition)) {
+            positions.push(newPosition);
+        } 
+
+
+        // Clear and draw ball and path
+        const ctx = document.getElementById('canvas').getContext('2d');
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ball.draw(ctx);
+
+        // ctx.beginPath();
+        // ctx.moveTo(positions[0].x, positions[0].y);
+        // for (let i = 1; i < positions.length; i++) {
+        //     const p = positions[i];
+        //     ctx.lineTo(p.x, p.y);
+        // }
+        // ctx.lineWidth = size;
+        // ctx.strokeStyle = 'pink';
+        // ctx.stroke()
+
+        ctx.font = '25px Arial';
+        ctx.fillStyle = 'black'
+        ctx.fillText(ball.acceleration.x.toFixed(2), 1200, 200);
+        ctx.fillText(ball.acceleration.y.toFixed(2), 1200, 230);
+
+        ctx.fillText(ball.velocity.x.toFixed(2), 1200, 260);
+        ctx.fillText(ball.velocity.y.toFixed(2), 1200, 290);
+
+        ctx.fillText(ball.totalForce.x.toFixed(2), 1200, 320);
+        ctx.fillText(ball.totalForce.y.toFixed(2), 1200, 350);
+    });
+
+    // Event Listeners 
+    document.addEventListener('contextmenu', e => e.preventDefault()); // Prevent right click from opening context menu
+    document.addEventListener("keydown", keyDown);
+    document.addEventListener("keyup", keyUp);
+
+    const pressedKeys = new Set()
+    function keyDown(e) {
+        if (pressedKeys.has(e.code)) { return; }
+        pressedKeys.add(e.code);
+        switch (e.code) {
+            case 'KeyP': {
+                animationClass.togglePause();
+            } break;
+            case 'KeyD': {
+                for (let i = 0; i < o.pointMasses.length; i++) {
+                    ball.applyForce(new Vec2(-0.00001, 0), i);
+                }
+            } break;
+            case 'ArrowLeft': {
+                ball.applyForce(new Vec2(-force, 0), 0);
+            } break;
+            case 'ArrowRight': {
+                ball.applyForce(new Vec2(force, 0), 0);
+            } break;
+            case 'ArrowUp': {
+                ball.applyForce(new Vec2(0, -force), 0);
+            } break;
+            case 'ArrowDown': {
+                ball.applyForce(new Vec2(0, force), 0);
+            } break;
+            case 'KeyA': {
+                l(ball)
+            }
+        }
+    }
+
+    function keyUp(e) {
+        // assert(pressedKeys.has(e.code), "Key up event of key without key down event.") // I guess this can happen if the window does not have focus for the key down event? 
+
+        pressedKeys.delete(e.code);
+        switch (e.code) {
+            case 'ArrowLeft': {
+                ball.applyForce(new Vec2(force, 0), 0);
+            } break;
+            case 'ArrowRight': {
+                ball.applyForce(new Vec2(-force, 0), 0);
+            } break;
+            case 'ArrowUp': {
+                ball.applyForce(new Vec2(0, force), 0);
+            } break;
+            case 'ArrowDown': {
+                ball.applyForce(new Vec2(0, -force), 0);
+            } break;
+        }
+    }
+
+    // Start 
+    animationClass.start();
+}
+
+function rotatingDrawingBall() {
+    const size = 15
+
+    const ball = new SimpleMassRotatingPhysicsBall(new Vec2(300, 300), size);
     const positions = [ball.position];
 
     const animationClass = new AnimationFrameRequestManager(dt => {
@@ -295,4 +408,102 @@ function simpleDrawingBall() {
 
     // Start 
     animationClass.start();
+}
+
+function centerOfMassBall() {
+    const size = 25
+
+    const ball = new MultiPointMassNonRotatingPhysicsBall(new Vec2(300, 300), size);
+
+    ball.addPointMass(0, 1, 1);
+    ball.addPointMass(Math.PI, 1, 1);
+    ball.addPointMass(1.5 * Math.PI, 0.5, 2);
+    ball.addPointMass(1.7 * Math.PI, 0.7, 5);
+    // ball.addPointMass(0, 0, 5);
+
+    const maxVelocity = 4
+    const force = 0.05; // 0.01 force with -0.001 drag gives a max velocty of 10 it seems like. Can this be computed?
+    ball.addConditionalForce(b => b.velocity.scale(-force/maxVelocity));
+
+    const animationClass = new AnimationFrameRequestManager(dt => {
+        // UPDATE
+        ball.step(dt);
+
+        // Clear and draw ball and path
+        const ctx = document.getElementById('canvas').getContext('2d');
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ball.draw(ctx);
+
+        ctx.font = '25px Arial';
+        ctx.fillStyle = 'black'
+        ctx.fillText(ball.acceleration.x.toFixed(2), 1200, 200);
+        ctx.fillText(ball.acceleration.y.toFixed(2), 1200, 230);
+
+        ctx.fillText(ball.velocity.x.toFixed(2), 1200, 260);
+        ctx.fillText(ball.velocity.y.toFixed(2), 1200, 290);
+
+        ctx.fillText(ball.totalForce.x.toFixed(2), 1200, 320);
+        ctx.fillText(ball.totalForce.y.toFixed(2), 1200, 350);
+    });
+
+    // Event Listeners 
+    document.addEventListener('contextmenu', e => e.preventDefault()); // Prevent right click from opening context menu
+    document.addEventListener("keydown", keyDown);
+    document.addEventListener("keyup", keyUp);
+
+    const pressedKeys = new Set()
+    function keyDown(e) {
+        if (pressedKeys.has(e.code)) { return; }
+        pressedKeys.add(e.code);
+        switch (e.code) {
+            case 'KeyP': {
+                animationClass.togglePause();
+            } break;
+            case 'KeyD': {
+                for (let i = 0; i < o.pointMasses.length; i++) {
+                    ball.applyForce(new Vec2(-0.00001, 0), i);
+                }
+            } break;
+            case 'ArrowLeft': {
+                ball.applyForce(new Vec2(-force, 0), 0);
+            } break;
+            case 'ArrowRight': {
+                ball.applyForce(new Vec2(force, 0), 0);
+            } break;
+            case 'ArrowUp': {
+                ball.applyForce(new Vec2(0, -force), 0);
+            } break;
+            case 'ArrowDown': {
+                ball.applyForce(new Vec2(0, force), 0);
+            } break;
+            case 'KeyA': {
+                l(ball)
+            }
+        }
+    }
+
+    function keyUp(e) {
+        // assert(pressedKeys.has(e.code), "Key up event of key without key down event.") // I guess this can happen if the window does not have focus for the key down event? 
+
+        pressedKeys.delete(e.code);
+        switch (e.code) {
+            case 'ArrowLeft': {
+                ball.applyForce(new Vec2(force, 0), 0);
+            } break;
+            case 'ArrowRight': {
+                ball.applyForce(new Vec2(-force, 0), 0);
+            } break;
+            case 'ArrowUp': {
+                ball.applyForce(new Vec2(0, force), 0);
+            } break;
+            case 'ArrowDown': {
+                ball.applyForce(new Vec2(0, -force), 0);
+            } break;
+        }
+    }
+
+
+    // Start 
+    animationClass.start();
+
 }

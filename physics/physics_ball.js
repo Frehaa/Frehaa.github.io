@@ -140,22 +140,160 @@ class MultiPointMassNonRotatingPhysicsBall {
         this.totalForce = new Vec2(0, 0);
         this.radius = radius;
         this.totalMass = 0;
+        this.pointMasses = []; // List of radian, normalizedDistance, and mass triples. This is in order to add point masses relative to the center.
+        this.centerOfMass = this.position;
+        this.conditionalForce = [];
     }
-    addPointMass(point, mass) {
+    // Define some point mass a certain radianse and normalized distance from the center
+    // E.g. 0, 1 is all the way to the right, Pi, 0.5 is half way to the left, 0, 0 is the center
+    addPointMass(radians, normalizedDistance, mass) {
+        assert(0 <= normalizedDistance && normalizedDistance <= 1, 'The normalized instance should be between in the range [0, 1] (both inclusive)');
+        const distance = this.radius * normalizedDistance;
+        this.pointMasses.push([radians, distance, mass]);
+        this.totalMass += mass; 
+        this.calculateCenterOfMass(); // TODO: This seems like a waste of computation every step, but right now it also seems like a waste to think of a smarter way
 
+        l(this.totalMass, this.centerOfMass);
     }
-    step(t) {
-        assert(this.totalMass > 0, "This physics object should not be stepped with 0 mass.");
+    calculateCenterOfMass() {
+        let centerOfMass = new Vec2(0, 0);
+        for (const [radians, distance, mass] of this.pointMasses) {
+            const relative = new Vec2(Math.cos(radians), -Math.sin(radians)).scale(distance); // TODO?: Figure out whether to inverse sin or not since y is inversed in the canvas coordinate system
+            const point = this.position.add(relative)
+            centerOfMass = centerOfMass.add(point.scale(mass/this.totalMass));
+        }
+        this.centerOfMass = centerOfMass;
+        this.centerOfMassRelative = this.centerOfMass.subtract(this.position);
+    }
+    // step(t) {
+    //     assert(this.totalMass > 0, "This physics object should not be stepped with 0 mass.");
+    //     this.position = this.position.add(this.velocity.scale(t).add(this.acceleration.scale(t*t/2))); // We apply the change to the position directly instead of the center of mass. I am not sure which is better, but we could also move the center of mass and change position based on their difference. I do not think any of this matters at this point.
+    //     this.centerOfMass = this.position.add(this.centerOfMassRelative);
+    //     this.velocity = this.velocity.add(this.acceleration.scale(t));
+    // }
+    step(deltaTime) {
+        this.oldPosition = this.position;
 
-        this.position = this.position.add(this.velocity.scale(t).add(this.acceleration.scale(t*t/2)));
-        this.velocity = this.velocity.add(this.acceleration.scale(t));
+        const maxTimeStep = 0.5;
+        while (deltaTime > 0) {
+            // Compute acceleration 
+            this.acceleration = this.totalForce.scale(1 / this.totalMass); // We assume the mass is 1 so the force is translated directly to acceleration
+            for (const f of this.conditionalForce) {
+                this.acceleration = this.acceleration.add(f(this).scale(1 / this.totalMass)); // We assume the mass is 1 so the force is translated directly to acceleration
+            }
+
+            // Compute the step
+            let h = 0;
+            if (deltaTime > maxTimeStep) {
+                h = maxTimeStep;
+                deltaTime -= maxTimeStep
+            } else {
+                h = deltaTime;
+                deltaTime = 0;
+            }
+
+            // Update position and velocity
+            this.position = this.position.add(this.velocity.scale(h)) //.add(this.acceleration.scale(h*h/2)));
+            this.centerOfMass = this.position.add(this.centerOfMassRelative);
+            this.velocity = this.velocity.add(this.acceleration.scale(h));
+        }
     }
     applyForce(force) {
+        assert(this.totalMass > 0, "This physics object has 0 mass .");
         this.totalForce = this.totalForce.add(force);
-        this.acceleration = this.totalForce.scale(1 / this.totalMass);
+        // this.acceleration = this.totalForce.scale(1 / this.totalMass);
     }
+    draw(ctx) {
+        ctx.beginPath();
+        const x = Math.abs(this.position.x) % 1920;
+        const y = Math.abs(this.position.y) % 1080;
+        ctx.arc(x, y, this.radius, 0, 2 * Math.PI);
+        ctx.strokeStyle = 'black'
+        ctx.lineWidth = 2
+        ctx.stroke();
+
+        ctx.beginPath();
+        const cmx = Math.abs(this.centerOfMass.x) % 1920;
+        const cmy = Math.abs(this.centerOfMass.y) % 1080;
+        ctx.arc(cmx, cmy, 5, 0, 2 * Math.PI);
+        ctx.fillStyle = 'red'
+        ctx.fill();
+    }
+
+    addConditionalForce(forceFunction) {
+        this.conditionalForce.push(forceFunction);
+    }
+
 }
 
+
+
+// A physics ball which does not handle rotation or non-trivial point masses.
+class SimpleMassNonRotatingPhysicsBall {
+    constructor(center, radius) {
+        this.position = center;
+        this.velocity = new Vec2(0, 0);
+        this.acceleration = new Vec2(0, 0);
+        this.totalForce = new Vec2(0, 0);
+        this.conditionalForce = [];
+        this.radius = radius;
+        this.totalMass = 1;
+    }
+
+    draw(ctx) {
+        ctx.beginPath();
+        const x = this.position.x % 1920;
+        const y = this.position.y % 1080;
+        ctx.arc(x, y, this.radius, 0, 2 * Math.PI);
+
+        ctx.fillStyle = 'pink'
+        ctx.fill();
+    }
+
+    // New position is equal to old position + t * old velocity + t^2 * acceleration / 2
+    // New Velocity is equal to old velocity + acceleration * t
+    step(deltaTime) {
+        this.oldPosition = this.position;
+
+        const maxTimeStep = 0.5;
+        while (deltaTime > 0) {
+            // Compute acceleration 
+            this.acceleration = this.totalForce; // We assume the mass is 1 so the force is translated directly to acceleration
+            for (const f of this.conditionalForce) {
+                this.acceleration = this.acceleration.add(f(this)); // We assume the mass is 1 so the force is translated directly to acceleration
+            }
+
+            // Compute the step
+            let h = 0;
+            if (deltaTime > maxTimeStep) {
+                h = maxTimeStep;
+                deltaTime -= maxTimeStep
+            } else {
+                h = deltaTime;
+                deltaTime = 0;
+            }
+
+            // Update position and velocity
+            this.position = this.position.add(this.velocity.scale(h)) //.add(this.acceleration.scale(h*h/2)));
+            this.velocity = this.velocity.add(this.acceleration.scale(h));
+        }
+    }
+
+    revertPosition() {
+        this.position = this.oldPosition;
+    }
+
+    // We call this "apply" force, but it also works to remove force by simply inverting the previously applied force
+    applyForce(force) {
+        this.totalForce = this.totalForce.add(force);
+        // this.acceleration = this.totalForce; // We assume the mass is 1 so the force is translated directly to acceleration
+        // l(this.acceleration)
+    }
+
+    addConditionalForce(forceFunction) {
+        this.conditionalForce.push(forceFunction);
+    }
+}
 // Extends the simple physics ball with rotation
 class SimpleMassRotatingPhysicsBall extends SimpleMassNonRotatingPhysicsBall {
     constructor(center, radius) {
@@ -168,38 +306,5 @@ class SimpleMassRotatingPhysicsBall extends SimpleMassNonRotatingPhysicsBall {
 
     applyForce(force) {
         super.applyForce(force);
-    }
-}
-
-// A physics ball which does not handle rotation or non-trivial point masses.
-class SimpleMassNonRotatingPhysicsBall {
-    constructor(center, radius) {
-        this.position = center;
-        this.velocity = new Vec2(0, 0);
-        this.acceleration = new Vec2(0, 0);
-        this.totalForce = new Vec2(0, 0);
-        this.radius = radius;
-        this.totalMass = 1;
-    }
-
-    draw(ctx) {
-        ctx.beginPath();
-        ctx.arc(this.position.x, this.position.y, this.radius, 0, 2 * Math.PI);
-
-        ctx.fillStyle = 'pink'
-        ctx.fill();
-    }
-
-    // New position is equal to old position + t * old velocity + t^2 * acceleration / 2
-    // New Velocity is equal to old velocity + acceleration * t
-    step(deltaTime) {
-        this.position = this.position.add(this.velocity.scale(deltaTime).add(this.acceleration.scale(deltaTime*deltaTime/2)));
-        this.velocity = this.velocity.add(this.acceleration.scale(deltaTime));
-    }
-
-    // We call this "apply" force, but it also works to remove force by simply inverting the previously applied force
-    applyForce(force) {
-        this.totalForce = this.totalForce.add(force);
-        this.acceleration = this.totalForce; // We assume the mass is 1 so the force is translated directly to acceleration
     }
 }
