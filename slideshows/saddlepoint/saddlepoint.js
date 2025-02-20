@@ -1,10 +1,13 @@
 "use strict";
 
 // TODO: Pick different colors for color blindness. E.g. for red-green colorblind
-const equalToColor = `rgba(50, 100, 255, 1)`;
-const greaterThanColor = 'red';
-const smallerThanColor = 'green';
-const fontColor = 'black'
+// We make them public and non-constant such that it can be changed from the console
+let equalToColor = `rgba(50, 100, 255, 1)`;
+let greaterThanColor = 'red';
+let smallerThanColor = 'green';
+let fontColor = 'black'
+let removedRowsColor = 'grey'
+let unknownValueColor = 'grey'
 
 // ######### HELPER FUNCTIONS ######
 
@@ -126,7 +129,7 @@ function createSampleSlides(matrix, matrixDrawSettings) {
             allSamples.slice(0, currentSampleCount).forEach(sample => {
                 drawMatrixCircle(ctx, sample[1], sample[0], matrixDrawSettings);
             });
-            ctx.fillStyle = 'grey'
+            ctx.fillStyle = removedRowsColor;
             removedRows.slice(0, removedCountFirst).forEach(row => {
                 for (let j = 0; j < matrix.columns; j++) {
                     drawMatrixSquare(ctx, j, row, matrixDrawSettings);
@@ -146,7 +149,7 @@ function createSampleSlides(matrix, matrixDrawSettings) {
         result.push(createDrawSlide(ctx => {
             sampleSlide.draw(ctx);
 
-            ctx.fillStyle = 'grey'
+            ctx.fillStyle = removedRowsColor
             removedRows.slice(0, removedCountSecond).forEach(row => {
                 for (let j = 0; j < matrix.columns; j++) {
                     drawMatrixSquare(ctx, j, row, matrixDrawSettings);
@@ -165,7 +168,7 @@ function createSampleSlides(matrix, matrixDrawSettings) {
         allSamples.forEach(sample => {
             drawMatrixCircle(ctx, sample[1], sample[0], matrixDrawSettings);
         });
-        ctx.fillStyle = 'grey'
+        ctx.fillStyle = removedRowsColor;
         removedRows.forEach(row => {
             for (let j = 0; j < matrix.columns; j++) {
                 drawMatrixSquare(ctx, j, row, matrixDrawSettings);
@@ -180,7 +183,7 @@ function createSampleSlides(matrix, matrixDrawSettings) {
         allSamples.forEach(sample => {
             drawMatrixCircle(ctx, sample[1], sample[0], matrixDrawSettings);
         });
-        ctx.fillStyle = 'grey'
+        ctx.fillStyle = removedRowsColor
         removedRows.forEach(row => {
             for (let j = 0; j < matrix.columns; j++) {
                 drawMatrixSquare(ctx, j, row, matrixDrawSettings);
@@ -217,7 +220,7 @@ function createWalkSlides(matrix, threshold, matrixDrawSettings, dogImage) {
     const result = [];
     for (let i = 0; i < path.length; ++i) {
         result.push(createDrawSlide(ctx => {
-            ctx.fillStyle = 'grey'
+            ctx.fillStyle = unknownValueColor;
             drawMatrix(ctx, matrix, matrixDrawSettings)
             drawMatrixCircleByThreshold(ctx, 0, 0, matrix, threshold, matrixDrawSettings);
             for (let j = 1; j <= i; ++j) {
@@ -746,7 +749,7 @@ function initialize() {
             ctx.fillText("< t", 1200, greenCircleLegendHeight);
 
             // Second circle comparison legend
-            ctx.fillStyle = 'grey';
+            ctx.fillStyle = removedRowsColor
             drawCircle(1150, redCircleLegendHeight, circleRadius, ctx)
             ctx.fillStyle = fontColor;
             ctx.fillText(" There is a value in row > t", 1200, redCircleLegendHeight);
