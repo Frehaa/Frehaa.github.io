@@ -227,6 +227,15 @@ class MultiPointMassNonRotatingPhysicsBall {
 }
 
 
+class MultiPointMassRotatingPhysicsBall {
+    constructor(center, radius) {
+        super(center, radius);
+        this.orientation = 0
+        this.angularVelocity = 0;
+        this.angularAcceleration = 0;
+    }
+}
+
 
 // A physics ball which does not handle rotation or non-trivial point masses.
 class SimpleMassNonRotatingPhysicsBall {
@@ -286,25 +295,9 @@ class SimpleMassNonRotatingPhysicsBall {
     // We call this "apply" force, but it also works to remove force by simply inverting the previously applied force
     applyForce(force) {
         this.totalForce = this.totalForce.add(force);
-        // this.acceleration = this.totalForce; // We assume the mass is 1 so the force is translated directly to acceleration
-        // l(this.acceleration)
     }
 
     addConditionalForce(forceFunction) {
         this.conditionalForce.push(forceFunction);
-    }
-}
-// Extends the simple physics ball with rotation
-class SimpleMassRotatingPhysicsBall extends SimpleMassNonRotatingPhysicsBall {
-    constructor(center, radius) {
-        super(center, radius);
-
-        this.orientation = 0;
-        this.angularVelocity = 0;
-        this.angularAcceleration = 0;
-    }
-
-    applyForce(force) {
-        super.applyForce(force);
     }
 }
