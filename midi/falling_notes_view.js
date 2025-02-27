@@ -51,7 +51,7 @@ class FallingNotesView extends InteractableUIELement {
     }
 
     setElapsedTimeMs(elapsedTimeMs) {
-        this.elapsedTimeMs = elapsedTimeMs;
+        this.elapsedTimeMs = elapsedTimeMs; // TODO: Figure out where to put clamping logic. Is it supposed to be the view or the outside the view?
 
         // A bit of a hack to handle hover when changing time
         if (!this.enabled) { 
@@ -73,6 +73,7 @@ class FallingNotesView extends InteractableUIELement {
     }
 
     drawNote(ctx, note) {
+        // return
         const {leftX, topY, width, height} = this._getRect();
 
         const bottomAreaTopY = topY + height - this.drawSettings.bottomAreaHeight;
@@ -150,22 +151,6 @@ class FallingNotesView extends InteractableUIELement {
         this.drawBottomArea(ctx);
         this.drawSettingsPanel(ctx); // TODO: Have this part of the UI instead?
         this.bufferedBoundingBox.draw(ctx);
-
-
-        // Let us say we want to draw something in the middle. So we can test for the future draggin box stuff
-        const ms = this.drawSettings.timeFromTopToBottomMs / 2;
-        const msToPx = (this.size.height - this.drawSettings.bottomAreaHeight) / this.drawSettings.timeFromTopToBottomMs;
-        const y = ms * msToPx;
-
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = 'black';
-        ctx.beginPath();
-        ctx.moveTo(0 , y + this.position.y);
-        ctx.lineTo(2000 , y + this.position.y);
-        ctx.stroke();
-
-
-
 
         ctx.lineWidth = 3;
         ctx.strokeStyle = 'black';
@@ -306,15 +291,15 @@ class FallingNotesView extends InteractableUIELement {
     update(dt) {
         if (this.dragStartPosition !== null) {
             if (this.ui.mousePosition.x < this.position.x) {
-                this.drawSettings.windowX += this.dragScrollSpeedX * dt / 1000;
+                this.drawSettings.windowX -= this.dragScrollSpeedX * dt / 1000;
             } else if (this.ui.mousePosition.x > this.position.x + this.size.width) {
                 this.drawSettings.windowX += this.dragScrollSpeedX * dt / 1000;
             }
             
             if (this.ui.mousePosition.y < this.position.y) {
-                this.elapsedTimeMs += this.dragScrollSpeedY * dt / 1000;
+                this.setElapsedTimeMs(this.elapsedTimeMs + this.dragScrollSpeedY * dt / 1000);
             } else if (this.ui.mousePosition.y > this.position.y + this.size.height - this.drawSettings.bottomAreaHeight) {
-                this.elapsedTimeMs += this.dragScrollSpeedY * dt / 1000;
+                this.setElapsedTimeMs(this.elapsedTimeMs - this.dragScrollSpeedY * dt / 1000);
             }
         }
     }
@@ -397,10 +382,9 @@ class FallingNotesView extends InteractableUIELement {
         const msToPx = noteAreaHeight / timeFromTopToBottomMs;
         const noteHeight = noteDurationMs * msToPx;
 
-        // const noteBottom =  noteAreaHeight * (1 - tf)
-        // l(noteStartMs)
-        const noteBottom =  noteStartMs * msToPx;
-        // l(noteBottomgcc)
+        // TODO: Rewrite to make more easily understandable
+        const noteBottom =  noteAreaHeight * (1 - tf)
+        // const noteBottom =  noteStartMs * msToPx;
 
         return noteBottom - noteHeight;
     }

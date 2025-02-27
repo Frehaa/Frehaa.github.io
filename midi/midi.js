@@ -124,25 +124,7 @@ function initializePlaybackStateRelatedListeners(playbackState) {
     });
 }
 
-// // ################### DRAWING FUNCTIONS ###########
-
 // TODO: Wareta ringo has some weird boxes in the bottom of the falling notes. Figure out why these exist.
-
-
-// function drawTimeMeasures(ctx, timeMeasures) {
-//     ctx.fillStyle = 'black';
-//     ctx.beginPath();
-//     for (let i = 0; i < timeMeasures.length; i++) {
-//         const measureTime = timeMeasures[i].start;
-//         let y = (elapsed - measureTime) * msToPixel;
-//         if (y > topLineHeight) continue
-//         ctx.fillText(i, 25, y)
-//         ctx.moveTo(50, y);
-//         ctx.lineTo(canvas.width, y);
-//     }
-//     ctx.stroke();
-// }
-
 // ################# EVENT HANDLING FUNCTIONS #######################
 
 function handleOnMidiMessage(event) {
@@ -579,6 +561,9 @@ function main() {
             ctx.clearRect(0, 0, canvas.width, canvas.height); // TODO: I really like the strong border lines that happens when not clearing between draws. How can we make sure they are always like that? I think I dislike the blurry borders.
 
             ui.draw(ctx);
+            
+
+            fallingNotesView.update(dt)
             
             
             //! Debug info
