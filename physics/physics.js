@@ -128,7 +128,8 @@ function updateFrame(dt) {
 function initialize() {
     // return simpleBall();
     // return rotatingDrawingBall();
-    return centerOfMassBall();
+    return rotatingBall()
+    // return centerOfMassBall();
 
     const animationClass = new AnimationFrameRequestManager(updateFrame);
 
@@ -205,6 +206,122 @@ function initialize() {
 }
 
 
+
+function rotatingBall() {
+    const size = 15
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    let mousePosition = new Vec2(0, 0);
+    let ballForcePoint = null;
+
+    const ball = new SimpleMassRotatingPhysicsBall(new Vec2(300, 300), size);
+    window.ball = ball;
+    const positions = [ball.position];
+
+    const maxVelocity = 5.5
+    const force = 0.01; // 0.01 force with -0.001 drag gives a max velocty of 10 it seems like. Can this be computed?
+    // ball.addConditionalForce(b => b.velocity.scale(-force/maxVelocity));
+
+    const animationClass = new AnimationFrameRequestManager(dt => {
+        // UPDATE
+        ball.step(dt);
+        // Clear and draw ball and path
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ball.draw(ctx);
+
+        ctx.font = '25px Arial';
+        ctx.fillStyle = 'black'
+        ctx.fillText(ball.acceleration.x.toFixed(2), 1200, 200);
+        ctx.fillText(ball.acceleration.y.toFixed(2), 1200, 230);
+
+        ctx.fillText(ball.velocity.x.toFixed(2), 1200, 260);
+        ctx.fillText(ball.velocity.y.toFixed(2), 1200, 290);
+
+        ctx.fillText(ball.totalForce.x.toFixed(2), 1200, 320);
+        ctx.fillText(ball.totalForce.y.toFixed(2), 1200, 350);
+
+        // Draw mouse position
+        // ctx.beginPath();
+        // ctx.arc(mousePosition.x, mousePosition.y, 4, 0, 2 * Math.PI);
+        // ctx.fillStyle = 'blue';
+        // ctx.fill();
+
+        // Draw ballforcePoint
+        if (ballForcePoint) {
+            const ballForcePointActual = ball.position.add(ballForcePoint);
+            ctx.beginPath();
+            ctx.arc(ballForcePointActual.x, ballForcePointActual.y, 3, 0, 2 * Math.PI);
+            ctx.fillStyle = 'red';
+            ctx.fill();
+
+
+
+
+            // Draw arrow from ballForcePoint towards mousePosition with max length of 50 and 90 angle to the ball
+            const vectorToMouse = mousePosition.subtract(ballForcePointActual);
+            const distance = vectorToMouse.length();
+            const direction = vectorToMouse.normalize();
+            const arrowEnd = ballForcePointActual.add(direction.scale(Math.min(50, distance)));
+            // Draw arrow 
+            ctx.strokeStyle = 'black';
+            ctx.beginPath();
+            ctx.moveTo(ballForcePointActual.x, ballForcePointActual.y);
+            ctx.lineTo(arrowEnd.x, arrowEnd.y);
+            ctx.stroke();
+
+        }
+    });
+
+    // Event Listeners 
+    document.addEventListener('contextmenu', e => e.preventDefault()); // Prevent right click from opening context menu
+
+    const mouseDown = e => {
+        // Find the x,y coordinates on the radius of the ball closest to the mouse position
+        const mousePosition = new Vec2(e.pageX - canvas.offsetLeft, e.pageY - canvas.offsetTop);
+        const ballPosition = ball.position;
+        const vectorToMouse = mousePosition.subtract(ballPosition);
+        const distance = vectorToMouse.length();
+        if (distance === 0) {  // If the mouse is on the ball, the force point should be the center of the ball.
+            l("Mouse on ball")
+            ballForcePoint = new Vec2(0, 0);
+            return;
+        }
+        const radius = ball.radius
+        const direction = vectorToMouse.normalize();
+        const newPoint = ballPosition.add(direction.scale(Math.min(radius, distance)));
+        ballForcePoint = newPoint.subtract(ball.position); // The ball force point should be calculated relative to the ball position to make sure it follows the ball as it is moving and rotating.
+
+        const ballForcePointActual = ball.position.add(ballForcePoint);
+        l(ballForcePointActual, ballForcePoint)
+    }
+    const mouseUp = e => {
+
+        // Apply force to the ball
+        if (ballForcePoint) {
+            const ballForcePointActual = ball.position.add(ballForcePoint);
+            const forceVector = mousePosition.subtract(ballForcePointActual).scale(0.0001);
+            ball.applySingleStepForceAtPoint(forceVector, ballForcePointActual);
+            // ball.applyForce(ballForcePoint, forceVector);
+        }
+
+        ballForcePoint = null;
+    }
+    const mouseMove = mouseEvent => {
+        const x = (mouseEvent.pageX - canvas.offsetLeft) * (canvas.width / canvas.clientWidth);
+        const y = (mouseEvent.pageY - canvas.offsetTop) * (canvas.height / canvas.clientHeight)
+
+        mousePosition = new Vec2(x, y);
+    }
+    document.addEventListener("mousedown", mouseDown);
+    document.addEventListener("mouseup", mouseUp);
+    document.addEventListener("mousemove", mouseMove);
+
+
+    // Start 
+    animationClass.start();
+
+}
 
 // Uses the "most" simple physics object in the "most" simple way to draw a path based on positions the ball has taken. The ball is controlled using arrow keys which applies a constant force while pressed. 
 function simpleBall() {

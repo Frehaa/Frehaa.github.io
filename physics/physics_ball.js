@@ -139,7 +139,7 @@ class MultiPointMassNonRotatingPhysicsBall {
         this.acceleration = new Vec2(0, 0);
         this.totalForce = new Vec2(0, 0);
         this.radius = radius;
-        this.totalMass = 0;
+        this.totalMass = 0; 
         this.pointMasses = []; // List of radian, normalizedDistance, and mass triples. This is in order to add point masses relative to the center.
         this.centerOfMass = this.position;
         this.conditionalForce = [];
@@ -226,14 +226,154 @@ class MultiPointMassNonRotatingPhysicsBall {
 
 }
 
+// A physics ball with center of mass in center and simple inertia for cylinder
+class SimpleMassRotatingPhysicsBall { 
+    constructor(center, radius) {
+        this.position = center;
+        this.totalMass = 1;
+        this.velocity = new Vec2(0, 0);
+        this.acceleration = new Vec2(0, 0);
+        this.totalForce = new Vec2(0, 0);
+        this.orientation = 0;
+        this.angularVelocity = 0;
+        this.angularAcceleration = 0;
+        this.radius = radius;
+        this.inertia = 1/2 * this.totalMass * this.radius ** 2;
+        this.totalTorque = 0;
+        this.conditionalForce = [];
+        this.afterStepCallbacks = [];
+    }
 
-class MultiPointMassRotatingPhysicsBall {
+    draw(ctx) {
+        ctx.beginPath();
+        const x = this.position.x % 1920;
+        const y = this.position.y % 1080;
+        ctx.arc(x, y, this.radius, 0, 2 * Math.PI);
+        ctx.strokeStyle = 'black'
+        ctx.lineWidth = 2
+        ctx.stroke();
+
+        // Draw the orientation
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + this.radius * Math.cos(this.orientation), y - this.radius * Math.sin(this.orientation));
+        ctx.stroke();
+    }
+
+    step(deltaTime) {
+        this.oldPosition = this.position;
+        this.oldOrientation = this.orientation;
+
+        const maxTimeStep = 0.5;
+        // numerically integrate the linear acceleration and angular acceleration to update the position, linear velocity, orientation, and angular velocity
+        while (deltaTime > 0) {
+            // Compute acceleration 
+            this.acceleration = this.totalForce.scale(1 / this.totalMass).add(this.velocity.scale(-0.001)); // Damping
+            this.angularAcceleration = this.totalTorque / this.inertia - this.angularVelocity * 0.001; // Damping
+
+            // Compute the step
+            let h = 0;
+            if (deltaTime > maxTimeStep) {
+                h = maxTimeStep;
+                deltaTime -= maxTimeStep
+            } else {
+                h = deltaTime;
+                deltaTime = 0;
+            }
+
+            // Update position and velocity
+            this.position = this.position.add(this.velocity.scale(h)) //.add(this.acceleration.scale(h*h/2)));
+            this.velocity = this.velocity.add(this.acceleration.scale(h));
+
+            this.orientation += this.angularVelocity * h; 
+            this.angularVelocity += this.angularAcceleration * h;
+        }
+
+        for (const callback of this.afterStepCallbacks) {
+            callback()
+        }
+        this.afterStepCallbacks = [];
+
+    }
+
+    applyForce(force) {
+        this.totalForce = this.totalForce.add(force);
+        this.acceleration = this.totalForce.scale(1 / this.totalMass);
+    }
+
+    applyForceAtPoint(force, point) {
+        this.totalForce = this.totalForce.add(force);
+        const relative = point.subtract(this.position);
+        this.totalTorque += relative.perp_dot(force);
+    }
+
+    applySingleStepForceAtPoint(force, point) {
+        this.totalForce = this.totalForce.add(force);
+        const relative = point.subtract(this.position);
+        const torque = relative.perp_dot(force);
+
+        this.totalTorque += -torque
+        this.afterStepCallbacks.push(() => {
+            this.totalForce = this.totalForce.subtract(force);
+            this.totalTorque += torque
+        });
+    }
+}
+
+class MultiPointMassRotatingPhysicsBall extends MultiPointMassNonRotatingPhysicsBall {
     constructor(center, radius) {
         super(center, radius);
         this.orientation = 0
         this.angularVelocity = 0;
         this.angularAcceleration = 0;
+        this.inertia = 0;
+        this.totalTorque = 0;
+        this.pointMasses = [];
     }
+
+    draw(ctx) {
+
+    }
+    
+    setAxisOfRotation(axis) {
+        this.axisOfRotation = axis;
+        this.inertia = this.calculateInertia();
+    }
+
+    step(deltaTime) {
+        this.oldPosition = this.position;
+        this.oldOrientation = this.orientation;
+
+        const maxTimeStep = 0.5;
+        while (deltaTime > 0) {
+            // Compute acceleration 
+            this.acceleration = this.totalForce.scale(1 / this.totalMass); // We assume the mass is 1 so the
+            this.angularAcceleration = this.totalTorque / this.inertia;
+            for (const f of this.conditionalForce) {
+                this.acceleration = this.acceleration.add(f(this).scale(1 / this.totalMass)); // We assume the mass is 1 so the
+                this.angularAcceleration += f(this).scale(1 / this.inertia);   
+            } 
+
+            this.position = this.position.add(this.velocity.scale(h)) //.add(this.acceleration.scale(h*h/2)));
+            this.centerOfMass = this.position.add(this.centerOfMassRelative);
+            this.velocity = this.velocity.add(this.acceleration.scale(h));
+
+
+        }
+    }
+
+    // calculate inertia
+    calculateInertia() {
+        let result = 0;
+        for (const [radians, distance, mass] of this.pointMasses) {
+            const relative = new Vec2(Math.cos(radians), -Math.sin(radians)).scale(distance); // TODO?: Figure out whether to inverse sin or not since y is inversed in the canvas coordinate system
+            const point = this.position.add(relative)
+            result += mass * point.subtract(this.axisOfRotation).length() ** 2;
+        }
+        return result;
+    }
+
+    
 }
 
 
