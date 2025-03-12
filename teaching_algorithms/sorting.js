@@ -34,7 +34,10 @@ class SelectionSortCodeDisplay {
         const weakYellow = '#DCDCAA';      // swap function call
         
 
-        const highlightColor = '#8579a8'
+        // const highlightColor = '#8579a8'
+        // const highlightColor = '#0078d4'
+        // const highlightColor = '#add6ff26' 
+        const highlightColor = '#3a3d41' 
 
         const longestLine = '    for( let j = i + 1; j < a.length; j++) {';
         const codeblockWidth = ctx.measureText(longestLine).width + 2 * this.drawSettings.padding;
@@ -677,6 +680,8 @@ class Animation {
         this.duration = duration;
     }
     animate(t) {}
+    start() {}
+    end() {}
 }
 
 class WaitAnimation extends Animation {
@@ -691,11 +696,17 @@ class SwapAnimation extends Animation {
         this.a = a;
         this.b = b;
         this.easingFunction = easingFunction;
+    }
+    start() {
+        const ax = this.a.position.x;
+        const ay = this.a.position.y;
+        const bx = this.b.position.x;
+        const by = this.b.position.y;
 
-        const diff = Math.abs(a.position.x - b.position.x);
+        const diff = Math.abs(ax - bx);
         const controlPointDiffY = 0.3 * diff;
-        this.upperCurve = new QubicBezierCurve(a.position.x, a.position.y, a.position.x, a.position.y - controlPointDiffY, b.position.x, b.position.y - controlPointDiffY, b.position.x, b.position.y);
-        this.lowerCurve = new QubicBezierCurve(b.position.x, b.position.y, b.position.x, b.position.y + controlPointDiffY, a.position.x, a.position.y + controlPointDiffY, a.position.x, a.position.y);
+        this.upperCurve = new QubicBezierCurve(ax, ay, ax, ay - controlPointDiffY, bx, by - controlPointDiffY, bx, by);
+        this.lowerCurve = new QubicBezierCurve(bx, by, bx, by + controlPointDiffY, ax, ay + controlPointDiffY, ax, ay);
     }
     animate(t) {
         t = this.easingFunction(t);
@@ -711,32 +722,86 @@ class SwapAnimation extends Animation {
 
 }
 
+// Handles a sequence of animations by time steps. 
+// This class is meant to be used in a requestAnimationFrame loop where the step function is called with the desired delta time (e.g. the time since last frame).
+// Going back in time is supported by calling reset.
 class AnimationHandler {
-    constructor(animations) {
+    constructor(animations, resetCallback) {
         this.animations = animations;
-        l(animations)
-    }
-    animate(elapsed) {
-        let remaining = elapsed;
-        for (const a of this.animations) {
-            if (remaining > a.duration) {
-                a.animate(1);
-                remaining -= a.duration;
-            } else {
-                a.animate(remaining / a.duration);
-                break;
-            }
+        this.currentAnimationIdx = 0;
+        this.currentElapsedTimeMs = 0;
+        this.resetCallback = resetCallback;
+        
+        this.animationStartTime = [];
+        let currentTime = 0;
+        for (const a of animations) {
+            this.animationStartTime.push(currentTime);
+            currentTime += a.duration;
         }
+    }
+    reset() {
+        this.currentAnimationIdx = 0;
+        this.currentElapsedTimeMs = 0;
+        this.resetCallback();
 
+    }
+    step(deltaTimeMs) {
+        assert(deltaTimeMs >= 0, 'deltaTimeMs should be positive. Call reset to go back in time.');
+        this.currentElapsedTimeMs += deltaTimeMs;
+        if (this.currentAnimationIdx >= this.animations.length) { return; } // We are done
+
+        let remainingTimeMs = this.currentElapsedTimeMs -  this.animationStartTime[this.currentAnimationIdx];
+
+        let currentAnimation = this.animations[this.currentAnimationIdx];
+        while (remainingTimeMs > 0) {
+            if (remainingTimeMs <= currentAnimation.duration) {
+                currentAnimation.animate(remainingTimeMs / currentAnimation.duration);
+                break;
+            } 
+
+            // Handle remaining aniamtion time
+            currentAnimation.animate(1);
+            currentAnimation.end();
+
+            remainingTimeMs -= currentAnimation.duration;
+            this.currentAnimationIdx++;
+            if (this.currentAnimationIdx >= this.animations.length) { break; }
+            currentAnimation = this.animations[this.currentAnimationIdx];
+            currentAnimation.start();
+        }
     }
 }
 
+// Compute the swaps needed to sort the objects using selection sort
+// The objects are assumed to have a value property that is used for comparison
+function computeSelectionSortSwaps(objects) {
+    const order = []; // We need to keep track of the order of the objects without swapping them in the original array
+    for (let i = 0; i < objects.length; i++) {
+        order.push(i);
+    }
+    const swaps = [];
+    function swap(i, j) {
+        const tmp = order[i];
+        order[i] = order[j];
+        order[j] = tmp;
+        swaps.push([order[j], order[i]]);
+    }
+    for (let i = 0; i < objects.length; ++i) {
+        let minIdx = i;
+        for (let j = i + 1; j < objects.length; ++j) {
+            if (objects[order[j]].value < objects[order[minIdx]].value) minIdx = j;
+        }
+        swap(i, minIdx)
+    }
+    return swaps;
+}
 
 function onBodyLoad() {
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
-    const data = [ 8, 5, 7, 3, 0, 1, 6, 4, 2, 9 ];
+    // const data = randomArray(10);
+    const data = [ 5, 6, 9, 7, 8, 4, 3, 2, 1, 0];
     const drawSettings = {
         leftX: 100,
         topY: 200,
@@ -748,10 +813,6 @@ function onBodyLoad() {
     const height = drawSettings.rectSize;
     const offSetX = width / data.length;
 
-    // const data = randomArray(10);
-    const swaps = [];
-
-
     const objects = [];
     for (let i = 0; i < data.length; i++) {
         objects.push({ 
@@ -762,22 +823,14 @@ function onBodyLoad() {
             }
         });
     }
-    l(objects)
-
-    function swap(i, j) {
-        const tmpO = objects[i];
-        objects[i] = objects[j];
-        objects[j] = tmpO;
-        swaps.push([objects[j], objects[i]]);
-    }
-    for (let i = 0; i < objects.length; ++i) {
-        let minIdx = i;
-        for (let j = i + 1; j < objects.length; ++j) {
-            if (objects[j].value < objects[minIdx].value) minIdx = j;
+    const resetCallback = () => {
+        for (let i = 0; i < objects.length; i++) {
+            objects[i].position.x = drawSettings.leftX + offSetX * i + offSetX / 2;
+            objects[i].position.y = drawSettings.topY + height / 2;
         }
-        swap(i, minIdx)
     }
-    l(swaps)
+
+    const swaps = computeSelectionSortSwaps(objects);
 
     const easingFunctions = [
         easeInSine,
@@ -819,17 +872,14 @@ function onBodyLoad() {
     }
 
     const swapDuration = 1500;
-    const waitDuration = 1000;
+    const waitDuration = 100;
     const animations = [];
     for (const [a, b] of swaps) { // We have an issue right now where I'm defining the animations beforehand, but the same element might be moved twice, but the second move is only calculated based on the the initial position.
-        l(a, b)
         animations.push(new WaitAnimation(waitDuration));
-        animations.push(new SwapAnimation(swapDuration, a, b, changingEasingFunction));
+        animations.push(new SwapAnimation(swapDuration, objects[a], objects[b], changingEasingFunction));
     } // We need to swap 'a' and 'b' and when we swap 'b' with 'c' we need to use the new position of 'b'
 
-    const animationHandler = new AnimationHandler(animations);
-
-
+    const animationHandler = new AnimationHandler(animations, resetCallback);
 
     const selectionSortCode = new SelectionSortCodeDisplay({
         position: {x: 900, y: 50},
@@ -838,20 +888,9 @@ function onBodyLoad() {
     })
 
 
-
-
     // TODO: Draw index pointers
     // TODO: Animate update of index pointer values
 
-
-    // So how do I want this to look? 
-    // とりあえず how do I want to animate the swap?
-
-    // Let us first think about how the swap moves. What is the location of the top of the swap?
-
-    // Let us say we want to swap the second and fourth element.
-    // The middle is the same as the third element
-    
     const ui = new UI();
 
     let topY = 50;
@@ -868,8 +907,6 @@ function onBodyLoad() {
     canvas.addEventListener('mouseup', e => ui.mouseUp(e));
     canvas.addEventListener('mousemove', e => ui.mouseMove(e));
 
-
-
     let lastTime;
     let elapsedTime = 0;
     function draw(time) {
@@ -882,7 +919,7 @@ function onBodyLoad() {
         // let t = easingFunction(Math.max(animationTime - waitDuration, 0) / swapDuration);
         // if (animationTime < waitDuration / 2 && elapsedTime > swapDuration + waitDuration) { t = 1 }; 
 
-        animationHandler.animate(elapsedTime);
+        animationHandler.step(dt);
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -960,6 +997,7 @@ function onBodyLoad2() {
     const n = 100
     // TODO: Different interesting types of unsorted data to show how things behave in non-random settings.
     const data = randomArray(n);
+
 
 
     // for (let i = 0; i < 1000; i++) {
