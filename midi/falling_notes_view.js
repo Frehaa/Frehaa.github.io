@@ -149,7 +149,6 @@ class FallingNotesView extends InteractableUIELement {
         this.drawNotes(ctx);
         this.drawSelectionBox(ctx);
         this.drawBottomArea(ctx);
-        this.drawSettingsPanel(ctx); // TODO: Have this part of the UI instead?
         this.bufferedBoundingBox.draw(ctx);
 
         ctx.lineWidth = 3;
@@ -365,11 +364,6 @@ class FallingNotesView extends InteractableUIELement {
         }
     }
     
-    // TODO?: Have this be done by a different module
-    drawSettingsPanel() {
-
-    }
-
     // Calculates a notes offset from the top of the view
     calculateNoteOffsetY(noteDurationMs, noteStartMs) {
         const {timeFromTopToBottomMs} = this.drawSettings;
