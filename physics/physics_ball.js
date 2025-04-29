@@ -226,6 +226,94 @@ class MultiPointMassNonRotatingPhysicsBall {
 
 }
 
+// TODO: Implement full physics objects and simplified physics objects
+// A physics box with center of mass in center and simple inertia for rectangle
+class SimpleMassRotatingBox {
+    constructor(center, width, height) {
+        this.position = center;
+        this.velocity = new Vec2(0, 0);
+        this.acceleration = new Vec2(0, 0);
+        this.totalForce = new Vec2(0, 0);
+        this.orientation = 0;
+        this.angularVelocity = 0;
+        this.angularAcceleration = 0;
+        this.width = width;
+        this.height = height;
+        this.totalMass = 1;
+        this.inertia = 1/12 * this.totalMass * (this.width ** 2 + this.height ** 2);
+        this.totalTorque = 0;
+        this.conditionalForce = [];
+        this.afterStepCallbacks = [];
+    }
+
+    draw(ctx) {
+        ctx.save();
+        ctx.translate(this.position.x, this.position.y);
+        ctx.rotate(this.orientation);
+        ctx.beginPath();
+        ctx.rect(-this.width/2, -this.height/2, this.width, this.height);
+        ctx.strokeStyle = 'black'
+        ctx.lineWidth = 2
+        ctx.stroke();
+        ctx.restore();
+    }
+    step(deltaTime) {
+        this.oldPosition = this.position;
+        this.oldOrientation = this.orientation;
+
+        const maxTimeStep = 0.5;
+        // numerically integrate the linear acceleration and angular acceleration to update the position, linear velocity, orientation, and angular velocity
+        while (deltaTime > 0) {
+            // Compute acceleration 
+            this.acceleration = this.totalForce.scale(1 / this.totalMass).add(this.velocity.scale(-0.001)); // Damping
+            this.angularAcceleration = this.totalTorque / this.inertia - this.angularVelocity * 0.001; // Damping
+
+            // Compute the step
+            let h = 0;
+            if (deltaTime > maxTimeStep) {
+                h = maxTimeStep;
+                deltaTime -= maxTimeStep
+            } else {
+                h = deltaTime;
+                deltaTime = 0;
+            }
+
+            // Update position and velocity
+            this.position = this.position.add(this.velocity.scale(h)) //.add(this.acceleration.scale(h*h/2)));
+            this.velocity = this.velocity.add(this.acceleration.scale(h));
+
+            this.orientation += this.angularVelocity * h; 
+            this.angularVelocity += this.angularAcceleration * h;
+        }
+
+        for (const callback of this.afterStepCallbacks) {
+            callback()
+        }
+        this.afterStepCallbacks = [];
+    }
+    applyForce(force) {
+        this.totalForce = this.totalForce.add(force);
+        this.acceleration = this.totalForce.scale(1 / this.totalMass);
+    }
+    applyForceAtPoint(force, point) {
+        this.totalForce = this.totalForce.add(force);
+        const relative = point.subtract(this.position);
+        this.totalTorque += relative.perp_dot(force);
+    }
+    applySingleStepForceAtPoint(force, point) {
+        this.totalForce = this.totalForce.add(force);
+        const relative = point.subtract(this.position);
+        const torque = relative.perp_dot(force);
+
+        this.totalTorque += -torque
+        this.afterStepCallbacks.push(() => {
+            this.totalForce = this.totalForce.subtract(force);
+            this.totalTorque += torque
+        });
+    }
+
+}
+
 // A physics ball with center of mass in center and simple inertia for cylinder
 class SimpleMassRotatingPhysicsBall { 
     constructor(center, radius) {
