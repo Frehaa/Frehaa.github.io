@@ -256,7 +256,7 @@ class TrainingGameManager {
         27: m => m.speedUp(),
         108: m => m.setSavePoint(),
     }
-    constructor(midiAccess) {
+    constructor(midiAccess, notesToPlay) {
         this.notesToPlay = new Set();
         this.pressedKeys = new Set();
         this.successNotes = new Set();
@@ -266,11 +266,11 @@ class TrainingGameManager {
             startWaitMs: 500, // TODO: Base this off of the tact to play in i.e. wait one octave in the speed of the song 
             speedMultiplier: 1,
             speedIncrement: 0.1,
-            paused: false
+            paused: true
         }
         this.resetTime = 0;
         this.elapsedTimeMs = 0;
-        this.maxTime = 0;
+        this.endTime = 0;
 
         this.midiListener = new MidiListener(midiAccess);
         this.midiListener.addEventListener(MIDI_EVENT.NOTE_ON, (noteValue) => {this.pressedKeys.add(noteValue)});
@@ -282,10 +282,11 @@ class TrainingGameManager {
         this.callbacks = {
             "pause": []
         }
+        this.setNotesToPlay(notesToPlay);
     }
 
     getMaxTime() {
-        return this.maxTime; 
+        return this.endTime; 
     }
 
     addCallback(type, callback) {
@@ -295,7 +296,7 @@ class TrainingGameManager {
     setNotesToPlay(notesToPlay) {
         this.notesToPlay = new Set(notesToPlay);
         assert(this.controlKeys.intersection(this.notesToPlay).size === 0, "There should be no overlap in notes to play and control keys");
-        this.maxTime = 200000
+        this.endTime = Math.max(...notesToPlay.map(n => n.startMs + n.durationMs));
         this.successNotes = new Set();
         this.failedNotes = new Set();
         this.resetTime = this._getEarliestNoteTime(notesToPlay) - this.settings.startWaitMs;
@@ -408,25 +409,8 @@ function main() {
     //     startTrainingGame(midiAccess)
     // } , error => { l(error); alert("This browser does not seem to support the MIDI Web API used by this page. Error: " + error.toString()); })
 
-
-
-    // What do I mean by "working" here? 
-    // I want to have an interface where I can read midi events from and maybe send them to
-
-    // For the game, I want to know if keys pressed on the piano match the keys required. 
-    // To do this, I need to know which keys are pressed and which are not
-
-    // Maybe a first step is to create something where the FallingNotesView shows the key pressed in the bottom? 
-    // To do this, I simply want from the interface to tell me when a key is pressed and released so I can add and remove it from a set
-
-    function startTrainingGame(midiAccess) {
-        const trainingGameManager = new TrainingGameManager(midiAccess);
-
-        const canvas = document.getElementById('note-canvas');
-        const ctx = canvas.getContext('2d');
-
-
-
+    // Debugging function for creating some notes to display and play before we properly read them. It is kind of a standin for a dependency injection
+    function debugCreateNotesToPlay() {
         const startTime = 1000;
         const noteDuration = 250;
         const notes = [];
@@ -437,9 +421,16 @@ function main() {
                 new Note(67, startTime + 2 * noteDuration + i * 3 * noteDuration, noteDuration),
             )
         }
+        return notes;
+    }
+    
+    function startTrainingGame(midiAccess) {
+        const notesToPlay = debugCreateNotesToPlay();
+        const trainingGameManager = new TrainingGameManager(midiAccess, notesToPlay);
 
-        trainingGameManager.setNotesToPlay(notes);
-        trainingGameManager.togglePause();
+        const canvas = document.getElementById('note-canvas');
+        const ctx = canvas.getContext('2d');
+
         function customNoteFill(note) { // TODO?: Maybe it is a bit confusing that this sets the ctx.fillStyle (Seems like a side effect)
             switch (fallingNotesView.getNoteType(note)) {
                 case "hovered": {
@@ -502,7 +493,7 @@ function main() {
             fallingNotesView.setElapsedTimeMs(elapsedTime);
         })
         ui.add(elapsedTimeSlider);
-        const fallingNotesView = new FallingNotesView({x: 100, y: 50}, {width: 800, height: 500}, notes, customNoteFill, customKeyFill,{windowX: 500});
+        const fallingNotesView = new FallingNotesView({x: 100, y: 50}, {width: 800, height: 500}, notesToPlay, customNoteFill, customKeyFill,{windowX: 500});
 
         fallingNotesView.setElapsedTimeMs(trainingGameManager.elapsedTimeMs);
 
