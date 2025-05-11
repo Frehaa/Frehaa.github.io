@@ -473,7 +473,7 @@ function main() {
             }
         }
 
-        const ui = new UI();
+        const ui = new UI(canvas);
         const elapsedTimeSlider = new VerticalSlider({ // TODO?: Do the slider as a mini-view of the melody? Similar to VS Code
             position: {x: 910, y: 70},
             size: {width: 30, height: 360},
@@ -530,51 +530,50 @@ function main() {
 
         ui.add(fallingNotesView);
 
-        // TODO?: How to toggle such that in some states the keyboard events / mouse events do not fire?
-        canvas.addEventListener('mousemove', e => ui.mouseMove(e));
-        canvas.addEventListener('mousedown', e => ui.mouseDown(e));
-        canvas.addEventListener('mouseup', e => ui.mouseUp(e));
-        
-
-        let previousTime = 0;
-        function draw(time) {
-            let dt = time - previousTime;
-            previousTime = time;
-            //! Update
+        function update(dt) {
             if (!trainingGameManager.settings.paused) {
                 trainingGameManager.incrementElapsedTime(dt); // Automatically checks if paused
                 elapsedTimeSlider.sliderMarkerRatio = Math.max(0, trainingGameManager.elapsedTimeMs / trainingGameManager.getMaxTime());
                 trainingGameManager.checkForFailedNotes();
                 fallingNotesView.setElapsedTimeMs(trainingGameManager.elapsedTimeMs);
             }
-
-            //! Drawing
-            ctx.clearRect(0, 0, canvas.width, canvas.height); // TODO: I really like the strong border lines that happens when not clearing between draws. How can we make sure they are always like that? I think I dislike the blurry borders.
-
-            ui.draw(ctx);
-            
-
             fallingNotesView.update(dt)
-            
-            
-            //! Debug info
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // TODO: I really like the strong border lines that happens when not clearing between draws. How can we make sure they are always like that? I think I dislike the blurry borders.
+            ui.draw(ctx);
+        }
+
+        function drawDebug(dt, previous, elapsedTime) {
             const debugInfoLeftX = 950;
             ctx.font = "18px Ariel"
             ctx.fillText(trainingGameManager.settings.paused? "Paused" : "Playing", debugInfoLeftX, 60);
             ctx.fillText("Timer:" + (trainingGameManager.elapsedTimeMs/1000).toFixed(0) + "s", debugInfoLeftX, 80);
             ctx.fillText("Delta Time:" + dt.toFixed(0) + "ms", debugInfoLeftX, 100);
-            ctx.fillText("Time:" + time.toFixed(0) + "ms", debugInfoLeftX, 120);
+            ctx.fillText("Time:" + elapsedTime.toFixed(0) + "ms", debugInfoLeftX, 120);
 
             ctx.font = "24px Ariel"
             ctx.fillText("Successes:" + trainingGameManager.successNotes.size + " / " + trainingGameManager.notesToPlay.size, debugInfoLeftX, 160);
             ctx.fillText("Failures:" + trainingGameManager.getFailedNotesCount(), debugInfoLeftX, 180);
-
-            requestAnimationFrame(draw)
         }
 
+        function doStuffInLoop(dt, previousTime, elapsedTime) {
+            update(dt);
+            draw();
+            drawDebug(dt, previousTime, elapsedTime);
+        }
+
+        let previousTime = 0;
+        function loop(elapsedTime) {
+            let dt = elapsedTime - previousTime;
+            previousTime = elapsedTime;
+            doStuffInLoop(dt, previousTime, elapsedTime);
+            requestAnimationFrame(loop)
+        }
         requestAnimationFrame(time => {
             previousTime = time;
-            draw(time);
+            loop(time);
         });
     }
 

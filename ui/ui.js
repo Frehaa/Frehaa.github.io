@@ -42,7 +42,7 @@ class InteractableUIELement extends UIElement { // TODO: Relative position of el
 
 // Class for handling all interaction to UI elements
 class UI {
-    constructor() {
+    constructor(canvas) {
         this.uiElements = []; // TODO: Order UI Elements and 
         this.interactableUIElements = [];
         // TODO: Have different frames that can be switched between 
@@ -51,6 +51,10 @@ class UI {
         // TODO: Implement something which checks if UI needs to be redrawn. E.g. Check if elements are "dirty"
         // TODO: Check for mouse leaving mouse event area. E.g. to guard against the case when the mouse up event is not triggered because it happened outside window
 
+        // TODO?: How to toggle such that in some states the keyboard events / mouse events do not fire?
+        canvas.addEventListener('mousemove', e => this.mouseMove(e));
+        canvas.addEventListener('mousedown', e => this.mouseDown(e));
+        canvas.addEventListener('mouseup', e => this.mouseUp(e));
     }
     add(uiElement) {
         if (!(uiElement instanceof UIElement)) { throw new Error("Element was not a UIElement."); }

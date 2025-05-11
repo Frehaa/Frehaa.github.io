@@ -399,12 +399,12 @@ class FallingNotesView extends InteractableUIELement {
         const noteHeight = this.calculateNoteHeight(note.durationMs, timeFromTopToBottomMs, noteAreaHeight);
 
         // TODO?: Differentiate between key and note width?
-        const noteWidth = this._isWhiteKey(note.value)? whiteKeyWidth : blackKeyWidth;
+        const noteWidth = this.isWhiteKey(note.value)? whiteKeyWidth : blackKeyWidth;
 
         return {leftX: noteLeftX, topY: noteTopY, width: noteWidth, height: noteHeight}
     }
 
-    _isWhiteKey(noteValue) {
+    isWhiteKey(noteValue) {
         const octaveNoteValue = noteValue % 12;
         const types = [true,false,true,false,true,true,false,true,false,true,false,true];
         return types[octaveNoteValue];
