@@ -579,3 +579,129 @@ function play(eventMap, tempoMap, midiState) {
 
     // Maybe we can do this as an animation loop? So we check for correctness in the loop and only do midi events in this callback. The downside of this is that in theory we can press a key and release it efore it gets checked. Maybe this should just be checked. 
 }
+
+
+// I guess this was some old testing stuff?
+function doStuffWithParsedMidiFile() {
+    // const melodies = chunksToMelodiesList(state.chunks)
+    // l(melodies)
+    const notes = [
+        // new Note(60, 1000, 500),
+        // new Note(48, 0, 500),
+        // new Note(36, 500, 1000),
+    ]; // TODO: Do something based off of melodies
+
+    for (let i = 0; i < 40; ++i) {
+        notes.push(new Note(36 + i, 150 * i, 150))
+    }
+
+    const canvas = document.getElementById('note-canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const fallingNotesView = new FallingNotesView({x: 100, y: 50}, {width: 800, height: 450}, notes);
+
+    const sliderGeneralDrawSettings = {
+        size: {width: 300, height: 30},
+        lineWidth: 3,
+        initialSliderMarkerRatio: 0.0
+    }
+    const windowXViewSlider = new HorizontalSlider({
+        ...sliderGeneralDrawSettings,
+        position: {x: 100, y: 500},
+    });
+    const noteCountSlider = new HorizontalSlider({
+        ...sliderGeneralDrawSettings,
+        position: {x: 100, y: 560},
+    });
+    const elapsedTimeSlider = new HorizontalSlider({
+        ...sliderGeneralDrawSettings,
+        position: {x: 100, y: 620},
+    });
+
+    windowXViewSlider.addCallback(value => {
+        const max =  fallingNotesView.drawSettings.whiteKeyWidth * 7 * fallingNotesView.drawSettings.maxOctaves - fallingNotesView.size.width;
+        fallingNotesView.drawSettings.windowX = value * max;
+    })
+
+    noteCountSlider.addCallback(value => { });
+
+    elapsedTimeSlider.addCallback(value => {
+        fallingNotesView.elapsedTimeMs = value * 10000;
+    }) 
+
+    const ui = new UI();
+    // Sliders
+    ui.add(windowXViewSlider);
+    ui.add(noteCountSlider);
+    ui.add(elapsedTimeSlider);
+
+    // Move button
+    const dragBoxWidth = 30;
+    const viewPositionDragBox = new DragBox({ 
+        position: { 
+            x: fallingNotesView.position.x - dragBoxWidth /2,
+            y: fallingNotesView.position.y - dragBoxWidth /2
+        }, 
+        size: {width: dragBoxWidth, height: dragBoxWidth}, 
+        lineWidth: 4
+    });
+    ui.add(viewPositionDragBox);
+    viewPositionDragBox.addCallback(value => {
+        fallingNotesView.updatePosition(value.x, value.y);
+
+        viewSizeDragBox.updatePosition(
+            fallingNotesView.position.x + fallingNotesView.size.width - dragBoxWidth /2,
+            fallingNotesView.position.y + fallingNotesView.size.height - dragBoxWidth /2
+        );
+    })
+
+    const viewSizeDragBox = new DragBox({
+        position: {
+            x: fallingNotesView.position.x + fallingNotesView.size.width - dragBoxWidth /2,
+            y: fallingNotesView.position.y + fallingNotesView.size.height - dragBoxWidth /2
+        }, 
+        size: {width: dragBoxWidth, height: dragBoxWidth}, 
+        lineWidth: 4
+    })
+    ui.add(viewSizeDragBox);
+    viewSizeDragBox.addCallback(value => {
+        fallingNotesView.size.width = value.x - fallingNotesView.position.x;
+        fallingNotesView.size.height = value.y - fallingNotesView.position.y;
+        fallingNotesView.updatePosition(fallingNotesView.position.x, fallingNotesView.position.y); // TODO: This is an ugly way to update bounding box. Maybe the bounding box should be the only place where I store position and size?
+    })
+
+    ui.add(fallingNotesView);
+
+
+    canvas.addEventListener('mousemove', e => ui.mouseMove(e));
+    canvas.addEventListener('mousedown', e => ui.mouseDown(e));
+    canvas.addEventListener('mouseup', e => ui.mouseUp(e));
+    // canvas.addEventListener('mouseenter', e => {}) // TODO: check if mouse button is still held down or not when reentering the view (e.g. for selection box or slider)
+
+
+    function myDraw(time) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ui.draw(ctx);
+
+        requestAnimationFrame(myDraw)
+    }
+
+    requestAnimationFrame(myDraw);
+
+
+    // const notes = new Note()
+
+    // TODO: 
+    // Create 2 view types
+    // Type 1 is falling notes. 
+    // Type 2 is music sheet
+    // Create 5 notes to position them
+    // Make it possible to select notes in view
+    //
+
+    // drawNoteNamesAndTopLine(600)
+
+
+}
