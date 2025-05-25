@@ -1,6 +1,6 @@
 'using strict';
 function translateMatrix(x, y, z) {
-    return createMatrix([
+    return Matrix.fromArray([
         [1, 0, 0, x],
         [0, 1, 0, y],
         [0, 0, 1, z],
@@ -11,7 +11,7 @@ function translateMatrix(x, y, z) {
 function rotateXMatrix(rad) {
     let c = Math.cos(rad);
     let s = Math.sin(rad);
-    return createMatrix([
+    return Matrix.fromArray([
         [1, 0, 0, 0],
         [0, c,-s, 0],
         [0, s, c, 0],
@@ -22,7 +22,7 @@ function rotateXMatrix(rad) {
 function rotateYMatrix(rad) {
     let c = Math.cos(rad);
     let s = Math.sin(rad);
-    return createMatrix([
+    return Matrix.fromArray([
         [c, 0, s, 0],
         [0, 1, 0, 0],
         [-s,0, c, 0],
@@ -33,7 +33,7 @@ function rotateYMatrix(rad) {
 function rotateZMatrix(rad) {
     let c = Math.cos(rad);
     let s = Math.sin(rad);
-    return createMatrix([
+    return Matrix.fromArray([
         [c, -s, 0, 0],
         [s, c, 0, 0],
         [0, 0, 1, 0],
@@ -97,17 +97,15 @@ class Sphere {
     // 3. Solve equation
     // 4. Return smallest positive result if any
     hit(ray) { 
-        // TODO: UPDATE SOLUTION TO USE SPHERE COORDINATES. THIS PROBABLY MEANS USING A TRANSLATION MATRIX
-        const [ox, oy, oz] = [ray.origin.x, ray.origin.y, ray.origin.z];
-        const [dx, dy, dz] = [ray.direction.x, ray.direction.y, ray.direction.z];
-        const r = this.radius;
 
-        // Polynomial pa * t^2 + pb * t + pc 
-        const pa = dx*dx + dy*dy + dz*dz;
-        const pb = 2*ox*dx + 2*oy*dy + 2*oz*dz;
-        const pc = ox*ox + oy*oy + oz*oz - r*r;
+        const ecDiff = ray.origin.subtract(this.position);
 
-        const result = solveQuadraticEquation(pa, pb, pc);
+        const a = ray.direction.dot(ray.direction)
+        const b = 2 * ray.direction.dot(ecDiff)
+
+        const c = ecDiff.dot(ecDiff) - this.radius * this.radius;
+ 
+        const result = solveQuadraticEquation(a, b, c);
 
         if (result.length === 2) { // Two solutions
             if (result[0] >= 0 && result[1] >= 0) { // Both positive, return smallest
@@ -131,6 +129,32 @@ class Sphere {
 
         // No positive solutions
         return null;
+    }
+}
+
+class Cylinder {
+    constructor(x, y, z, radius, height) {
+        this.position = new Vec3(x, y, z);
+        this.x = x;
+        this.y = y;
+        this.z = z;
+        this.radius = radius;
+        this.height = height;
+    }
+    setPositionV(vec) {
+        this.position = vec;
+        this.x = vec.x;
+        this.y = vec.y;
+        this.z = vec.z;
+    }
+    setPosition(x, y, z) {
+        this.position = new Vec3(x, y, z);
+        this.x = x;
+        this.y = y;
+        this.z = z;
+    }
+    hit(ray) {
+        
     }
 }
 
@@ -198,6 +222,30 @@ class Viewport {
             }
         }
     }
+}
+
+class ParallelProjectionRayGenerator { 
+    constructor(center, direction, up, right, width, height, nx, ny) {
+        this.center = center; // Center of the viewport
+        this.direction = direction; // Direction of the rays
+        this.width = width; // Width of the viewport
+        this.height = height; // Height of the viewport
+        this.nx = nx; // Number of pixels in x direction
+        this.ny = ny; // Number of pixels in y direction
+        this.up = up; // Up vector of the viewport
+        this.right = right; // Right vector of the viewport
+
+        this.topLeft = this.center.add(this.right.scale(-this.width / 2)).add(this.up.scale(this.height / 2));
+    }
+    generateRay(x, y) {
+        assert(x >= 0 && x < this.nx, `X coordinate out of bounds: ${x}`);
+        assert(y >= 0 && y < this.ny, `Y coordinate out of bounds: ${y}`);
+        // This does extra calculations since it calculates from the top left corner every time and adds two vectors. Alternatively, when we have calculated the coordinate for x = 1, we don't need to calculate this again, only the up vector needs to be added.
+        const rayOrigin = this.topLeft.add(this.right.scale(this.width * (x + 0.5) / this.nx)).add(this.up.scale(-this.height * (y + 0.5) / this.ny));
+        const rayDirection = this.direction; // Parallel projection, so direction is constant
+        return new Ray(rayOrigin, rayDirection);
+    }
+
 }
 
 const state = {
@@ -337,10 +385,41 @@ const settings = {
     cameraStepMovement: 0.5,
 }
 
+// How to implement euler angles?
+function rotateCamera(camera, x, y, z) {
+    const rotationX = rotateXMatrix(x);
+    const rotationY = rotateYMatrix(y);
+    const rotationZ = rotateZMatrix(z);
+    const rotationMatrix = rotationX.multiply(rotationY).multiply(rotationZ);
+    camera.position = rotationMatrix.multiply(camera.position);
+    camera.viewDirection = rotationMatrix.multiply(camera.viewDirection);
+
+    camera.up = rotationMatrix.multiply(camera.up);
+    camera.e = rotationMatrix.multiply(camera.e);
+    camera.u = rotationMatrix.multiply(camera.u);
+    camera.v = rotationMatrix.multiply(camera.v);
+    camera.w = rotationMatrix.multiply(camera.w);
+    camera.sideDirection = rotationMatrix.multiply(camera.sideDirection);
+    camera.isOrthonormal();
+
+    camera.viewDirection = camera.viewDirection.scale(-1);
+    camera.u = camera.up.cross(camera.viewDirection);
+    camera.v = camera.viewDirection.cross(camera.u);
+    camera.w = camera.viewDirection;
+    camera.u = camera.u.scale(-1);
+    camera.v = camera.v.scale(-1);
+    camera.w = camera.w.scale(-1);
+    camera.sideDirection = camera.u;
+    camera.isOrthonormal();
+}
+
 function initialize() {
-    return perspectiveProjection();
+    // const animationManager = new AnimationFrameRequestManager(() => {});
+    // animationManager.start();
+
+    // return perspectiveProjection();
     return parallelProjection();
-    const canvas = document.getElementById('canvas');
+    // const canvas = document.getElementById('canvas');
 
     let isDirty = true;
     const cameraPosition = new Vec3(0, 0, -5);
@@ -423,48 +502,66 @@ function parallelProjection() {
     const ctx = canvas.getContext('2d');
     const imageData = new ImageData(canvas.width, canvas.height); // Pixel / frame buffer
 
-    const viewPortCenter = new Vec3(0, 0, -5);
     const [nx, ny] = [canvas.width, canvas.height];
     const viewportWidth = 4;
     const viewportHeight = viewportWidth * (ny/nx);
-    const viewportLeft = viewPortCenter.x - viewportWidth / 2;
-    const viewportTop = viewPortCenter.y - viewportHeight / 2;
 
-    const viewportDirection = new Vec3(0, 0, 1);
+    const viewPortCenter = new Vec3(0, 0, 0);
 
-    const sphereX = 2;
-    const sphereY = 1;
-    const sphereZ = 100; // This is mostly irrelevant since we are using parallel projection. The only thing that matters is whether it is in front of the viewport or not
-    const sphereRadius = 1;
+    // These initial values should be fixed and only changed by rotation
+    let viewportDirection = new Vec3(0, 1, 0); 
+    let viewportUp = new Vec3(0, 0, 1);
+    let viewportRight = new Vec3(1, 0, 0);
 
-    for (let i = 0; i < nx; i++) {
-        const rayX = viewportLeft + viewportWidth * (i + 0.5) / nx;
-        for (let j = 0; j < ny; j++) {
-            const rayY = viewportTop + viewportHeight * (j + 0.5) / ny;
 
-            const rayOrigin = new Vec3(rayX, rayY, viewPortCenter.z);
+    const xAngle = 0///Math.PI / 2;
+    const yAngle = 0; // Math.PI / 36;
+    const zAngle = 0; // Math.PI / 36;
 
-            const ecDiff = rayOrigin.subtract(new Vec3(sphereX, sphereY, sphereZ));
+    const Rx = rotateXMatrix(xAngle);
+    const Ry = rotateYMatrix(yAngle);
+    const Rz = rotateZMatrix(zAngle);
+    const R = Rz.mult(Ry).mult(Rx);
+
+    viewportDirection = viewportDirection.transform(R);
+    viewportUp = viewportUp.transform(R);
+    viewportRight = viewportRight.transform(R);
+
+    const viewportTopLeft = viewPortCenter.add(viewportRight.scale(-viewportWidth / 2)).add(viewportUp.scale(viewportHeight / 2));
+
+    const objects = [
+        new Sphere(0, 5, 0, 1),
+        new Sphere(0, 0, 5, 1),
+    ];
+
+    for (let screenX = 0; screenX < nx; screenX++) {
+        const test = viewportTopLeft.add(viewportRight.scale(viewportWidth * (screenX + 0.5) / nx));
+        for (let screenY = 0; screenY < ny; screenY++) {
+            const rayOrigin = test.add(viewportUp.scale(-viewportHeight * (screenY + 0.5) / ny)); // We go down because the y axis is flipped in the canvas
             
-            const a = viewportDirection.dot(viewportDirection)
-            const b = 2 * viewportDirection.dot(ecDiff)
-
-            const c = ecDiff.dot(ecDiff) - sphereRadius * sphereRadius;
-
-            const discriminant = b * b - 4 * a * c;
-            if (discriminant < 0) { // No intersection
-                imageData.setPixel(i, j, 0, 0, 0, 255); // Black background
-                continue;
+            imageData.setPixel(screenX, screenY, 0, 0, 0, 255); // Black background
+            for (let k = 0; k < objects.length; k++) {
+                const object = objects[k];
+                // Calculate the ray direction
+                const rayDirection = viewportDirection;
+                // Check if the ray hits the object
+                const hit = object.hit(new Ray(rayOrigin, rayDirection));
+                if (hit !== null) {
+                    switch (k) {
+                        case 0: // First sphere
+                            imageData.setPixel(screenX, screenY, 255, 0, 0, 255); // Red sphere
+                            break;
+                        case 1: // Second sphere
+                            imageData.setPixel(screenX, screenY, 0, 255, 0, 255); // Green sphere
+                            break;
+                        default:
+                            imageData.setPixel(screenX, screenY, 0, 0, 255, 255); // Blue for any other object
+                    }
+                }
             }
 
-            const t1 = (-b + Math.sqrt(discriminant)) / (2 * a);
-            const t2 = (-b - Math.sqrt(discriminant)) / (2 * a);
-            if (t1 < 0 && t2 < 0) {
-                imageData.setPixel(i, j, 0, 0, 0, 255); // Black background
-            } else { // At least one of the intersections is in front of the viewport
-                imageData.setPixel(i, j, 255, 0, 0, 255); // Red sphere
-            }
         }
+        // return 
     }
 
     ctx.putImageData(imageData, 0, 0);
