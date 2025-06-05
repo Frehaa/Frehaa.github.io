@@ -41,32 +41,68 @@ function rotateZMatrix(rad) {
     ]);
 }
 
-function degreeToRadians(degree) {
-    return degree * Math.PI / 180;
-}
-
-// function calculateHit(origin, ray, objects) {
-//     let results = [];
-//     objects.forEach(object => {
-//         // Calculate possible intersection and return distance and object
-//         // results.append([t, object])
-//     });
-//     return results;
-// }
-
-// Equation for plane
-// Equation for line
-// 
-
-// function hitSphere(ray, sphere) {
-// }
-
 class Ray {
     constructor(origin, direction) {
         this.origin = origin;
         this.e = origin;
         this.direction = direction;
         this.d = direction;
+    }
+}
+
+class Box { 
+    constructor(x, y, z, width, height, depth) {
+        this.position = new Vec3(x, y, z);
+        this.x = x;
+        this.y = y;
+        this.z = z;
+        this.width = width;
+        this.height = height;
+        this.depth = depth;
+    }
+    setPositionV(vec) {
+        this.position = vec;
+        this.x = vec.x;
+        this.y = vec.y;
+        this.z = vec.z;
+    }
+    setPosition(x, y, z) {
+        this.position = new Vec3(x, y, z);
+        this.x = x;
+        this.y = y;
+        this.z = z;
+    }
+    hit(ray) {
+        // Ray plane intersection
+        // We have 6 planes, one for each side of the box
+        const planes = [
+            {normal: new Vec3(1, 0, 0), point: new Vec3(this.x + this.width / 2, this.y, this.z)}, // Right
+            {normal: new Vec3(-1, 0, 0), point: new Vec3(this.x - this.width / 2, this.y, this.z)}, // Left
+            {normal: new Vec3(0, 1, 0), point: new Vec3(this.x, this.y + this.height / 2, this.z)}, // Top
+            {normal: new Vec3(0, -1, 0), point: new Vec3(this.x, this.y - this.height / 2, this.z)}, // Bottom
+            {normal: new Vec3(0, 0, 1), point: new Vec3(this.x, this.y, this.z + this.depth / 2)}, // Front
+            {normal: new Vec3(0, 0, -1), point: new Vec3(this.x, this.y, this.z - this.depth / 2)}, // Back
+        ];
+        let closestHit = null;
+        for (const plane of planes) {
+            const {normal, point} = plane;
+            const d = normal.dot(ray.direction);
+            if (Math.abs(d) < 1e-6) continue; // Ray is parallel to the plane
+            const t = (point.subtract(ray.origin)).dot(normal) / d;
+            if (t < 0) continue; // Intersection is behind the ray origin
+            if (closestHit === null || t < closestHit.t) {
+                closestHit = {t, normal, point};
+            }
+        }
+        if (closestHit === null) return null; // No intersection
+        // Check if the intersection point is inside the box
+        const intersectionPoint = ray.origin.add(ray.direction.scale(closestHit.t));
+        if (intersectionPoint.x < this.x - this.width / 2 || intersectionPoint.x > this.x + this.width / 2 ||
+            intersectionPoint.y < this.y - this.height / 2 || intersectionPoint.y > this.y + this.height / 2 ||
+            intersectionPoint.z < this.z - this.depth / 2 || intersectionPoint.z > this.z + this.depth / 2) {
+            return null; // Intersection point is outside the box
+        }
+        return closestHit.t; // Return the distance to the intersection point
     }
 }
 
@@ -514,9 +550,9 @@ function parallelProjection() {
     let viewportRight = new Vec3(1, 0, 0);
 
 
-    const xAngle = 0///Math.PI / 2;
-    const yAngle = 0; // Math.PI / 36;
-    const zAngle = 0; // Math.PI / 36;
+    const xAngle = 0// Math.PI / 2;
+    const yAngle = 0//Math.PI / 16;
+    const zAngle = 0 //Math.PI / 18;
 
     const Rx = rotateXMatrix(xAngle);
     const Ry = rotateYMatrix(yAngle);
@@ -526,11 +562,17 @@ function parallelProjection() {
     viewportDirection = viewportDirection.transform(R);
     viewportUp = viewportUp.transform(R);
     viewportRight = viewportRight.transform(R);
+    
+    l(`Viewport direction:`, viewportDirection);
+    l(`Viewport up:`, viewportUp);
+    l(`Viewport right:`, viewportRight);
 
     const viewportTopLeft = viewPortCenter.add(viewportRight.scale(-viewportWidth / 2)).add(viewportUp.scale(viewportHeight / 2));
+    l(`Viewport top left:`, viewportTopLeft);
 
     const objects = [
         new Sphere(0, 5, 0, 1),
+        new Box(0, 2, 0, 0.5, 0.5, 0.5),
         new Sphere(0, 0, 5, 1),
     ];
 
@@ -540,25 +582,82 @@ function parallelProjection() {
             const rayOrigin = test.add(viewportUp.scale(-viewportHeight * (screenY + 0.5) / ny)); // We go down because the y axis is flipped in the canvas
             
             imageData.setPixel(screenX, screenY, 0, 0, 0, 255); // Black background
-            for (let k = 0; k < objects.length; k++) {
-                const object = objects[k];
-                // Calculate the ray direction
-                const rayDirection = viewportDirection;
-                // Check if the ray hits the object
-                const hit = object.hit(new Ray(rayOrigin, rayDirection));
-                if (hit !== null) {
-                    switch (k) {
-                        case 0: // First sphere
-                            imageData.setPixel(screenX, screenY, 255, 0, 0, 255); // Red sphere
-                            break;
-                        case 1: // Second sphere
-                            imageData.setPixel(screenX, screenY, 0, 255, 0, 255); // Green sphere
-                            break;
-                        default:
-                            imageData.setPixel(screenX, screenY, 0, 0, 255, 255); // Blue for any other object
-                    }
+
+            // Draw rectangle placed at origin in xy plane with width and height of 2
+            // The formula for the xy plane is: pz = 0
+
+            // The equation for our ray is: 
+            // p = rayOrigin + t * viewportDirection
+            // We need to find t such that pz = 0
+            // We can do this by solving the equation:
+
+
+            // Draw rectangle placed at origin in the xz plane with width and height of 2
+
+            // const t = -rayOrigin.y / viewportDirection.y; 
+            // const p = rayOrigin.add(viewportDirection.scale(t)); // This is the point where the ray intersects the xy plane
+            // if (0 <= p.x && p.x <= 2 && 0 <= p.z && p.z <= 2) {
+            //     // The point is inside the rectangle, so we can draw it
+            //     imageData.setPixel(screenX, screenY, 255, 255, 255, 255); // White pixel
+            // }
+
+
+            const sphereCenter = new Vec3(0, 5, 0);
+            const ecDiff = rayOrigin.subtract(sphereCenter);
+
+            const a = viewportDirection.dot(viewportDirection)
+            const b = 2 * viewportDirection.dot(ecDiff)
+
+            const c = ecDiff.dot(ecDiff) - 1 * 1
+    
+            const result = solveQuadraticEquation(a, b, c);
+
+            let p = null
+
+            if (result.length === 1 && result[0] >= 0) {
+                p = rayOrigin.add(viewportDirection.scale(result[0]));
+                imageData.setPixel(screenX, screenY, 255, 0, 0, 255); // Red pixel
+            }
+            else if (result.length === 2) {
+                let t = null;
+                if (result[0] >= 0 && result[1] >= 0) {
+                    t = result[0] <= result[1]? result[0] : result[1];
+                } else if (result[0] >= 0) {
+                    t = result[0];
+                } else if (result[1] >= 0) {
+                    t = result[1];
+                }
+                if (t !== null) {
+                    p = rayOrigin.add(viewportDirection.scale(t));
                 }
             }
+
+            if (p !== null) {
+                imageData.setPixel(screenX, screenY, 255, 0, 0, 255); // Red pixel
+
+                const normal = p.subtract(sphereCenter).normalize(); // Normal at the intersection point
+            }
+
+
+            // for (let k = 0; k < objects.length; k++) {
+            //     const object = objects[k];
+            //     // Calculate the ray direction
+            //     const rayDirection = viewportDirection;
+            //     // Check if the ray hits the object
+            //     const hit = object.hit(new Ray(rayOrigin, rayDirection));
+            //     if (hit !== null) {
+            //         switch (k) {
+            //             case 0: // First sphere
+            //                 imageData.setPixel(screenX, screenY, 255, 0, 0, 255); // Red sphere
+            //                 break;
+            //             case 1: // Second sphere
+            //                 imageData.setPixel(screenX, screenY, 0, 255, 0, 255); // Green sphere
+            //                 break;
+            //             default:
+            //                 imageData.setPixel(screenX, screenY, 0, 0, 255, 255); // Blue for any other object
+            //         }
+            //     }
+            // }
 
         }
         // return 
