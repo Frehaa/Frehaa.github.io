@@ -216,13 +216,18 @@ function box() {
     let mousePosition = new Vec2(0, 0);
     let ballForcePoint = null;
 
-    const box = new SimpleMassRotatingBox(new Vec2(300, 300), width, height);
+    const box = new SimpleMassRotatingBox2D(new Vec2(300, 300), width, height);
     window.box = box;
     const positions = [box.position];
 
     const maxVelocity = 5.5
     const force = 0.01; // 0.01 force with -0.001 drag gives a max velocty of 10 it seems like. Can this be computed?
     // ball.addConditionalForce(b => b.velocity.scale(-force/maxVelocity));
+
+
+    // box.totalForce = new Vec2(0.0001, 0);
+    
+    box.applySingleStepForceAtPoint(new Vec2(100, 0), box.position.add(new Vec2(0, -box.height/2))); // Apply force at the top of the box to make it move downwards
 
     const animationClass = new AnimationFrameRequestManager(dt => {
         // UPDATE
@@ -314,9 +319,9 @@ function box() {
 
         mousePosition = new Vec2(x, y);
     }
-    document.addEventListener("mousedown", mouseDown);
-    document.addEventListener("mouseup", mouseUp);
-    document.addEventListener("mousemove", mouseMove);
+    // document.addEventListener("mousedown", mouseDown);
+    // document.addEventListener("mouseup", mouseUp);
+    // document.addEventListener("mousemove", mouseMove);
 
 
     // Start 
