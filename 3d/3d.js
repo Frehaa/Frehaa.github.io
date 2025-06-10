@@ -132,8 +132,7 @@ class Sphere {
     // 2. Simplify to quadratic equation
     // 3. Solve equation
     // 4. Return smallest positive result if any
-    hit(ray) { 
-
+    hit(ray) {
         const ecDiff = ray.origin.subtract(this.position);
 
         const a = ray.direction.dot(ray.direction)
@@ -165,6 +164,27 @@ class Sphere {
 
         // No positive solutions
         return null;
+    }
+    slowHit(ray) {
+        const ecDiff = ray.origin.subtract(this.position);
+        const a = ray.direction.dot(ray.direction);
+        const b = 2 * ray.direction.dot(ecDiff);
+        const c = ecDiff.dot(ecDiff) - this.radius * this.radius;
+
+        const discriminant = b * b - 4 * a * c;
+        if (discriminant < 0) return null; // No intersection
+
+        const dSqrt = Math.sqrt(discriminant);
+        const denom = 2 * a;
+        const t1 = (-b + dSqrt) / denom;
+        const t2 = (-b - dSqrt) / denom;
+
+        if (t1 < 0 && t2 < 0) return null; // Both intersections are behind the ray origin
+        const t = Math.min(t1, t2);
+        const normal = ray.origin.add(ray.direction.scale(t)).subtract(this.position).normalize();
+        const hitPoint = ray.origin.add(ray.direction.scale(t)).add(normal.scale(0.00001)); // Offset the hit point slightly to avoid self-intersection
+
+        return {t, normal, hitPoint}; // Return the distance to the intersection point, normal at the intersection point and the intersection point itself
     }
 }
 
@@ -377,7 +397,7 @@ class Triangle {
     slowHit(ray) {
         const [d, e] = [ray.direction, ray.origin];
         const {a, b, c} = this;
-        const A = createMatrix([
+        const A = createMatrix([ // TODO?: This can probably be optimized by looking at the calculation of the determinant and precomputing as much as possible
             [a.x - b.x, a.x - c.x, d.x],
             [a.y - b.y, a.y - c.y, d.y],
             [a.z - b.z, a.z - c.z, d.z],
