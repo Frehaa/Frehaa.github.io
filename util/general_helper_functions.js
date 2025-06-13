@@ -21,6 +21,24 @@ function d(...m) {
     this.splice(0, this.length);
 }
 
+ImageData.prototype.setPixel = function(x, y, r, g, b, a) {
+    const idx = (x + y * this.width) * 4;
+    this.data[idx + 0] = r;
+    this.data[idx + 1] = g;
+    this.data[idx + 2] = b;
+    this.data[idx + 3] = a;
+}
+
+CanvasRenderingContext2D.prototype.clear = function() {
+    const { canvas } = this;
+    this.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+CanvasRenderingContext2D.prototype.getTextHeight = function(text) {
+    const textMetrics = this.measureText(text);
+    return textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
+}
+
 function getTextHeight(ctx, text) {
     const textMetrics = ctx.measureText(text);
     return textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;

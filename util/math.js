@@ -93,15 +93,14 @@ class Vec2 {
         return this.scale(1/length);
         // return new Vec2(this.x / length, this.y / length); // TODO: Test accuracy between these two approaches
     }
-    // rotate(degrees) { // TODO
-    //   const normalized = this.normalize();
-    //   return new Vec2(0, 0);
-
-    // }
-    // rotate_around(B, Degrees) { // TODO
-    //   const radius = B.subtract(this).length();
-    //   return new Vec2(0, 0);
-    // }
+    rotate(radians) {
+      const cos = Math.cos(radians);
+      const sin = Math.sin(radians);
+      return new Vec2(this.x * cos - this.y * sin, this.x * sin + this.y * cos);
+    }
+    rotate_around(B, radians) {
+      return this.subtract(B).rotate(radians).add(B);
+    }
     equal(b) {
       return this.x === b.x && this.y === b.y;
     }
@@ -110,6 +109,15 @@ class Vec2 {
     }
     copy() {
       return new Vec2(this.x, this.y);
+    }
+    transform(matrix) {
+      const result = [0, 0];
+      for (let i = 0; i < 2; i++) {
+        for (let j = 0; j < 2; j++) {
+          result[i] += matrix.getValue(i, j) * this[j];
+        }
+      }
+      return new Vec2(result[0], result[1]);
     }
 }
 
@@ -200,6 +208,15 @@ class Vec3 {
     return new Vec3(this[0]/l, this[1]/l, this[2]/l,);
   }
 
+  transform(matrix) {
+    const result = [0, 0, 0];
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 3; j++) {
+        result[i] += matrix.getValue(i, j) * this[j];
+      }
+    }
+    return new Vec3(result[0], result[1], result[2]);
+  }
 }
 
 function solveQuadraticEquation(a/*:number\*/, b/*:number\*/, c/*:number\*/) {
@@ -231,6 +248,9 @@ class Matrix {
       this.values.push(row);
       this[i] = row;
     }
+  }
+  static fromArray(array) {
+    return createMatrix(array);
   }
   setValue(row, column, value) {
     if (!(0 <= row && row < this.rows && 0 <= column && column < this.columns)) throw new Error('Illegal argument: index outside bounds');
@@ -309,7 +329,7 @@ class Matrix {
            this[0][0] * this[1][2] * this[2][1];
   }
   mult(b) {
-    if (this.columns === b.rows) throw new Error('Invalid size: Argument does not have as many rows as this matrix has columns.');
+    if (this.columns !== b.rows) throw new Error('Invalid size: Argument does not have as many rows as this matrix has columns.');
     const result = new Matrix(this.rows, b.columns);
     for (let i = 0; i < this.rows; i++) {
       for (let j = 0; j < b.columns; j++) {

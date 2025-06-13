@@ -1,11 +1,6 @@
 'using strict';
-const l = console.log;
-function assert(condition, msg) {
-    if (!condition) throw Error(msg)
-}
-
 function translateMatrix(x, y, z) {
-    return createMatrix([
+    return Matrix.fromArray([
         [1, 0, 0, x],
         [0, 1, 0, y],
         [0, 0, 1, z],
@@ -16,7 +11,7 @@ function translateMatrix(x, y, z) {
 function rotateXMatrix(rad) {
     let c = Math.cos(rad);
     let s = Math.sin(rad);
-    return createMatrix([
+    return Matrix.fromArray([
         [1, 0, 0, 0],
         [0, c,-s, 0],
         [0, s, c, 0],
@@ -27,7 +22,7 @@ function rotateXMatrix(rad) {
 function rotateYMatrix(rad) {
     let c = Math.cos(rad);
     let s = Math.sin(rad);
-    return createMatrix([
+    return Matrix.fromArray([
         [c, 0, s, 0],
         [0, 1, 0, 0],
         [-s,0, c, 0],
@@ -38,7 +33,7 @@ function rotateYMatrix(rad) {
 function rotateZMatrix(rad) {
     let c = Math.cos(rad);
     let s = Math.sin(rad);
-    return createMatrix([
+    return Matrix.fromArray([
         [c, -s, 0, 0],
         [s, c, 0, 0],
         [0, 0, 1, 0],
@@ -46,32 +41,68 @@ function rotateZMatrix(rad) {
     ]);
 }
 
-function degreeToRadians(degree) {
-    return degree * Math.PI / 180;
-}
-
-// function calculateHit(origin, ray, objects) {
-//     let results = [];
-//     objects.forEach(object => {
-//         // Calculate possible intersection and return distance and object
-//         // results.append([t, object])
-//     });
-//     return results;
-// }
-
-// Equation for plane
-// Equation for line
-// 
-
-// function hitSphere(ray, sphere) {
-// }
-
 class Ray {
     constructor(origin, direction) {
         this.origin = origin;
         this.e = origin;
         this.direction = direction;
         this.d = direction;
+    }
+}
+
+class Box { 
+    constructor(x, y, z, width, height, depth) {
+        this.position = new Vec3(x, y, z);
+        this.x = x;
+        this.y = y;
+        this.z = z;
+        this.width = width;
+        this.height = height;
+        this.depth = depth;
+    }
+    setPositionV(vec) {
+        this.position = vec;
+        this.x = vec.x;
+        this.y = vec.y;
+        this.z = vec.z;
+    }
+    setPosition(x, y, z) {
+        this.position = new Vec3(x, y, z);
+        this.x = x;
+        this.y = y;
+        this.z = z;
+    }
+    hit(ray) {
+        // Ray plane intersection
+        // We have 6 planes, one for each side of the box
+        const planes = [
+            {normal: new Vec3(1, 0, 0), point: new Vec3(this.x + this.width / 2, this.y, this.z)}, // Right
+            {normal: new Vec3(-1, 0, 0), point: new Vec3(this.x - this.width / 2, this.y, this.z)}, // Left
+            {normal: new Vec3(0, 1, 0), point: new Vec3(this.x, this.y + this.height / 2, this.z)}, // Top
+            {normal: new Vec3(0, -1, 0), point: new Vec3(this.x, this.y - this.height / 2, this.z)}, // Bottom
+            {normal: new Vec3(0, 0, 1), point: new Vec3(this.x, this.y, this.z + this.depth / 2)}, // Front
+            {normal: new Vec3(0, 0, -1), point: new Vec3(this.x, this.y, this.z - this.depth / 2)}, // Back
+        ];
+        let closestHit = null;
+        for (const plane of planes) {
+            const {normal, point} = plane;
+            const d = normal.dot(ray.direction);
+            if (Math.abs(d) < 1e-6) continue; // Ray is parallel to the plane
+            const t = (point.subtract(ray.origin)).dot(normal) / d;
+            if (t < 0) continue; // Intersection is behind the ray origin
+            if (closestHit === null || t < closestHit.t) {
+                closestHit = {t, normal, point};
+            }
+        }
+        if (closestHit === null) return null; // No intersection
+        // Check if the intersection point is inside the box
+        const intersectionPoint = ray.origin.add(ray.direction.scale(closestHit.t));
+        if (intersectionPoint.x < this.x - this.width / 2 || intersectionPoint.x > this.x + this.width / 2 ||
+            intersectionPoint.y < this.y - this.height / 2 || intersectionPoint.y > this.y + this.height / 2 ||
+            intersectionPoint.z < this.z - this.depth / 2 || intersectionPoint.z > this.z + this.depth / 2) {
+            return null; // Intersection point is outside the box
+        }
+        return closestHit.t; // Return the distance to the intersection point
     }
 }
 
@@ -101,18 +132,15 @@ class Sphere {
     // 2. Simplify to quadratic equation
     // 3. Solve equation
     // 4. Return smallest positive result if any
-    hit(ray) { 
-        // TODO: UPDATE SOLUTION TO USE SPHERE COORDINATES. THIS PROBABLY MEANS USING A TRANSLATION MATRIX
-        const [ox, oy, oz] = [ray.origin.x, ray.origin.y, ray.origin.z];
-        const [dx, dy, dz] = [ray.direction.x, ray.direction.y, ray.direction.z];
-        const r = this.radius;
+    hit(ray) {
+        const ecDiff = ray.origin.subtract(this.position);
 
-        // Polynomial pa * t^2 + pb * t + pc 
-        const pa = dx*dx + dy*dy + dz*dz;
-        const pb = 2*ox*dx + 2*oy*dy + 2*oz*dz;
-        const pc = ox*ox + oy*oy + oz*oz - r*r;
+        const a = ray.direction.dot(ray.direction)
+        const b = 2 * ray.direction.dot(ecDiff)
 
-        const result = solveQuadraticEquation(pa, pb, pc);
+        const c = ecDiff.dot(ecDiff) - this.radius * this.radius;
+ 
+        const result = solveQuadraticEquation(a, b, c);
 
         if (result.length === 2) { // Two solutions
             if (result[0] >= 0 && result[1] >= 0) { // Both positive, return smallest
@@ -136,6 +164,53 @@ class Sphere {
 
         // No positive solutions
         return null;
+    }
+    slowHit(ray) {
+        const ecDiff = ray.origin.subtract(this.position);
+        const a = ray.direction.dot(ray.direction);
+        const b = 2 * ray.direction.dot(ecDiff);
+        const c = ecDiff.dot(ecDiff) - this.radius * this.radius;
+
+        const discriminant = b * b - 4 * a * c;
+        if (discriminant < 0) return null; // No intersection
+
+        const dSqrt = Math.sqrt(discriminant);
+        const denom = 2 * a;
+        const t1 = (-b + dSqrt) / denom;
+        const t2 = (-b - dSqrt) / denom;
+
+        if (t1 < 0 && t2 < 0) return null; // Both intersections are behind the ray origin
+        const t = Math.min(t1, t2);
+        const normal = ray.origin.add(ray.direction.scale(t)).subtract(this.position).normalize();
+        const hitPoint = ray.origin.add(ray.direction.scale(t)).add(normal.scale(0.00001)); // Offset the hit point slightly to avoid self-intersection
+
+        return {t, normal, hitPoint}; // Return the distance to the intersection point, normal at the intersection point and the intersection point itself
+    }
+}
+
+class Cylinder {
+    constructor(x, y, z, radius, height) {
+        this.position = new Vec3(x, y, z);
+        this.x = x;
+        this.y = y;
+        this.z = z;
+        this.radius = radius;
+        this.height = height;
+    }
+    setPositionV(vec) {
+        this.position = vec;
+        this.x = vec.x;
+        this.y = vec.y;
+        this.z = vec.z;
+    }
+    setPosition(x, y, z) {
+        this.position = new Vec3(x, y, z);
+        this.x = x;
+        this.y = y;
+        this.z = z;
+    }
+    hit(ray) {
+        
     }
 }
 
@@ -203,6 +278,30 @@ class Viewport {
             }
         }
     }
+}
+
+class ParallelProjectionRayGenerator { 
+    constructor(center, direction, up, right, width, height, nx, ny) {
+        this.center = center; // Center of the viewport
+        this.direction = direction; // Direction of the rays
+        this.width = width; // Width of the viewport
+        this.height = height; // Height of the viewport
+        this.nx = nx; // Number of pixels in x direction
+        this.ny = ny; // Number of pixels in y direction
+        this.up = up; // Up vector of the viewport
+        this.right = right; // Right vector of the viewport
+
+        this.topLeft = this.center.add(this.right.scale(-this.width / 2)).add(this.up.scale(this.height / 2));
+    }
+    generateRay(x, y) {
+        assert(x >= 0 && x < this.nx, `X coordinate out of bounds: ${x}`);
+        assert(y >= 0 && y < this.ny, `Y coordinate out of bounds: ${y}`);
+        // This does extra calculations since it calculates from the top left corner every time and adds two vectors. Alternatively, when we have calculated the coordinate for x = 1, we don't need to calculate this again, only the up vector needs to be added.
+        const rayOrigin = this.topLeft.add(this.right.scale(this.width * (x + 0.5) / this.nx)).add(this.up.scale(-this.height * (y + 0.5) / this.ny));
+        const rayDirection = this.direction; // Parallel projection, so direction is constant
+        return new Ray(rayOrigin, rayDirection);
+    }
+
 }
 
 const state = {
@@ -298,7 +397,7 @@ class Triangle {
     slowHit(ray) {
         const [d, e] = [ray.direction, ray.origin];
         const {a, b, c} = this;
-        const A = createMatrix([
+        const A = createMatrix([ // TODO?: This can probably be optimized by looking at the calculation of the determinant and precomputing as much as possible
             [a.x - b.x, a.x - c.x, d.x],
             [a.y - b.y, a.y - c.y, d.y],
             [a.z - b.z, a.z - c.z, d.z],
@@ -342,19 +441,78 @@ const settings = {
     cameraStepMovement: 0.5,
 }
 
+// How to implement euler angles?
+function rotateCamera(camera, x, y, z) {
+    const rotationX = rotateXMatrix(x);
+    const rotationY = rotateYMatrix(y);
+    const rotationZ = rotateZMatrix(z);
+    const rotationMatrix = rotationX.multiply(rotationY).multiply(rotationZ);
+    camera.position = rotationMatrix.multiply(camera.position);
+    camera.viewDirection = rotationMatrix.multiply(camera.viewDirection);
+
+    camera.up = rotationMatrix.multiply(camera.up);
+    camera.e = rotationMatrix.multiply(camera.e);
+    camera.u = rotationMatrix.multiply(camera.u);
+    camera.v = rotationMatrix.multiply(camera.v);
+    camera.w = rotationMatrix.multiply(camera.w);
+    camera.sideDirection = rotationMatrix.multiply(camera.sideDirection);
+    camera.isOrthonormal();
+
+    camera.viewDirection = camera.viewDirection.scale(-1);
+    camera.u = camera.up.cross(camera.viewDirection);
+    camera.v = camera.viewDirection.cross(camera.u);
+    camera.w = camera.viewDirection;
+    camera.u = camera.u.scale(-1);
+    camera.v = camera.v.scale(-1);
+    camera.w = camera.w.scale(-1);
+    camera.sideDirection = camera.u;
+    camera.isOrthonormal();
+}
+
 function initialize() {
-    const canvas = document.getElementById('canvas');// as HTMLCanvasElement;
-    const ctx = canvas.getContext('2d');// as CanvasRenderingContext2D;
+    // const animationManager = new AnimationFrameRequestManager(() => {});
+    // animationManager.start();
 
+    // return perspectiveProjection();
+    return parallelProjection();
+    // const canvas = document.getElementById('canvas');
 
+    let isDirty = true;
     const cameraPosition = new Vec3(0, 0, -5);
     const upVector = new Vec3(0, 1, 0);
     const cameraDirection = new Vec3(0, 0, 1);
 
     const camera = new Camera(cameraPosition, upVector, cameraDirection);
+    assert(camera.isOrthonormal(), `Camera was not orthonormal.`);
+    l(`Camera:`, camera);
+    document.addEventListener('keydown', e => {
+        switch (e.key) {
+            case "ArrowUp": {
+                const newPosition = camera.position.add(new Vec3(0, settings.cameraStepMovement, 0));
+                camera.position = newPosition;
+                camera.e = newPosition;
+            } break;
+            case "ArrowDown": {
+                const newPosition = camera.position.add(new Vec3(0, -settings.cameraStepMovement, 0));
+                camera.position = newPosition;
+                camera.e = newPosition;
+            } break;
+            case "ArrowLeft": {
+                const newPosition = state.camera.position.add(new Vec3(-settings.cameraStepMovement, 0, 0));
+                camera.position = newPosition;
+                camera.e = newPosition;
+            } break;
+            case "ArrowRight": {
+                const newPosition = state.camera.position.add(new Vec3(settings.cameraStepMovement, 0, 0));
+                camera.position = newPosition;
+                camera.e = newPosition;
+            } break;
+        }
+        isDirty = true;
+    })
+
     state.camera = camera;
 
-    assert(camera.isOrthonormal(), `Camera was not orthonormal.`);
 
     // NOTE: IF VIEWPORT IS SQUARE THEN NX AND NY SHOULD BE EQUAL TO AVOID DISTORTION
     const [nx, ny] = [canvas.width, canvas.height];
@@ -365,13 +523,9 @@ function initialize() {
     const viewport = new Viewport(camera, viewportLeft, viewportLeft + viewportWidth, viewportTop, viewportTop + viewportHeight, nx, ny);
     state.viewport = viewport;
 
-
     // TODO: Oblique parallel view when we can see the difference
     // TODO: oblique perspective 
 
-    const imageData = new ImageData(nx, ny); // Pixel / frame buffer
-
-    l(imageData)
     const sphere = new Sphere(0, 0, 0, 1);
     state.objects.push(sphere);
 
@@ -381,299 +535,208 @@ function initialize() {
         new Vec3(0, -1, -1),
     )
     state.objects.push(triangle)
-    draw()
+
+    let lastTime = 0;
+    function loop(time) {
+        if (!isDirty) { return requestAnimationFrame(loop); };
+        const deltaTime = time - lastTime;
+        l(`Delta time: ${deltaTime}`);
+        lastTime = time;
+
+        draw();
+        isDirty = false;
+        requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(time => {
+        lastTime = time;
+        loop(time);
+    });
+}
+
+function parallelProjection() {
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const imageData = new ImageData(canvas.width, canvas.height); // Pixel / frame buffer
+
+    const [nx, ny] = [canvas.width, canvas.height];
+    const viewportWidth = 4;
+    const viewportHeight = viewportWidth * (ny/nx);
+
+    const viewPortCenter = new Vec3(0, 0, 0);
+
+    // These initial values should be fixed and only changed by rotation
+    let viewportDirection = new Vec3(0, 1, 0); 
+    let viewportUp = new Vec3(0, 0, 1);
+    let viewportRight = new Vec3(1, 0, 0);
 
 
+    const xAngle = 0// Math.PI / 2;
+    const yAngle = 0//Math.PI / 16;
+    const zAngle = 0 //Math.PI / 18;
 
-    document.addEventListener('keydown', e => {
-        switch (e.key) {
-            case "ArrowUp": {
-                const newPosition = state.camera.position.add(new Vec3(0, settings.cameraStepMovement, 0));
-                state.camera.position = newPosition;
-                state.camera.e = newPosition;
-                draw()
-            } break;
-            case "ArrowDown": {
-                const newPosition = state.camera.position.add(new Vec3(0, -settings.cameraStepMovement, 0));
-                state.camera.position = newPosition;
-                state.camera.e = newPosition;
-                draw()
+    const Rx = rotateXMatrix(xAngle);
+    const Ry = rotateYMatrix(yAngle);
+    const Rz = rotateZMatrix(zAngle);
+    const R = Rz.mult(Ry).mult(Rx);
 
-            } break;
-            case "ArrowLeft": {
-                const newPosition = state.camera.position.add(new Vec3(-settings.cameraStepMovement, 0, 0));
-                state.camera.position = newPosition;
-                state.camera.e = newPosition;
-                draw()
-
-            } break;
-            case "ArrowRight": {
-                const newPosition = state.camera.position.add(new Vec3(settings.cameraStepMovement, 0, 0));
-                state.camera.position = newPosition;
-                state.camera.e = newPosition;
-                draw()
-
-            } break;
-        }
-    })
-
-
-
-    // for (const {x, y, ray} of viewport.calculateOrthographicRays()) {
-    //     const idx = y * nx + x;
-    //     const hit = sphere.hit(ray);
-    //     if (hit === null) {
-    //         imageData.data[4 * idx + 0] = 0; // R
-    //         imageData.data[4 * idx + 1] = 0; // G
-    //         imageData.data[4 * idx + 2] = 0; // B
-    //         imageData.data[4 * idx + 3] = 255; // A
-    //     } else {
-    //         imageData.data[4 * idx + 0] = 255; // R
-    //         imageData.data[4 * idx + 1] = 0; // G
-    //         imageData.data[4 * idx + 2] = 0; // B
-    //         imageData.data[4 * idx + 3] = 255; // A
-    //     }
-    // }
-    // ctx.putImageData(imageData, 100, 100);
-
-
-
-
-
-    return
+    viewportDirection = viewportDirection.transform(R);
+    viewportUp = viewportUp.transform(R);
+    viewportRight = viewportRight.transform(R);
     
+    l(`Viewport direction:`, viewportDirection);
+    l(`Viewport up:`, viewportUp);
+    l(`Viewport right:`, viewportRight);
 
-    // const w = new Vec3(0, 0, 1);
-    // const e = new Vec3(0, 0, -5); // Eye / origin 
-    // const u = new Vec3(1, 0, 0);
-    // const v = new Vec3(0, 1, 0);
-    // const l = -(nx/2);
-    // const r = nx/2;
-    // const b = -(ny/2);
-    // const t = ny/2;
-    // const l = v3add(e, [-(nx/2), 0, 0]);
-    // const r = v3add(e, [  nx/2,  0, 0]);
-    // const b = v3add(e, [0, -(ny/2), 0]);
-    // const t = v3add(e, [0,   ny/2 , 0]);
+    const viewportTopLeft = viewPortCenter.add(viewportRight.scale(-viewportWidth / 2)).add(viewportUp.scale(viewportHeight / 2));
+    l(`Viewport top left:`, viewportTopLeft);
+
+    const objects = [
+        new Sphere(0, 5, 0, 1),
+        new Box(0, 2, 0, 0.5, 0.5, 0.5),
+        new Sphere(0, 0, 5, 1),
+    ];
+
+    for (let screenX = 0; screenX < nx; screenX++) {
+        const test = viewportTopLeft.add(viewportRight.scale(viewportWidth * (screenX + 0.5) / nx));
+        for (let screenY = 0; screenY < ny; screenY++) {
+            const rayOrigin = test.add(viewportUp.scale(-viewportHeight * (screenY + 0.5) / ny)); // We go down because the y axis is flipped in the canvas
+            
+            imageData.setPixel(screenX, screenY, 0, 0, 0, 255); // Black background
+
+            // Draw rectangle placed at origin in xy plane with width and height of 2
+            // The formula for the xy plane is: pz = 0
+
+            // The equation for our ray is: 
+            // p = rayOrigin + t * viewportDirection
+            // We need to find t such that pz = 0
+            // We can do this by solving the equation:
 
 
+            // Draw rectangle placed at origin in the xz plane with width and height of 2
+
+            // const t = -rayOrigin.y / viewportDirection.y; 
+            // const p = rayOrigin.add(viewportDirection.scale(t)); // This is the point where the ray intersects the xy plane
+            // if (0 <= p.x && p.x <= 2 && 0 <= p.z && p.z <= 2) {
+            //     // The point is inside the rectangle, so we can draw it
+            //     imageData.setPixel(screenX, screenY, 255, 255, 255, 255); // White pixel
+            // }
 
 
+            const sphereCenter = new Vec3(0, 5, 0);
+            const ecDiff = rayOrigin.subtract(sphereCenter);
+
+            const a = viewportDirection.dot(viewportDirection)
+            const b = 2 * viewportDirection.dot(ecDiff)
+
+            const c = ecDiff.dot(ecDiff) - 1 * 1
+    
+            const result = solveQuadraticEquation(a, b, c);
+
+            let p = null
+
+            if (result.length === 1 && result[0] >= 0) {
+                p = rayOrigin.add(viewportDirection.scale(result[0]));
+                imageData.setPixel(screenX, screenY, 255, 0, 0, 255); // Red pixel
+            }
+            else if (result.length === 2) {
+                let t = null;
+                if (result[0] >= 0 && result[1] >= 0) {
+                    t = result[0] <= result[1]? result[0] : result[1];
+                } else if (result[0] >= 0) {
+                    t = result[0];
+                } else if (result[1] >= 0) {
+                    t = result[1];
+                }
+                if (t !== null) {
+                    p = rayOrigin.add(viewportDirection.scale(t));
+                }
+            }
+
+            if (p !== null) {
+                imageData.setPixel(screenX, screenY, 255, 0, 0, 255); // Red pixel
+
+                const normal = p.subtract(sphereCenter).normalize(); // Normal at the intersection point
+            }
 
 
+            // for (let k = 0; k < objects.length; k++) {
+            //     const object = objects[k];
+            //     // Calculate the ray direction
+            //     const rayDirection = viewportDirection;
+            //     // Check if the ray hits the object
+            //     const hit = object.hit(new Ray(rayOrigin, rayDirection));
+            //     if (hit !== null) {
+            //         switch (k) {
+            //             case 0: // First sphere
+            //                 imageData.setPixel(screenX, screenY, 255, 0, 0, 255); // Red sphere
+            //                 break;
+            //             case 1: // Second sphere
+            //                 imageData.setPixel(screenX, screenY, 0, 255, 0, 255); // Green sphere
+            //                 break;
+            //             default:
+            //                 imageData.setPixel(screenX, screenY, 0, 0, 255, 255); // Blue for any other object
+            //         }
+            //     }
+            // }
 
-    // const imagePlane = []; // The set of pixel points to project onto
+        }
+        // return 
+    }
 
-    for (let j = 0; j < ny; ++j) {
-        for (let i = 0; i < nx; ++i) {
-            // const u = v3add(l, v3smult(1/nx, v3smult(i + 0.5, v3sub(r, l))));
-            // const v = v3add(b, v3smult(1/ny, v3smult(j + 0.5, v3sub(t, b))));
-            // const x = l + (r - l)*(i + 0.5)/nx;
-            // const y = b + (t - b)*(j + 0.5)/ny;
+    ctx.putImageData(imageData, 0, 0);
 
-            // const ray = new Ray(e.add(u.scale(x)).add(v.scale(y)), w.scale(-1));
+}
 
-            // let dist = hitSphere(ray, sphere);
-            if (true) {
-                const idx = j * nx + i;
-                imageData.data[4 * idx + 0] = 255; // R
-                imageData.data[4 * idx + 1] = 0; // G
-                imageData.data[4 * idx + 2] = 0; // B
-                imageData.data[4 * idx + 3] = 255; // A
+function perspectiveProjection() {
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const imageData = new ImageData(canvas.width, canvas.height); // Pixel / frame buffer
+
+    const cameraCenter = new Vec3(0, 0, -10);
+
+    const viewPortCenter = new Vec3(0, 0, -5);
+    const [nx, ny] = [canvas.width, canvas.height];
+    const viewportWidth = 4;
+    const viewportHeight = viewportWidth * (ny/nx);
+    const viewportLeft = viewPortCenter.x - viewportWidth / 2;
+    const viewportTop = viewPortCenter.y - viewportHeight / 2;
+
+    const sphereX = 0;
+    const sphereY = 0;
+    const sphereZ = 10
+    const sphereRadius = 1;
+
+    for (let i = 0; i < nx; i++) {
+        const rayX = viewportLeft + viewportWidth * (i + 0.5) / nx;
+        for (let j = 0; j < ny; j++) {
+            const rayY = viewportTop + viewportHeight * (j + 0.5) / ny;
+            const rayTarget = new Vec3(rayX, rayY, viewPortCenter.z);
+
+            const rayDirection = rayTarget.subtract(cameraCenter);
+
+            const ecDiff = cameraCenter.subtract(new Vec3(sphereX, sphereY, sphereZ));
+            
+            const a = rayDirection.dot(rayDirection)
+            const b = 2 * rayDirection.dot(ecDiff)
+
+            const c = ecDiff.dot(ecDiff) - sphereRadius * sphereRadius;
+
+            const discriminant = b * b - 4 * a * c;
+            if (discriminant < 0) { // No intersection
+                imageData.setPixel(i, j, 0, 0, 0, 255); // Black background
+                continue;
+            }
+
+            const t1 = (-b + Math.sqrt(discriminant)) / (2 * a);
+            const t2 = (-b - Math.sqrt(discriminant)) / (2 * a);
+            if (t1 < 0 && t2 < 0) {
+                imageData.setPixel(i, j, 0, 0, 0, 255); // Black background
+            } else { // At least one of the intersections is in front of the viewport
+                imageData.setPixel(i, j, 255, 0, 0, 255); // Red sphere
             }
         }
     }
 
     ctx.putImageData(imageData, 0, 0);
 
-    // // Define the coefficients of the plane (A, B, C, D)
-    // const planeCoefficients = { A: 0, B: 0, C: -1, D: 4 };
-
-    // // Define the direction vector of the line
-    // const lineDirection = { x: 0, y: 0, z: 1 };
-
-    // // Define the point on the line
-    // const pointOnLine = { x: 0, y: 0, z: -1 };
-
-    // // Find the parameter t
-    // const t = (-planeCoefficients.A * pointOnLine.x - planeCoefficients.B * pointOnLine.y - planeCoefficients.C * pointOnLine.z - planeCoefficients.D) /
-    // (planeCoefficients.A * lineDirection.x + planeCoefficients.B * lineDirection.y + planeCoefficients.C * lineDirection.z);
-
-    // // Calculate the point of intersection
-    // const intersectionPoint = {
-    //     x: pointOnLine.x + lineDirection.x * t,
-    //     y: pointOnLine.y + lineDirection.y * t,
-    //     z: pointOnLine.z + lineDirection.z * t,
-    // };
-
-
-    // console.log(intersectionPoint, t);
-
-    // return;
-
-    // let ray = new Vec3(0, 0, 1);
-    // let square = {
-    //     ul: new Vec3(0,0, 0),
-    //     lr: new Vec3(1, 1, 0),
-    //     normal: new Vec3(0, 0, -1),
-    //     hit: function(ray, origin) {
-
-
-    //     }
-    // }
-
-
-    // const boxVertices = [
-    //     [0, 0, 0, 1], [100, 0, 0, 1], 
-    //     [0, 100, 0, 1], [100, 100, 0, 1], 
-    //     [0, 0, 100, 1], [100, 0, 100, 1], 
-    //     [0, 100, 100, 1], [100, 100, 100, 1], 
-    // ];
-    // const boxVertexColors = [
-    //     'red',
-    //     'green',
-    //     'blue',
-    //     'pink',
-    //     'purple',
-    //     'cyan',
-    //     'orange',
-    //     'black'
-    // ];
-    // const boxFaces = [
-    //     [0, 1, 3, 2],
-    //     [2, 3, 7, 6],
-    //     [1, 3, 7, 5],
-    //     [0, 1, 5, 4],
-    //     [0, 2, 6, 4],
-    //     [4, 5, 7, 6]
-    // ];
-
-    // const coordinateSystem = [
-    //     [0, 0, 0, 1], 
-    //     [100, 0, 0, 1],
-    //     [0, 100, 0, 1],
-    //     [0, 0, 100, 1],
-    // ];
-
-    // // const canvas = document.getElementById('canvas')
-    // // const ctx = canvas.getContext('2d');
-    // // const w = canvas.width;
-    // // const h = canvas.height;
-    
-    // l(scalerVectorMult(1.5, coordinateSystem[1]))
-
-    // const isometricProjectionMatrix = [
-    //     [Math.sqrt(3), 0, -Math.sqrt(3), 0], 
-    //     [1, 2, 1, 0], 
-    //     [Math.sqrt(2), -Math.sqrt(2), Math.sqrt(2), 0], 
-    //     [0, 0, 0, 1], 
-    // ];
-    
-    // // let t = time => {
-    // //     let degreeX = 10 // time / 50;
-    // //     let degreeY = time / 100;
-    // //     let degreeZ = 0 // time / 500;
-    // //     ctx.clearRect(0, 0, w, h);
-
-    // //     const rotateXTransform = rotateXMatrix(degreeToRadians(degreeX));
-    // //     const rotateYTransform = rotateYMatrix(degreeToRadians(degreeY));
-    // //     const rotateZTransform = rotateZMatrix(degreeToRadians(degreeZ));
-    // //     const moveTransformation = translateMatrix(w/2, h/2, 0);
-
-    // //     let transformedCoordinateSystem = coordinateSystem
-    // //             .map((v, i, a) => matrixVectorMult(isometricProjectionMatrix, v))
-    // //             .map((v, i, a) => scalerVectorMult(1 / Math.sqrt(6), v))
-    // //             .map((v, i, a) => matrixVectorMult(moveTransformation, v));
-
-    // //     for (let i = 0; i < transformedCoordinateSystem.length; i++) {
-    // //         const point = transformedCoordinateSystem[i];
-    // //         let x = point[0];
-    // //         let y = point[1];
-    // //         ctx.beginPath();
-    // //         ctx.arc(x, y, 3, 0, 2 * Math.PI);
-    // //         ctx.fill();            
-    // //     }
-    // //     let p0 = transformedCoordinateSystem[0];
-    // //     for (let i = 1; i < transformedCoordinateSystem.length; i++) {
-    // //         const p1 = transformedCoordinateSystem[i];
-    // //         ctx.beginPath();
-    // //         ctx.moveTo(p0[0], p0[1]);
-    // //         ctx.lineTo(p1[0], p1[1]);
-    // //         ctx.stroke();                        
-    // //     }
-    // //     return
-
-    // //     let transformedBox = boxVertices.map((v, i, a) => matrixVectorMult(rotateXTransform, v))
-    // //         .map((v, i, a) => matrixVectorMult(rotateYTransform, v))
-    // //         .map((v, i, a) => matrixVectorMult(rotateZTransform, v))
-    // //         .map((v, i, a) => matrixVectorMult(rotateZTransform, v))
-    // //         .map((v, i, a) => matrixVectorMult(moveTransformation, v));
-
-
-    // //     const seenLines = new Set();
-    // //     for (const face of boxFaces) {
-    // //         for (let i = 0; i < face.length; i++) {
-    // //             const u = face[i];
-    // //             const v = face[(i+1) % face.length];
-    // //             let lineId = u*u + v*v;
-    // //             if (seenLines.has(lineId)) continue;
-    // //             seenLines.add(lineId)
-
-    // //             let p0 = transformedBox[u];
-    // //             let p1 = transformedBox[v];
-
-    // //             ctx.beginPath();
-    // //             ctx.moveTo(p0[0], p0[1]);
-    // //             ctx.lineTo(p1[0], p1[1]);
-    // //             ctx.stroke();
-                
-    // //         }
-    // //     }
-    // //     for (let i = 0; i < transformedBox.length; i++) {
-    // //         const point = transformedBox[i];
-    // //         let x = point[0];
-    // //         let y = point[1];
-    // //         ctx.fillStyle = boxVertexColors[i];
-    // //         ctx.beginPath();
-    // //         ctx.arc(x, y, 3, 0, 2 * Math.PI);
-    // //         ctx.fill();            
-    // //     }
-
-    // //     setTimeout(e => {
-    // //         requestAnimationFrame(t)
-    // //     }, 1000)
-        
-    // // };
-    // // class Vec3 {
-    // //     constructor(x, y, z) {
-    // //         this.x = x;
-    // //         this.y = y;
-    // //         this.z = z;
-    // //     }
-    // // }
-    // // let imageData = new ImageData(w, h);
-    // l(imageData)
-    // let tt = time => {
-
-    //     for (let y = 0; y < h; y++) {
-    //         for (let x = 0; x < w; x++) {
-    //             const idx = (y * w + x) * 4;
-    //             let origin = new Vec3(x, y, 0);
-    //             let ray = new Vec3(0, 0, 1);
-    //             let hit = calculateHit(origin, ray, objects);
-    //             imageData.data[idx] = idx % 120 + 125
-    //             imageData.data[idx + 1] = idx % 120 + 125
-    //             // imageData.data[idx + 2] = idx % 255
-    //             imageData.data[idx + 3] = 255
-
-    //         }
-    //     }
-
-    //     ctx.putImageData(imageData, 0, 0);
-
-    //     setTimeout(e => {
-    //         // requestAnimationFrame(t)
-    //     }, 1000)
-    // }
-    // requestAnimationFrame(tt);
 }
