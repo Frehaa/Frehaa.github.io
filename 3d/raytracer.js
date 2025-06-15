@@ -42,7 +42,7 @@ function makeDefaultScene() {
         plane,
         ball,
         // box,
-        // cylinder,
+        cylinder,
         // texturedTriangle
     ];
 
@@ -84,7 +84,7 @@ function makeDefaultPerspectiveRaytracerCamera(canvas) {
     const viewportWorldHeight = 2 * (ny/nx); // Scaled to match canvas to avoid weird distortions
 
     // I like that coordinates can be given in x, y and height in z (e.g. like Minecraft)
-    const cameraPosition = new Vec3(0, -5, viewportWorldHeight/2); // Default value. Half of viewport height is to prevent the viewport from clipping through a z = 0 plane.
+    const cameraPosition = new Vec3(0, -15, viewportWorldHeight/2); // Default value. Half of viewport height is to prevent the viewport from clipping through a z = 0 plane.
     const focalDistance = 2; // Default value
 
     const cameraDirection = new Vec3(0, 1, 0); // Default value
@@ -126,7 +126,7 @@ function makeDefaultPlane() {
     return new RaytracerPlane(new Vec3(0,0, 1));
 }
 function makeDefaultShpere() {
-    return new RaytracerSphere(new Vec3(1.5, 1, 1), 2);
+    return new RaytracerSphere(new Vec3(8, 10, 1), 2);
 }
 function makeDefaultLight() {
     return new RaytracerPositionalLight(new Vec3(0, 0, 5));
@@ -135,7 +135,7 @@ function makeDefaultBox() {
     return new RaytracerBox(new Vec3(), new Vec3())
 }
 function makeDefaultCylinder() {
-    return new RaytracerCylinder(new Vec3(-1, -1, 0), 3, 2);
+    return new RaytracerOpenCylinder(new Vec3(-1, -1, 0), 10, 2);
 }
 function makeDefaultTexturedTriangle() {
     return new RaytracerTexturedTriangle(new Vec3(), new Vec3(), new Vec3(), () => {return false});
@@ -225,7 +225,7 @@ class RaytracerPositionalLight {
     }
 }
 
-class RaytracerCylinder {
+class RaytracerOpenCylinder {
     constructor(position, height, radius) {
         this.position = position;
         this.height = height;
@@ -233,7 +233,40 @@ class RaytracerCylinder {
         this.color = {r: 0, g:1, b:0};
     }
     hit(ray) {
-        return null;
+        // Let us just say the position is at origin, then how does the equation look? 
+        // It is all the points that are at x^2 + y^2 = r^2
+        // So we want to know when the o + d * t ray line traces the above equation. 
+        // This seems similar to the sphere, but for some reason it feels weird to just plug it in. 
+        // How exactly did the sphere work? 
+        // Maybe it is just to plug it in? 
+
+        // x = o.x + d.x * t
+        // y = o.y + d.y * t
+
+        // (o.x + d.x * t)^2 = o.x^2 + d.x^2 * t^2 + 2 o.x + d.x * t
+        // (o.y + d.y * t)^2 = o.y^2 + d.y^2 * t^2 + 2 o.y + d.y * t
+
+        // o.x^2 + d.x^2 * t^2 + 2 o.x  d.x * t +  o.y^2 + d.y^2 * t^2 + 2 o.y  d.y * t - r^2 = 0
+        // (d.x^2 * t^2 + d.y^2 * t^2) + (2 o.x d.x t + 2 o.y d.y t) + (o.x^2 + o.y^2 - r^2) = 0
+        // (d.x^2 + d.y^2) t^2 + (2 o.x d.x + 2 oy d.y) t + (o.x^2 + o.y^2 - r^2) = 0
+
+        const a = ray.direction.x * ray.direction.x + ray.direction.y * ray.direction.y;
+        const b = 2 * ray.origin.x * ray.direction.x + 2 * ray.origin.y * ray.direction.y;
+        const c = ray.origin.x * ray.origin.x + ray.origin.y * ray.origin.y - this.radius * this.radius;
+
+        const result = solveQuadraticEquation(a, b, c);
+        if (result.length === 0) { return null; }
+
+        const t = Math.min(...result);
+
+        const hitpoint = ray.origin.add(ray.direction.scale(t));
+
+        // The center of the cylinder is at origin. So we check if the hitpoint is too high. 
+        if (hitpoint.z > this.height / 2 || hitpoint.z < -this.height / 2) { return null; } 
+
+        const normal = new Vec3(hitpoint.x, hitpoint.y, 0).normalize(); // TODO: Handle the case when we see inside the cylinder
+          
+        return {distance: t, normal, point: hitpoint.add(normal.scale(0.000001)), surface: this};
     }
     shadowHit(ray) {
         return false;
