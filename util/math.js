@@ -122,10 +122,6 @@ class Vec2 {
 }
 
 class Vec4 {
-  // public [0]/*:number\*/;
-  // public [1]/*:number\*/;
-  // public [2]/*:number\*/;
-
   constructor(a, b, c, d) {
     this.size = 4;
     this[0] = a;
@@ -154,7 +150,7 @@ class Vec4 {
     return new Vec4(s * this[0], s * this[1], s * this[2], s * this[3]);
   }
   length() {
-    return Math.sqrt(this.x*this.x + this.y*this.y + this.z*this.z + this.r*this.r);
+    return Math.sqrt(this[0]*this[0] + this[1]*this[1] + this[2]*this[2] + this[3]*this[3]);
   }
 
   normalize() {
@@ -162,6 +158,15 @@ class Vec4 {
     return new Vec4(this[0]/l, this[1]/l, this[2]/l, this[3]/l);
   }
 
+  transform(matrix) {
+    const result = [0, 0, 0, 0];
+    for (let i = 0; i < 4; i++) {
+      for (let j = 0; j < 4; j++) {
+        result[i] += matrix.getValue(i, j) * this[j];
+      }
+    }
+    return new Vec3(result[0], result[1], result[2], result[3]);
+  }
 }
 
 class Vec3 {

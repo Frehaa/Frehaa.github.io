@@ -337,7 +337,7 @@ function draw() {
             imageData.data[4 * idx + 1] = 0; // G
             imageData.data[4 * idx + 2] = 0; // B
             imageData.data[4 * idx + 3] = 255; // A
-        } else if (currentObject instanceof Sphere) {
+        } else if (currentObject instanceof RaytracerSphere) {
             imageData.data[4 * idx + 0] = 255; // R
             imageData.data[4 * idx + 1] = 0; // G
             imageData.data[4 * idx + 2] = 0; // B
@@ -469,7 +469,17 @@ function rotateCamera(camera, x, y, z) {
     camera.isOrthonormal();
 }
 
+function raytracerTest() {
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const scene = makeDefaultScene();
+    const camera = makeDefaultPerspectiveRaytracerCamera(canvas);
+    drawScene(scene, camera, ctx);
+}
+
 function initialize() {
+    return raytracerTest();
+
     // const animationManager = new AnimationFrameRequestManager(() => {});
     // animationManager.start();
 
@@ -526,7 +536,7 @@ function initialize() {
     // TODO: Oblique parallel view when we can see the difference
     // TODO: oblique perspective 
 
-    const sphere = new Sphere(0, 0, 0, 1);
+    const sphere = new RaytracerSphere(0, 0, 0, 1);
     state.objects.push(sphere);
 
     const triangle = new Triangle(
@@ -591,9 +601,9 @@ function parallelProjection() {
     l(`Viewport top left:`, viewportTopLeft);
 
     const objects = [
-        new Sphere(0, 5, 0, 1),
-        new Box(0, 2, 0, 0.5, 0.5, 0.5),
-        new Sphere(0, 0, 5, 1),
+        new RaytracerSphere(0, 5, 0, 1),
+        new RaytracerBox(0, 2, 0, 0.5, 0.5, 0.5),
+        new RaytracerSphere(0, 0, 5, 1),
     ];
 
     for (let screenX = 0; screenX < nx; screenX++) {
