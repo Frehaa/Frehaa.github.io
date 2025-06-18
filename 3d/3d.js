@@ -472,12 +472,24 @@ function rotateCamera(camera, x, y, z) {
 function raytracerTest() {
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
+
     const scene = makeDefaultScene();
     const camera = makeDefaultPerspectiveRaytracerCamera(canvas);
     drawScene(scene, camera, ctx);
 }
 
 function initialize() {
+    const scale = Transformation.scale(2, 2, 2);
+    const transformation = Transformation.translate(5, -2, 3);
+
+    const o = new Vec4(0, 0, 0, 1);
+    const d = new Vec4(0, 1, 0, 0);
+
+    const res = scale.inverseTransformRay({origin: o, direction: d});
+    l(res);
+
+    // return;
+
     return raytracerTest();
 
     // const animationManager = new AnimationFrameRequestManager(() => {});

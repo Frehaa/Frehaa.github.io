@@ -130,8 +130,8 @@ class Vec4 {
     this[3] = d;
     this.x = a;
     this.y = b;
-    this.z = z;
-    this.r = z;
+    this.z = c;
+    this.r = d;
   }
 
   add(b) {
@@ -228,14 +228,12 @@ function solveQuadraticEquation(a/*:number\*/, b/*:number\*/, c/*:number\*/) {
   const discriminant = b*b - 4*a*c
   if (discriminant < 0) {
     return [];
+  } else if (discriminant === 0) {
+    return [-b / (2 * a)];
   }
 
   const sqrtDiscriminant = Math.sqrt(discriminant);
   const x1 = (-b + sqrtDiscriminant) / (2*a)
-  if (discriminant == 0) {
-    return [x1];
-  } 
-
   const x2 = (-b - sqrtDiscriminant) / (2*a)
   return [x1, x2];
 }
@@ -362,6 +360,16 @@ class Matrix {
       result.setValue(i, 0, this.getValue(i, 0) * b.x + this.getValue(i, 1) * b.y); 
     }
     return result;
+  }
+  transformVec4(b) {
+    if (this.columns !== 4) throw new Error('Invalid size: Matrix has invalid size.');
+    const result = [0, 0, 0, 0];
+    for (let i = 0; i < this.rows; i++) {
+      for (let j = 0; j < 4; j++) {
+        result[i] += this.getValue(i, j) * b[j]
+      }
+    }
+    return new Vec4(result[0], result[1], result[2], result[3]);
   }
   scale(s) {
     const result = new Matrix(this.rows, this.columns);
