@@ -471,22 +471,27 @@ function rotateCamera(camera, x, y, z) {
 
 function raytracerTest() {
     const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
+    drawDefaultRaytracerScene(canvas);
 
-    const scene = makeDefaultScene();
-    const camera = makeDefaultPerspectiveRaytracerCamera(canvas);
-    drawScene(scene, camera, ctx);
 }
 
 function initialize() {
     const scale = Transformation.scale(2, 2, 2);
     const transformation = Transformation.translate(5, -2, 3);
 
-    const o = new Vec4(0, 0, 0, 1);
+    const o = new Vec4(0, -5, 0, 1);
     const d = new Vec4(0, 1, 0, 0);
 
-    const res = scale.inverseTransformRay({origin: o, direction: d});
-    l(res);
+    const a = d.dot(d);
+    const b = 2 * d.dot(o);
+    const c = o.dot(o) - 2; // Need to account for ray origin being a Vec4 with w = 1 so the dot product is 1 more
+
+    // l(a,b,c)
+    const discriminant = b * b - 4 * a * c;
+
+
+    // const res = scale.inverseTransformRay({origin: o, direction: d});
+    // l(discriminant, solveQuadraticEquation(a, b, c));
 
     // return;
 

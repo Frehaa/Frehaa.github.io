@@ -12,9 +12,10 @@ function hash(str) {
     }
     return result;
 }
-
+let debugCallCounter = 0;
 function d(...m) {
-    if (false) l(...m);
+    debugCallCounter++; // Limiter to prevent flooding the console and crashing the browser
+    if (true && debugCallCounter < 100) l(`Debug call ${debugCallCounter}`, ...m);
 }
 
 [].__proto__.clear = function() {

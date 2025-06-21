@@ -1,4 +1,4 @@
-function drawScene(scene, camera, ctx) {
+function raytraceScene(scene, camera, ctx) {
     const imageData = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
     assert(ctx.canvas.width == camera.viewport.pixelWidth, `The canvas width and the viewport width do not match ${ctx.canvas.width} - ${camera.viewport.pixelWidth}`)
     assert(ctx.canvas.height == camera.viewport.pixelHeight, `The canvas height and the viewport height do not match ${ctx.canvas.height} - ${camera.viewport.pixelHeight}`)
@@ -8,9 +8,9 @@ function drawScene(scene, camera, ctx) {
         for (let y = 0; y < canvas.height; y++) {
             const color = getPixelColor(scene, camera, x, y);
             // TODO?: Apply color correction
-            const r = color.r * 255; 
-            const g = color.g * 255;
-            const b = color.b * 255;
+            const r = Math.min(255, color.r * 255); 
+            const g = Math.min(255, color.g * 255);
+            const b = Math.min(255, color.b * 255);
 
             imageData.setPixel(x, y, r, g, b, 255);
         } 
@@ -24,19 +24,18 @@ function drawDefaultRaytracerScene(canvas) {
     const scene = makeDefaultScene();    
     const camera = makeDefaultPerspectiveRaytracerCamera(canvas);
 
-    drawScene(scene, camera, ctx);
+    raytraceScene(scene, camera, ctx);
 }
 
-// Contains a plane, a ball, a light, a box, a cylinder, a triangle with texture
+// Contains a plane, a ball, ambient, a positional and a directional light, a box, a cylinder, a triangle with texture
 function makeDefaultScene() {
     const plane = makeDefaultPlane();
     const ball = makeDefaultSphere();
-    const light = makeDefaultLight();
     const box = makeDefaultBox();
     const cylinder = makeDefaultCylinder();
     const texturedTriangle = makeDefaultTexturedTriangle();
 
-    const backgroundColor = {r: 0, g: 0, b: 0};
+    const backgroundColor = Color.black;
 
     const surfaces = [
         plane,
@@ -45,30 +44,55 @@ function makeDefaultScene() {
         cylinder,
         // texturedTriangle
     ];
+    const ambientColor = new Color(1, 1, 1); // Ambient light color
+
+    const lights = [
+        makeDefaultPositionalLight(),
+        makeDefaultDirectionalLight(),
+    ];
 
     return {
         getColor(ray) { 
-            let hit = {distance: Infinity, point: null};
-            for (const surface of surfaces) {
-                const newHit = surface.hit(ray);
-                if (newHit != null && newHit.distance < hit.distance) { hit = newHit; }
-            }
+            const hit = this.computeHit(ray);
+            if (hit === null) { return backgroundColor; }
+            assert(hit.material, "Hit must have a material");
 
-            if (hit.point == null) { return backgroundColor; }
-            else {
-                return hit.surface.color;
-            }
+            // return hit.material.scaledDiffuseColor;
 
-            const shadowRay = {origin: hit.point, direction: light.position.subtract(hit.point)}
-            let shadowHit = false;
+            const hitPoint = ray.origin.add(ray.direction.scale(hit.distance)).add(hit.normal.scale(0.001)); // Add a small offset to avoid self-shadowing
+
+            // Apply shading
+            let color = hit.material.computeAmbientColor(ambientColor);
+            for (const light of lights) {
+                const lightDirection = light.getDirection(hitPoint);
+                const shadowRay = {origin: hitPoint, direction: lightDirection};
+                if (this.computeShadowHit(shadowRay)) { continue; } // If the shadow ray hits a surface, we are in shadow
+
+                hit.material.computeDirectionalColor(light.color, lightDirection, hit.normal);
+                const lightColor = hit.material.computeDirectionalColor(light.color, lightDirection, hit.normal);
+                color = color.add(lightColor);
+            }
+            return color
+        }, 
+        computeHit(ray) {
+            let hit = {distance: Infinity};
             for (const surface of surfaces) {
-                if (surface.shadowHit(shadowRay)) { 
-                    shadowHit = true;
-                    break;
+                const newHit = surface.hit(ray); 
+                if (newHit != null && newHit.distance < hit.distance) { 
+                    assert(newHit.distance >= 0, "Hit distance must be non-negative");
+                    hit = newHit; 
                 }
             }
-
-            return {r: 1, g: 0, b: 0};
+            if (hit.distance === Infinity) { return null; }
+            return hit;
+        },
+        computeShadowHit(ray) {
+            for (const surface of surfaces) {
+                if (surface.shadowHit(ray)) {
+                    return true; // If any surface is hit, we are in shadow
+                }
+            }
+            return false; // No surface was hit, so we are not in shadow
         }
     }
 }
@@ -84,19 +108,17 @@ function makeDefaultPerspectiveRaytracerCamera(canvas) {
     const viewportWorldHeight = 2 * (ny/nx); // Scaled to match canvas to avoid weird distortions
 
     // I like that coordinates can be given in x, y and height in z (e.g. like Minecraft)
-    const cameraPosition = new Vec3(0, -15, viewportWorldHeight/2); // Default value. Half of viewport height is to prevent the viewport from clipping through a z = 0 plane.
+    const cameraPosition = new Vec4(0, -15, viewportWorldHeight/2, 1); // Default value. Half of viewport height is to prevent the viewport from clipping through a z = 0 plane.
     const focalDistance = 2; // Default value
 
-    const cameraDirection = new Vec3(0, 1, 0); // Default value
-    const cameraUp = new Vec3(0, 0, 1); // Default value
-    const cameraRight = new Vec3(1, 0, 0); // Default value
+    const cameraDirection = new Vec4(0, 1, 0, 0); // Default value
+    const cameraUp = new Vec4(0, 0, 1, 0); // Default value
+    const cameraRight = new Vec4(1, 0, 0, 0); // Default value
 
     // The viewport which the camera looks through can be shifted to have funny looking rays. 
     // In this case we just want the camera to look directly through the center of the viewport and not through any angles
-    const viewportCenterPosition = cameraDirection.scale(focalDistance).add(cameraPosition);
+    const viewportCenterPosition = cameraPosition.add(cameraDirection.scale(focalDistance));
     const viewportTopLeft = viewportCenterPosition.add(cameraUp.scale(viewportWorldHeight/2)).add(cameraRight.scale(-viewportWorldWidth/2));
-
-    // TODO: Should we just use a vec4? Or something which acts like it? I think the things which acts like it would just be for the purpose of optimization, so maybe just use a normal Vec4.
 
     return {
         viewport: {
@@ -123,13 +145,25 @@ function getPixelColor(scene, camera, x, y) {
 }
 
 function makeDefaultPlane() {
-    return new RaytracerPlane(new Vec3(0,0, 1));
+    const transformation = Transformation.translate(0, 0, 0);
+    const material = new MatteMaterial(0.8, new Color(0.7, 0.7, 0.7), 1.0, new Color(0.6, 0.6, 0.6));
+    return new RaytracerPlane(transformation, material);
 }
+
 function makeDefaultSphere() {
-    return new RaytracerSphere(new Vec3(0, 0, 0), 1);
+    const rotate = Transformation.rotateX(0);
+    const scale = Transformation.scale(2, 2, 2);
+    const translate = Transformation.translate(3, -2, 1);
+    const transformation = rotate.then(translate).then(scale);
+
+    const material = new MatteMaterial(0.8, new Color(0.9, 0.1, 0.0), 0.1, new Color(1, 0, 0));
+    return new RaytracerSphere(transformation, material);
 }
-function makeDefaultLight() {
-    return new RaytracerPositionalLight(new Vec3(0, 0, 5));
+function makeDefaultDirectionalLight() {
+    return new RaytracerDirectionalLight(new Vec4(-1, 0, 0.2, 0).normalize(), new Color(0.8, 0.8, 0.8));
+}
+function makeDefaultPositionalLight() {
+    return new RaytracerPositionalLight(new Vec4(2, -2, 8, 1), new Color(0.1, 0.1, 0.7));
 }
 function makeDefaultBox() {
     return new RaytracerBox(new Vec3(), new Vec3())
@@ -137,9 +171,11 @@ function makeDefaultBox() {
 function makeDefaultCylinder() {
     const rotate = Transformation.rotateX(Math.PI / 6);
     const scale = Transformation.scale(1.0, 1.0, 3.0);
-    const translate = Transformation.translate(0, 0, 2.5);
+    const translate = Transformation.translate(0, 0, 2);
     const transformation = rotate.then(translate).then(scale);
-    const cylinder = new RaytracerOpenCylinder(transformation); // new Vec3(-1, -1, 0), 10, 2);
+
+    const material = new MatteMaterial(0.8, new Color(0.0, 0.8, 0.1), 0.2, new Color(0.0, 0.4, 0.05));
+    const cylinder = new RaytracerOpenCylinder(transformation, material);
 
     return cylinder;
 }
@@ -149,15 +185,15 @@ function makeDefaultTexturedTriangle() {
 
 
 class RaytracerPlane {
-    constructor(position, normal) {
-        this.position = position;
-        this.normal = normal;
-        this.color = {r:0.4, g:0.4, b:0.4};
+    constructor(transformation, material) {
+        this.transformation = transformation;
+        this.material = material;
     }
     hit(ray) {
         // For now we just assume this plane is z = 0 and then maybe we can do inverse tranform later? 
         // Then the normal is just z = 1
-        const normal = new Vec3(0, 0, 1);
+
+        const normal = new Vec4(0, 0, 1, 0); // Normal is just z = 1
 
         if (ray.origin.z === 0) {
             return {distance: 0, normal, point: ray.origin, surface: this}; 
@@ -168,7 +204,7 @@ class RaytracerPlane {
         const t = - ray.origin.z / ray.direction.z
 
         if (t >= 0) {
-            return {distance: t, normal, point: ray.origin.add(ray.direction.scale(t)).add(normal.scale(0.00001)), surface: this};
+            return {distance: t, normal, material: this.material};
         }
 
         return null;
@@ -179,16 +215,18 @@ class RaytracerPlane {
 }
 
 class RaytracerSphere {
-    constructor(position, radius) {
-        this.position = position;
-        this.radius = radius;
-        this.color = {r: 1, g:0, b: 0};
+    constructor(transformation, material) {
+        this.transformation = transformation;
+        this.material = material;
     }
     hit(ray) {
-        const ecDiff = ray.origin.subtract(this.position);
+        ray = this.transformation.inverseTransformRay(ray);
+
+        // ray direction is (0, 1, 0, 0) and origin is (0, -5, 0, 1)
+
         const a = ray.direction.dot(ray.direction);
-        const b = 2 * ray.direction.dot(ecDiff);
-        const c = ecDiff.dot(ecDiff) - this.radius * this.radius;
+        const b = 2 * ray.direction.dot(ray.origin);
+        const c = ray.origin.dot(ray.origin) - 2; // Need to account for the ray origin being a Vec4 with w = 1 so the dot product is 1 more than for a Vec3
 
         const discriminant = b * b - 4 * a * c;
         if (discriminant < 0) return null; // No intersection
@@ -199,21 +237,23 @@ class RaytracerSphere {
         const t2 = (-b - dSqrt) / denom;
 
         if (t1 < 0 && t2 < 0) return null; // Both intersections are behind the ray origin
-        const t = Math.min(t1, t2);
-        const normal = ray.origin.add(ray.direction.scale(t)).subtract(this.position).normalize();
-        const hitPoint = ray.origin.add(ray.direction.scale(t)).add(normal.scale(0.00001)); // Offset the hit point slightly to avoid self-intersection
-
-        return {distance:t, normal, point:hitPoint, surface:this}; 
+        const t = Math.min(t1, t2); // TODO?: This does not work if the ray is inside the sphere
+        const hitPoint = ray.origin.add(ray.direction.scale(t));
+        const normal = new Vec4(hitPoint.x, hitPoint.y, hitPoint.z, 0).normalize(); // Normal is just the point on the sphere
+        return {distance:t, normal, material: this.material}; 
     }
     shadowHit(ray) {
-        return this.hit(ray) != null;
+        const a = ray.direction.dot(ray.direction);
+        const b = 2 * ray.direction.dot(ray.origin);
+        const c = ray.origin.dot(ray.origin) - 1;
+
+        const discriminant = b * b - 4 * a * c;
+        return discriminant >= 0; // If the discriminant is negative, there is no intersection, so we return false
     }
 }
 
 class RaytracerBox {
     constructor(cornerA, cornerB) {
-        
-        this.color = {r:0,g:0, b:1};
     }
     hit(ray) {
         return null;
@@ -225,16 +265,70 @@ class RaytracerBox {
 
 class RaytracerPositionalLight {
     constructor(position, color) {
+        assert(color instanceof Color, "Color must be a Color instance");
+        assert(position instanceof Vec4 && position[3] === 1, "Position must be a Vec4");
         this.position = position;
         this.color = color;
-        this.color = {r: 0.9, g: 0.7, b: 0.8};
+    }
+    getDirection(point) {
+        assert(point instanceof Vec4 && point[3] === 1, "Point must be a Vec4 with w = 1");
+        const direction = this.position.subtract(point).normalize();
+        return direction;
     }
 }
 
+class RaytracerDirectionalLight {
+    constructor(direction, color) {
+        // We assume the direction is normalized and pointing towards the light source
+        assert(direction instanceof Vec4 && direction[3] == 0, "Direction must be a Vec4");
+        assert(direction.length() > 0, "Direction vector must not be zero length");
+        assert(color instanceof Color, "Color must be a Color instance");
+        this.direction = direction;
+        this.color = color;
+    }
+    getDirection(hitPoint) {
+        return this.direction;
+    }
+}
+
+class Color {
+    constructor(r, g, b) {
+        this.r = r;
+        this.g = g;
+        this.b = b;
+    }
+    scale(scalar) {
+        return new Color(this.r * scalar, this.g * scalar, this.b * scalar);
+    }
+    add(other) {
+        return new Color(this.r + other.r, this.g + other.g, this.b + other.b);
+    }
+    multiply(other) {
+        return new Color(this.r * other.r, this.g * other.g, this.b * other.b);
+    }
+    static black = new Color(0, 0, 0);
+    static white = new Color(1, 1, 1);
+}
+
+class MatteMaterial {
+    constructor(diffuseReflectionCoefficient, diffuseColor, ambientReflectionCoefficient, ambientColor) {
+        this.scaledDiffuseColor = diffuseColor.scale(diffuseReflectionCoefficient / Math.PI);
+        this.scaledAmbientColor = ambientColor.scale(ambientReflectionCoefficient);
+    }
+    computeAmbientColor(color) {
+        return color.multiply(this.scaledAmbientColor);
+    }
+    computeDirectionalColor(color, direction, normal) {
+        const lightColor = color.scale(normal.dot(direction))
+        return this.scaledDiffuseColor.multiply(lightColor);
+    }
+    // TODO?: Area light with l_G and l_pdf
+}
+
 class RaytracerOpenCylinder {
-    constructor(transformation, color = {r: 0, g:1, b:0}) {
+    constructor(transformation, material) {
         this.transformation = transformation;
-        this.color = color; 
+        this.material = material; 
     }
     hit(ray) {
         ray = this.transformation.inverseTransformRay(ray);
@@ -245,29 +339,54 @@ class RaytracerOpenCylinder {
 
         const result = solveQuadraticEquation(a, b, c);
         if (result.length === 0) { return null; }
+        else if (result.length === 1 && result[0] >= 0) {  
+            let hitPoint = ray.origin.add(ray.direction.scale(result[0]));
+            if (hitPoint.z > 0.5 || hitPoint.z < -0.5) { 
+                return null;
+            }
+            let normal = new Vec4(hitPoint.x, hitPoint.y, 0, 0).normalize();
+            normal = this.transformation.transformNormal(normal);
+            return {distance: result[0], normal, material: this.material};
+        }
 
-        let t = null;
-        // How many cases do we have 
-        // + +  MIN
+        // I believe if we get the second result the it is always the inside, but now I am not so sure.
+
+        // How many cases do we have
+        // + +  MIN In this case we need to take the minimum
         // - -  NONE
         // - +  1
         // + -  0
 
-        let hitPoint = ray.origin.add(ray.direction.scale(result[0]));
-        // TODO: I don't understand why we don't get the right result. I always get 2 results. I can show front or back depending on which I choose, but I cannot get both. They are also always both positive. I guess the last part is to be expected. But the part where I am always getting 2 is unexpected. I guess it kind of makes sense due to floating point errors? 
-        // TODO: Fix this fix. We check both results to see if either point hits, but this means that it breaks if only one result exits
-        // The center of the cylinder is at origin. So we check if the hitpoint is too high. 
-        if (hitPoint.z > 0.5 || hitPoint.z < -0.5) { 
-            if (result.length == 1) { return null; }
-            hitPoint = ray.origin.add(ray.direction.scale(result[1]));
-            if (hitPoint.z > 0.5 || hitPoint.z < -0.5) { 
-                return null;
+        if (result[0] >= 0 && result[1] >= 0) { 
+            let t = Math.min(result[0], result[1]); // First we try the closest hit
+            let hitPoint = ray.origin.add(ray.direction.scale(t));
+            if (hitPoint.z > 0.5 || hitPoint.z < -0.5) { // Miss the closest 
+                t = Math.max(result[0], result[1]);
+                hitPoint = ray.origin.add(ray.direction.scale(t));
+                if (hitPoint.z > 0.5 || hitPoint.z < -0.5) {  // Miss both
+                    return null;
+                }
+                // We hit the far side of the cylinder (which is probably the inside?)
+                let normal = new Vec4(hitPoint.x, hitPoint.y, 0, 0).scale(-1).normalize(); 
+                normal = this.transformation.transformNormal(normal);
+                return {distance: t, normal, material: this.material};
             }
+            let normal = new Vec4(hitPoint.x, hitPoint.y, 0, 0).normalize(); 
+            normal = this.transformation.transformNormal(normal);
+            return {distance: t, normal, material: this.material};
+        }
+
+
+        const t = Math.max(result[0], result[1]);
+        const hitPoint = ray.origin.add(ray.direction.scale(t));
+        // The center of the cylinder is at origin. So we check if the hit point is too high. 
+        if (hitPoint.z > 0.5 || hitPoint.z < -0.5) { 
+            return null
         } 
 
-        const normal = new Vec3(hitPoint.x, hitPoint.y, 0).normalize(); // TODO: Handle the case when we see inside the cylinder
-          
-        return {distance: t, normal, point: hitPoint.add(normal.scale(0.000001)), surface: this};
+        let normal = new Vec4(hitPoint.x, hitPoint.y, 0, 0).normalize(); // TODO: Handle the case when we see inside the cylinder
+        normal = this.transformation.transformNormal(normal);
+        return {distance: t, normal, material: this.material};
     }
     shadowHit(ray) {
         return false;
@@ -385,13 +504,18 @@ class Transformation {
         return transformation;
     }
     inverseTransformRay(ray) {
-
-        const newOrigin = this.inverseMatrix.transformVec4(new Vec4(ray.origin.x, ray.origin.y, ray.origin.z, 1));
-        const newDirection = this.inverseMatrix.transformVec4(new Vec4(ray.direction.x, ray.direction.y, ray.direction.z, 0));
+        assert(ray.origin instanceof Vec4 && ray.origin[3] === 1, "Ray origin must be a Vec4 with w = 1");
+        assert(ray.direction instanceof Vec4 && ray.direction[3] === 0, "Ray direction must be a Vec4 with w = 0");
+        const newOrigin = this.inverseMatrix.transformVec4(ray.origin);
+        const newDirection = this.inverseMatrix.transformVec4(ray.direction);
         return {origin: newOrigin, direction: newDirection};
     }
     transformPoint(point) {
         return point;
+    }
+    transformNormal(normal) {
+        const transposedInverseMatrix = this.inverseMatrix.transpose();
+        return transposedInverseMatrix.transformVec4(normal);
     }
 
 }
