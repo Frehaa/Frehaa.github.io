@@ -4,6 +4,21 @@ function drawDefaultWireframeScene() {
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
+    // X, Y, Z
+    // X jjjjjj
+
+    const box = [
+        new Vec4(0, 0, 0, 1),
+        new Vec4(1, 0, 0, 1),
+        new Vec4(1, 0, 1, 1),
+        new Vec4(0, 0, 1, 1),
+        new Vec4(0, 1, 0, 1),
+        new Vec4(1, 1, 0, 1),
+        new Vec4(1, 1, 1, 1),
+        new Vec4(0, 1, 1, 1),
+    ];
+
+
     // const box = [
     //     new Vec4(-0.75, -0.75, -0.75, 1),
     //     new Vec4(0.75, -0.75, -0.75, 1),
@@ -15,16 +30,16 @@ function drawDefaultWireframeScene() {
     //     new Vec4(-0.75, 0.75, 0.75, 1),
     // ];
 
-    const box = [
-        new Vec4(-0.75, -0.75, -0.75, 1),
-        new Vec4(0.75, -0.75, -0.75, 1),
-        new Vec4(0.85, 0.75, -0.65, 1),
-        new Vec4(-0.65, 0.75, -0.65, 1),
-        new Vec4(-0.75, -0.75, 0.75, 1),
-        new Vec4(0.75, -0.75, 0.75, 1),
-        new Vec4(0.85, 0.75, 0.85, 1),
-        new Vec4(-0.65, 0.75, 0.85, 1),
-    ];
+    // const box = [
+    //     new Vec4(-0.75, -0.75, -0.75, 1),
+    //     new Vec4(0.75, -0.75, -0.75, 1),
+    //     new Vec4(0.85, 0.75, -0.65, 1),
+    //     new Vec4(-0.65, 0.75, -0.65, 1),
+    //     new Vec4(-0.75, -0.75, 0.75, 1),
+    //     new Vec4(0.75, -0.75, 0.75, 1),
+    //     new Vec4(0.85, 0.75, 0.85, 1),
+    //     new Vec4(-0.65, 0.75, 0.85, 1),
+    // ];
 
 
     const c = Math.cos(0.4)
@@ -49,6 +64,22 @@ function drawDefaultWireframeScene() {
             [0, 0, 0, 1],
         ]);
 
+    const scale = Matrix.fromArray([
+            [1.1,   0,   0, 0],
+            [  0, 1.1,   0, 0],
+            [  0,   0, 1.1, 0],
+            [  0,   0,   0, 1],
+        ]);
+    const translate = Matrix.fromArray([
+            [1, 0, 0, -0.5],
+            [0, 1, 0, -0.5],
+            [0, 0, 1, -0.5],
+            [0, 0, 0,     1],
+        ]);
+
+
+
+
     const nx = canvas.width;
     const ny = canvas.height;
 
@@ -61,8 +92,8 @@ function drawDefaultWireframeScene() {
 
 
     // const transformation = rotateZ.mult(rotateX).mult(rotateY).mult(viewportTransformation);
-    const transformation = viewportTransformation;
-
+    const transformation = viewportTransformation.mult(translate).mult(scale).mult(rotateX).mult(rotateY).mult(rotateZ);
+    // Theory: This applies the transformations in the order from right to left. So we rotate, scale, translate, and the transform to the viewport
 
     
     const transformedBox = [];
@@ -70,7 +101,12 @@ function drawDefaultWireframeScene() {
     for (let i = 0; i < box.length; i++) {
         const point = box[i];
         const transformedPoint = transformation.transformVec4(point);
-        l(point, transformedPoint)
+
+        // For some reason it does not work to multiply all the transformations together with the viewport transformation into one big transformation
+        // Never mind. It does work, but it has to be the outer transformation, not the inner one. Which I think makes sense.
+        const viewpointPoint = viewportTransformation.transformVec4(transformedPoint)
+        l(point, transformedPoint, viewpointPoint)
+
         transformedBox.push(transformedPoint);
     }
 
