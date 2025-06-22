@@ -61,18 +61,21 @@ function makeDefaultScene() {
 
             const hitPoint = ray.origin.add(ray.direction.scale(hit.distance)).add(hit.normal.scale(0.001)); // Add a small offset to avoid self-shadowing
 
-            // Apply shading
-            let color = hit.material.computeAmbientColor(ambientColor);
-            for (const light of lights) {
-                const lightDirection = light.getDirection(hitPoint);
-                const shadowRay = {origin: hitPoint, direction: lightDirection};
-                if (this.computeShadowHit(shadowRay)) { continue; } // If the shadow ray hits a surface, we are in shadow
+            let diffuseCoefficient = hit.material.scaledDiffuseColor;
+            let intensity 
 
-                hit.material.computeDirectionalColor(light.color, lightDirection, hit.normal);
-                const lightColor = hit.material.computeDirectionalColor(light.color, lightDirection, hit.normal);
-                color = color.add(lightColor);
-            }
-            return color
+            // Apply shading
+            // let color = hit.material.computeAmbientColor(ambientColor);
+            // for (const light of lights) {
+            //     const lightDirection = light.getDirection(hitPoint);
+            //     const shadowRay = {origin: hitPoint, direction: lightDirection};
+            //     if (this.computeShadowHit(shadowRay)) { continue; } // If the shadow ray hits a surface, we are in shadow
+
+            //     hit.material.computeDirectionalColor(light.color, lightDirection, hit.normal);
+            //     const lightColor = hit.material.computeDirectionalColor(light.color, lightDirection, hit.normal);
+            //     color = color.add(lightColor);
+            // }
+            // return color
         }, 
         computeHit(ray) {
             let hit = {distance: Infinity};

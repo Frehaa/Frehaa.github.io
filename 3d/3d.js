@@ -476,6 +476,9 @@ function raytracerTest() {
 }
 
 function initialize() {
+
+    return wireframeMain();
+
     const scale = Transformation.scale(2, 2, 2);
     const transformation = Transformation.translate(5, -2, 3);
 
