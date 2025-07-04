@@ -167,6 +167,12 @@ class Vec4 {
     }
     return new Vec3(result[0], result[1], result[2], result[3]);
   }
+  equal(b) {
+    return this[0] === b[0] && this[1] === b[1] && this[2] === b[2] && this[3] === b[3];
+  }
+  toString() {
+    return `(${this[0]}, ${this[1]}, ${this[2]}, ${this[3]})`;
+  }
 }
 
 class Vec3 {
@@ -185,8 +191,12 @@ class Vec3 {
   }
 
   cross(b/*: Vec3\*/) {
-    // Formula from wikipedia
-    return new Vec3(this[1]*b[2] - this[2]*b[1], this[2]*b[0] - this[0]*b[2], this[0]*b[1] - this[1]*b[0]);
+    // Formula from wikipedia. I think this is for a right-handed coordinate system. 
+    return new Vec3(
+      this[1]*b[2] - this[2]*b[1], 
+      this[2]*b[0] - this[0]*b[2], 
+      this[0]*b[1] - this[1]*b[0]
+    );
     // return new Vec3(this[1]*b[2] - this[2]*b[1], this[0]*b[2] - this[2]*b[0], this[0]*b[1] - this[1]*b[0]); // Flip Y (i.e. second coordinate)
   }
 
