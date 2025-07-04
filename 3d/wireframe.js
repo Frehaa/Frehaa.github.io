@@ -217,7 +217,7 @@ function wireframeMain() {
     run_tests();
 
 
-    drawDefaultWireframeScene();
+    // drawDefaultWireframeScene();
 
 
     const state = {        
@@ -225,6 +225,10 @@ function wireframeMain() {
             position: {x: 0, y: 0, z: 0},
             direction: {x: 0, y: 0, z: -1},
             up: {x: 0, y: 1, z: 0}
+        },
+        projectionPlanes: {
+            leftBottomNear: {x: -2, y: -2, z: 2},
+            rightTopFar: {x: 2, y: 2, z: -2}
         },
         objects: [
             {
@@ -243,120 +247,46 @@ function wireframeMain() {
         ]
     }
 
+    drawWireframeSceneFromState(state.camera, state.objects, state.projectionPlanes)
+
     createUI(state);
 }
 
 
-function createCameraPosContainer(state) {
+function createXyzSettingContainer(state, setting, headerText) {
     const container = document.createElement('div');
 
     const cameraPosX = document.createElement('input');
-    cameraPosX.value = state.camera.position.x;
+    cameraPosX.value = setting.x;
     cameraPosX.addEventListener('change', (e) => {
         const value = parseFloat(e.target.value); 
-        state.camera.position.x = value;
-        drawWireframeSceneFromState(state.camera, state.objects)
+        setting.x = value;
+        drawWireframeSceneFromState(state.camera, state.objects, state.projectionPlanes);
     });
 
     const cameraPosY = document.createElement('input');
-    cameraPosY.value = state.camera.position.y;
+    cameraPosY.value = setting.y;
     cameraPosY.addEventListener('change', (e) => {
         const value = parseFloat(e.target.value); 
-        state.camera.position.y = value;
-        drawWireframeSceneFromState(state.camera, state.objects)
+        setting.y = value;
+        drawWireframeSceneFromState(state.camera, state.objects, state.projectionPlanes);
     });
 
     const cameraPosZ = document.createElement('input');
-    cameraPosZ.value = state.camera.position.z;
+    cameraPosZ.value = setting.z;
     cameraPosZ.addEventListener('change', (e) => {
         const value = parseFloat(e.target.value); 
-        state.camera.position.z = value;
-        drawWireframeSceneFromState(state.camera, state.objects)
+        setting.z = value;
+        drawWireframeSceneFromState(state.camera, state.objects, state.projectionPlanes);
     });
 
     const containerHeader = document.createElement('p');
-    containerHeader.innerHTML = "Camera Position: X - Y - Z";
+    containerHeader.innerHTML = headerText + ": X - Y - Z";
 
     container.appendChild(containerHeader);
     container.appendChild(cameraPosX);
     container.appendChild(cameraPosY);
     container.appendChild(cameraPosZ);
-
-    return container;
-}
-
-function createCameraDirContainer(state) {
-    const container = document.createElement('div');
-
-    const cameraDirX = document.createElement('input');
-    cameraDirX.value = state.camera.direction.x;
-    cameraDirX.addEventListener('change', (e) => {
-        const value = parseFloat(e.target.value); 
-        state.camera.direction.x = value;
-        drawWireframeSceneFromState(state.camera, state.objects)
-    });
-
-    const cameraDirY = document.createElement('input');
-    cameraDirY.value = state.camera.direction.y;
-    cameraDirY.addEventListener('change', (e) => {
-        const value = parseFloat(e.target.value); 
-        state.camera.direction.y = value;
-        drawWireframeSceneFromState(state.camera, state.objects)
-    });
-
-    const cameraDirZ = document.createElement('input');
-    cameraDirZ.value = state.camera.direction.z;
-    cameraDirZ.addEventListener('change', (e) => {
-        const value = parseFloat(e.target.value); 
-        state.camera.direction.z = value;
-        drawWireframeSceneFromState(state.camera, state.objects)
-    });
-
-    const containerHeader = document.createElement('p');
-    containerHeader.innerHTML = "Camera Direction: X - Y - Z";
-
-    container.appendChild(containerHeader);
-    container.appendChild(cameraDirX);
-    container.appendChild(cameraDirY);
-    container.appendChild(cameraDirZ);
-
-    return container;
-}
-
-function createCameraUpContainer(state) {
-    const container = document.createElement('div');
-
-    const cameraUpX = document.createElement('input');
-    cameraUpX.value = 0;
-    cameraUpX.addEventListener('change', (e) => {
-        const value = parseFloat(e.target.value); 
-        state.camera.up.x = value;
-        drawWireframeSceneFromState(state.camera, state.objects)
-    });
-
-    const cameraUpY = document.createElement('input');
-    cameraUpY.value = 1;
-    cameraUpY.addEventListener('change', (e) => {
-        const value = parseFloat(e.target.value); 
-        state.camera.up.y = value;
-        drawWireframeSceneFromState(state.camera, state.objects)
-    });
-
-    const cameraUpZ = document.createElement('input');
-    cameraUpZ.value = 0;
-    cameraUpZ.addEventListener('change', (e) => {
-        const value = parseFloat(e.target.value); 
-        state.camera.up.z = value;
-        drawWireframeSceneFromState(state.camera, state.objects)
-    });
-
-    const containerHeader = document.createElement('p');
-    containerHeader.innerHTML = "Camera Up: X - Y - Z";
-
-    container.appendChild(containerHeader);
-    container.appendChild(cameraUpX);
-    container.appendChild(cameraUpY);
-    container.appendChild(cameraUpZ);
 
     return container;
 }
@@ -367,13 +297,25 @@ function createCameraSettingsContainer(state) {
     text.innerHTML = "Camera Settings";
     container.append(text)
 
-    container.appendChild(createCameraPosContainer(state));
-    container.appendChild(createCameraDirContainer(state));
-    container.appendChild(createCameraUpContainer(state));
+    container.appendChild(createXyzSettingContainer(state, state.camera.position, "Camera Position"));
+    container.appendChild(createXyzSettingContainer(state, state.camera.direction, "Camera Direction"));
+    container.appendChild(createXyzSettingContainer(state, state.camera.up, "Camera Up"));
+    // container.appendChild(createCameraDirContainer(state));
+    // container.appendChild(createCameraUpContainer(state));
 
     return container;
-
 }
+function createProjectionSettingsContainer(state) {
+    const container = document.createElement('div');
+    const text = document.createElement('p');
+    text.innerHTML = "Projection Settings";
+    container.append(text)
+
+    container.appendChild(createXyzSettingContainer(state, state.projectionPlanes.leftBottomNear, "Left Bottom Near"));
+    container.appendChild(createXyzSettingContainer(state, state.projectionPlanes.rightTopFar, "Right Top Far"));
+    return container;
+}
+
 
 function createUpButton(container, state, transformation) {
     const upButton = document.createElement('button');
@@ -395,8 +337,7 @@ function createUpButton(container, state, transformation) {
         state.objects[0].transformations[idx - 1].transformationPosition = idx - 1;
         state.objects[0].transformations[idx].transformationPosition = idx;
 
-        l(transformation.transformationPosition)
-        drawWireframeSceneFromState(state.camera, state.objects)
+        drawWireframeSceneFromState(state.camera, state.objects, state.projectionPlanes);
     })
     return upButton;
 }
@@ -420,8 +361,7 @@ function createDownButton(container, state, transformation) {
         state.objects[0].transformations[idx + 1].transformationPosition = idx + 1;
         state.objects[0].transformations[idx].transformationPosition = idx;
 
-        l(transformation.transformationPosition)
-        drawWireframeSceneFromState(state.camera, state.objects)
+        drawWireframeSceneFromState(state.camera, state.objects, state.projectionPlanes);
     })
     return upButton;
 }
@@ -434,7 +374,7 @@ function createTranslateTransformationContainer(state, translateTransformation) 
     xInput.addEventListener('change', (e) => {
         const value = parseFloat(e.target.value); 
         translateTransformation.x = value;
-        drawWireframeSceneFromState(state.camera, state.objects)
+        drawWireframeSceneFromState(state.camera, state.objects, state.projectionPlanes);
     });
 
     const yInput = document.createElement('input');
@@ -442,7 +382,7 @@ function createTranslateTransformationContainer(state, translateTransformation) 
     yInput.addEventListener('change', (e) => {
         const value = parseFloat(e.target.value); 
         translateTransformation.y = value;
-        drawWireframeSceneFromState(state.camera, state.objects)
+        drawWireframeSceneFromState(state.camera, state.objects, state.projectionPlanes);
     });
 
     const zInput = document.createElement('input');
@@ -450,7 +390,7 @@ function createTranslateTransformationContainer(state, translateTransformation) 
     zInput.addEventListener('change', (e) => {
         const value = parseFloat(e.target.value); 
         translateTransformation.z = value;
-        drawWireframeSceneFromState(state.camera, state.objects)
+        drawWireframeSceneFromState(state.camera, state.objects, state.projectionPlanes);
     });
 
     const containerHeader = document.createElement('p');
@@ -469,7 +409,7 @@ function createTranslateTransformationContainer(state, translateTransformation) 
         }
         transformations.pop();
         container.parentNode.removeChild(container);
-        drawWireframeSceneFromState(state.camera, state.objects)
+        drawWireframeSceneFromState(state.camera, state.objects, state.projectionPlanes);
     })
 
     container.appendChild(containerHeader);
@@ -491,7 +431,7 @@ function createScaleTransformationContainer(state, scaleTransformation) {
     xInput.addEventListener('change', (e) => {
         const value = parseFloat(e.target.value); 
         scaleTransformation.x = value;
-        drawWireframeSceneFromState(state.camera, state.objects)
+        drawWireframeSceneFromState(state.camera, state.objects, state.projectionPlanes);
     });
 
     const yInput = document.createElement('input');
@@ -499,7 +439,7 @@ function createScaleTransformationContainer(state, scaleTransformation) {
     yInput.addEventListener('change', (e) => {
         const value = parseFloat(e.target.value); 
         scaleTransformation.y = value;
-        drawWireframeSceneFromState(state.camera, state.objects)
+        drawWireframeSceneFromState(state.camera, state.objects, state.projectionPlanes);
     });
 
     const zInput = document.createElement('input');
@@ -507,7 +447,7 @@ function createScaleTransformationContainer(state, scaleTransformation) {
     zInput.addEventListener('change', (e) => {
         const value = parseFloat(e.target.value); 
         scaleTransformation.z = value;
-        drawWireframeSceneFromState(state.camera, state.objects)
+        drawWireframeSceneFromState(state.camera, state.objects, state.projectionPlanes);
     });
 
     const containerHeader = document.createElement('p');
@@ -526,7 +466,7 @@ function createScaleTransformationContainer(state, scaleTransformation) {
         }
         transformations.pop();
         container.parentNode.removeChild(container);
-        drawWireframeSceneFromState(state.camera, state.objects)
+        drawWireframeSceneFromState(state.camera, state.objects, state.projectionPlanes);
     })
 
     container.appendChild(containerHeader);
@@ -548,7 +488,7 @@ function createRotateTransformationContainer(state, transformation, headerText) 
     degreesInput.addEventListener('change', (e) => {
         const value = parseFloat(e.target.value); 
         transformation.degrees = value;
-        drawWireframeSceneFromState(state.camera, state.objects)
+        drawWireframeSceneFromState(state.camera, state.objects, state.projectionPlanes);
     });
 
     const containerHeader = document.createElement('p');
@@ -567,7 +507,7 @@ function createRotateTransformationContainer(state, transformation, headerText) 
         }
         transformations.pop();
         container.parentNode.removeChild(container);
-        drawWireframeSceneFromState(state.camera, state.objects)
+        drawWireframeSceneFromState(state.camera, state.objects, state.projectionPlanes);
     })
 
     container.appendChild(containerHeader);
@@ -650,7 +590,7 @@ function createUI(state) {
 
     const drawButton = document.createElement('button');
     drawButton.style = 'margin: 0px 475px; display:block;'
-    drawButton.addEventListener('click', () => { drawWireframeSceneFromState(state.camera, state.objects) })
+    drawButton.addEventListener('click', () => { drawWireframeSceneFromState(state.camera, state.objects, state.projectionPlanes) })
     drawButton.innerHTML = 'Draw!';
     container.appendChild(drawButton);
 
@@ -660,13 +600,17 @@ function createUI(state) {
     container.appendChild(cameraSettingsContainer);
     
     const objectTransformationContainer = createObjectTransformationSettingsContainer(state);
-    objectTransformationContainer.style = 'border: 1px solid black;margin: 0px;display:inline-block;'
+    objectTransformationContainer.style = 'border: 1px solid black;margin: 5px;display:inline-block;'
     container.appendChild(objectTransformationContainer);
+
+    const projectionSettingsContainer = createProjectionSettingsContainer(state); 
+    projectionSettingsContainer.style = 'border: 1px solid black;margin: 5px;display:inline-block;'
+    container.appendChild(projectionSettingsContainer);
 
     document.body.appendChild(container);
 }
 
-function drawWireframeSceneFromState(camera, objects) {
+function drawWireframeSceneFromState(camera, objects, projection) {
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
@@ -692,17 +636,17 @@ function drawWireframeSceneFromState(camera, objects) {
     const viewportTransformation = Matrix.fromArray([
         [nx/2,    0,    0, (nx - 1)/2],
         [   0,   -ny/2, 0, (ny - 1)/2], 
-        [   0,    0,     0,          0],
+        [   0,    0,     0,         0],
         [   0,    0,    0,          1]
     ]);
 
     // ### Create Orthographic projection
-    const leftPlane = -2;
-    const rightPlane = 2
-    const bottomPlane = -2;
-    const topPlane = 2;
-    const nearPlane = 1
-    const farPlane = -1;
+    const leftPlane = projection.leftBottomNear.x;
+    const rightPlane = projection.rightTopFar.x
+    const bottomPlane = projection.leftBottomNear.y;
+    const topPlane = projection.rightTopFar.y;
+    const nearPlane = projection.leftBottomNear.z;
+    const farPlane = projection.rightTopFar.z;
 
     // For some reason I have to flip the Y coordinate here. I do not have to flip it if I do not do my camera transformation.
     const orthographicProjectionTransformation = Matrix.fromArray([
@@ -713,13 +657,34 @@ function drawWireframeSceneFromState(camera, objects) {
     ])
 
 
-    const transformation = viewportTransformation.mult(orthographicProjectionTransformation).mult(objectTransformation);
+    const cameraPosition = new Vec3(camera.position.x, camera.position.y, camera.position.z);
+    const cameraDirection = new Vec3(camera.direction.x, camera.direction.y, camera.direction.z);
+    const cameraUp = new Vec3(camera.up.x, camera.up.y, camera.up.z);
+
+    const cameraBasisW = cameraDirection.scale(-1).normalize();
+    const cameraBasisU = cameraUp.cross(cameraBasisW).scale(-1).normalize();
+    const cameraBasisV = cameraBasisW.cross(cameraBasisU).scale(-1).normalize();
+
+    const cameraTransformation = Matrix.fromArray([
+        [cameraBasisU.x, cameraBasisU.y, cameraBasisU.z, 0],
+        [cameraBasisV.x, cameraBasisV.y, cameraBasisV.z, 0], 
+        [cameraBasisW.x, cameraBasisW.y, cameraBasisW.z, 0],
+        [0, 0, 0, 1]
+    ]).mult(Matrix.fromArray([
+        [1, 0, 0, -cameraPosition.x],
+        [0, 1, 0, -cameraPosition.y],
+        [0, 0, 1, -cameraPosition.z],
+        [0, 0, 0,                 1],
+    ]));
+    
+
+    const transformation = viewportTransformation.mult(orthographicProjectionTransformation).mult(cameraTransformation).mult(objectTransformation);
     const transformedPoints = boxPoints.map(p => transformation.transformVec4(p));
 
 
     drawBox(ctx, transformedPoints);
-
 }
+// I may have realized my fault. IF I flipped the direction my camera was looking, then it makes sense that the X direction gets flipped.
 
 
 function drawBox(ctx, box) {
