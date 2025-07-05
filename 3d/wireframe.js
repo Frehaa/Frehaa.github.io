@@ -222,8 +222,8 @@ function wireframeMain() {
 
     const state = {        
         camera: { 
-            position: {x: 0, y: 0, z: 0},
-            direction: {x: 0, y: 0, z: -1},
+            position: {x: 5, y: 5, z: 5},
+            direction: {x: -1, y: -1, z: -1},
             up: {x: 0, y: 1, z: 0}
         },
         projectionPlanes: {
@@ -537,7 +537,7 @@ function createObjectTransformationSettingsContainer(state) {
     const addScaleTransformationButton = document.createElement('button');
     addScaleTransformationButton.innerHTML = "Add Scale";
     addScaleTransformationButton.addEventListener('click', () => { 
-        const transformation = {transformationPosition: transformationsContainer.children.length, x: 0, y: 0, z: 0, constructor: (t) => { return createScaleMatrix(t.x, t.y, t.z); }};
+        const transformation = {transformationPosition: transformationsContainer.children.length, x: 1, y: 1, z: 1, constructor: (t) => { return createScaleMatrix(t.x, t.y, t.z); }};
         state.objects[0].transformations.push(transformation);
         const container = createScaleTransformationContainer(state, transformation);
         transformationsContainer.appendChild(container);
@@ -611,6 +611,7 @@ function createUI(state) {
 }
 
 function drawWireframeSceneFromState(camera, objects, projection) {
+    l(camera,objects, projection)
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
@@ -618,14 +619,16 @@ function drawWireframeSceneFromState(camera, objects, projection) {
 
     const boxPoints = objects[0].points;
     const transformations = objects[0].transformations.map(c => c.constructor(c));
-    let objectTransformation = Matrix.fromArray([
-        [1, 0, 0, 0],
-        [0, 1, 0, 0],
-        [0, 0, 1, 0],
-        [0, 0, 0, 1],
-    ]);
+    let objectTransformation = null;
     if (transformations.length > 0) {
         objectTransformation = transformations.reduceRight((a, c) => c.mult(a));
+    } else {
+        objectTransformation = Matrix.fromArray([
+            [1, 0, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1],
+        ]);
     }
 
     const nx = canvas.width;
@@ -662,14 +665,14 @@ function drawWireframeSceneFromState(camera, objects, projection) {
     const cameraUp = new Vec3(camera.up.x, camera.up.y, camera.up.z);
 
     const cameraBasisW = cameraDirection.scale(-1).normalize();
-    const cameraBasisU = cameraUp.cross(cameraBasisW).scale(-1).normalize();
-    const cameraBasisV = cameraBasisW.cross(cameraBasisU).scale(-1).normalize();
+    const cameraBasisU = cameraUp.cross(cameraBasisW).normalize();
+    const cameraBasisV = cameraBasisW.cross(cameraBasisU).normalize();
 
     const cameraTransformation = Matrix.fromArray([
         [cameraBasisU.x, cameraBasisU.y, cameraBasisU.z, 0],
         [cameraBasisV.x, cameraBasisV.y, cameraBasisV.z, 0], 
         [cameraBasisW.x, cameraBasisW.y, cameraBasisW.z, 0],
-        [0, 0, 0, 1]
+        [0,                           0,              0, 1]
     ]).mult(Matrix.fromArray([
         [1, 0, 0, -cameraPosition.x],
         [0, 1, 0, -cameraPosition.y],
@@ -677,10 +680,41 @@ function drawWireframeSceneFromState(camera, objects, projection) {
         [0, 0, 0,                 1],
     ]));
     
+    const viewTransformation = viewportTransformation.mult(orthographicProjectionTransformation).mult(cameraTransformation);
 
-    const transformation = viewportTransformation.mult(orthographicProjectionTransformation).mult(cameraTransformation).mult(objectTransformation);
-    const transformedPoints = boxPoints.map(p => transformation.transformVec4(p));
+    objectTransformation = viewTransformation.mult(objectTransformation);
+    const transformedPoints = boxPoints.map(p => objectTransformation.transformVec4(p));
 
+    const lineLengths = 100;
+
+    const origin = new Vec4(0, 0, 0, 1);
+    const right = new Vec4(lineLengths, 0, 0, 1);
+    const up = new Vec4(0, lineLengths, 0, 1);
+    const near = new Vec4(0, 0, lineLengths, 1);
+
+
+    const originTransform = viewTransformation.transformVec4(origin);
+    const rightTransform = viewTransformation.transformVec4(right);
+    const upTransform = viewTransformation.transformVec4(up);
+    const nearTransform = viewTransformation.transformVec4(near);
+
+    ctx.beginPath();
+    ctx.strokeStyle = 'blue';
+    ctx.moveTo(originTransform.x, originTransform.y);
+    ctx.lineTo(rightTransform.x, rightTransform.y);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.strokeStyle = 'red';
+    ctx.moveTo(originTransform.x, originTransform.y);
+    ctx.lineTo(upTransform.x, upTransform.y);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.strokeStyle = 'green';
+    ctx.moveTo(originTransform.x, originTransform.y);
+    ctx.lineTo(nearTransform.x, nearTransform.y);
+    ctx.stroke();
 
     drawBox(ctx, transformedPoints);
 }
@@ -688,6 +722,7 @@ function drawWireframeSceneFromState(camera, objects, projection) {
 
 
 function drawBox(ctx, box) {
+    ctx.strokeStyle = 'black'
     ctx.beginPath();
     //  0 - 1
     ctx.moveTo(box[0].x, box[0].y)
