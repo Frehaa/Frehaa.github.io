@@ -224,7 +224,8 @@ function wireframeMain() {
         camera: { 
             position: {x: 5, y: 5, z: 5},
             direction: {x: -1, y: -1, z: -1},
-            up: {x: 0, y: 1, z: 0}
+            up: {x: 0, y: 1, z: 0},
+            usePerspectiveMatrix: false,
         },
         projectionPlanes: {
             leftBottomNear: {x: -2, y: -2, z: 2},
@@ -297,6 +298,11 @@ function createCameraSettingsContainer(state) {
     text.innerHTML = "Camera Settings";
     container.append(text)
 
+    const toggleText = document.createElement('p');
+    toggleText.innerHTML = 'Turn on Perspective';
+    container.append(toggleText);
+    container.appendChild(createCameraProjectionToggle(state));
+
     container.appendChild(createXyzSettingContainer(state, state.camera.position, "Camera Position"));
     container.appendChild(createXyzSettingContainer(state, state.camera.direction, "Camera Direction"));
     container.appendChild(createXyzSettingContainer(state, state.camera.up, "Camera Up"));
@@ -305,6 +311,18 @@ function createCameraSettingsContainer(state) {
 
     return container;
 }
+
+function createCameraProjectionToggle(state) {
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.addEventListener('change', e => {
+        state.camera.usePerspectiveMatrix = e.target.checked;
+        drawWireframeSceneFromState(state.camera, state.objects, state.projectionPlanes);
+    })
+
+    return input
+}
+
 function createProjectionSettingsContainer(state) {
     const container = document.createElement('div');
     const text = document.createElement('p');
@@ -611,7 +629,7 @@ function createUI(state) {
 }
 
 function drawWireframeSceneFromState(camera, objects, projection) {
-    l(camera,objects, projection)
+    // l(camera,objects, projection)
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
@@ -659,6 +677,13 @@ function drawWireframeSceneFromState(camera, objects, projection) {
         [                           0,                               0,                          0, 1]
     ])
 
+    const perspectiveProjectionTransform = Matrix.fromArray([
+        [ (2*nearPlane) / (rightPlane - leftPlane),                                         0,  (leftPlane + rightPlane)/ (rightPlane - leftPlane),                                                   0],
+        [                                        0,  (2*nearPlane) / (topPlane - bottomPlane), (bottomPlane + topPlane) / (topPlane - bottomPlane),                                                   0],
+        [                                        0,                                         0,     -(farPlane + nearPlane) / (farPlane - nearPlane), -(2 * farPlane * nearPlane) / (farPlane - nearPlane)],
+        [                                        0,                                         0,                                                   -1,                                                   0],
+    ]);
+
 
     const cameraPosition = new Vec3(camera.position.x, camera.position.y, camera.position.z);
     const cameraDirection = new Vec3(camera.direction.x, camera.direction.y, camera.direction.z);
@@ -679,18 +704,24 @@ function drawWireframeSceneFromState(camera, objects, projection) {
         [0, 0, 1, -cameraPosition.z],
         [0, 0, 0,                 1],
     ]));
-    
-    const viewTransformation = viewportTransformation.mult(orthographicProjectionTransformation).mult(cameraTransformation);
+
+    const projectionTransform = camera.usePerspectiveMatrix? perspectiveProjectionTransform : orthographicProjectionTransformation;
+   
+    const viewTransformation = viewportTransformation.mult(projectionTransform).mult(cameraTransformation);
+    // const viewTransformation = viewportTransformation.mult(perspectiveProjectionTransform).mult(cameraTransformation);
 
     objectTransformation = viewTransformation.mult(objectTransformation);
-    const transformedPoints = boxPoints.map(p => objectTransformation.transformVec4(p));
+    const transformedPoints = boxPoints.map(p => {
+        const v = objectTransformation.transformVec4(p)
+        return v ; //.scale(1/v[3]);
+    });
 
     const lineLengths = 100;
 
     const origin = new Vec4(0, 0, 0, 1);
-    const right = new Vec4(lineLengths, 0, 0, 1);
-    const up = new Vec4(0, lineLengths, 0, 1);
-    const near = new Vec4(0, 0, lineLengths, 1);
+    const right = new Vec4(rightPlane, 0, 0, 1);
+    const up = new Vec4(0, topPlane, 0, 1);
+    const near = new Vec4(0, 0, nearPlane, 1);
 
 
     const originTransform = viewTransformation.transformVec4(origin);
@@ -715,6 +746,8 @@ function drawWireframeSceneFromState(camera, objects, projection) {
     ctx.moveTo(originTransform.x, originTransform.y);
     ctx.lineTo(nearTransform.x, nearTransform.y);
     ctx.stroke();
+
+    l(rightTransform)
 
     drawBox(ctx, transformedPoints);
 }

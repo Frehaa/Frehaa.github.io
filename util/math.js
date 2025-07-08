@@ -379,7 +379,7 @@ class Matrix {
         result[i] += this.getValue(i, j) * b[j]
       }
     }
-    return new Vec4(result[0], result[1], result[2], result[3]);
+    return new Vec4(result[0] / result[3], result[1]/ result[3], result[2]/result[3], b[3]);
   }
   scale(s) {
     const result = new Matrix(this.rows, this.columns);
