@@ -393,6 +393,59 @@ class Matrix {
   }
 }
 
+function createTranslationMatrix(x, y, z) {
+    return Matrix.fromArray([
+            [1, 0, 0, x],
+            [0, 1, 0, y],
+            [0, 0, 1, z],
+            [0, 0, 0, 1],
+        ]);
+}
+function createScaleMatrix(x, y, z) {
+    return Matrix.fromArray([
+            [x, 0, 0, 0],
+            [0, y, 0, 0],
+            [0, 0, z, 0],
+            [0, 0, 0, 1],
+        ]);
+}
+
+function createRotateXMatrix(degrees) { 
+    const radians = degreesToRadians(degrees);
+    const c = Math.cos(radians)
+    const s = Math.sin(radians)
+    return Matrix.fromArray([
+            [1, 0, 0, 0],
+            [0, c,-s, 0],
+            [0, s, c, 0],
+            [0, 0, 0, 1],
+        ]);
+}
+
+function createRotateYMatrix(degrees) { 
+    const radians = degreesToRadians(degrees);
+    const c = Math.cos(radians)
+    const s = Math.sin(radians)
+    return Matrix.fromArray([
+            [c, 0, s, 0],
+            [0, 1, 0, 0],
+            [-s,0, c, 0],
+            [0, 0, 0, 1],
+        ]);
+}
+function createRotateZMatrix(degrees) { 
+    const radians = degreesToRadians(degrees);
+    const c = Math.cos(radians)
+    const s = Math.sin(radians)
+    return Matrix.fromArray([
+            [c, -s, 0, 0],
+            [s, c, 0, 0],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1],
+        ]);
+}
+
+
 function createMatrix(nestedList) {
   const n = nestedList.length;
   if (n === 0) return new Matrix(0,0);
