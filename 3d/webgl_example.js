@@ -1,25 +1,13 @@
-
 function webgl_main() {
     const canvas = document.getElementById('canvas');
-    const gl = canvas.getContext('webgl');
+    const gl = initializeWebGL(canvas);
 
-    if (gl === null) {
-        console.error("Unable to initialize WebGL");
-        return;
-    }
-    console.log(gl);
-    
+    // Create the shader program
+    const vertexShader = compileShader(gl, gl.VERTEX_SHADER, vertexShaderCode);
+    const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, fragmentShaderCode);
+    const glProgram = createProgram(gl, [vertexShader, fragmentShader]);
 
-    const pixelRatio = window.devicePixelRatio || 1;
-    canvas.width = pixelRatio * canvas.clientWidth;
-    canvas.height = pixelRatio * canvas.clientHeight;
-    gl.viewport(0, 0, canvas.width, canvas.height);
-
-    gl.clearColor(1.0, 1.0, 1.0, 0.0);
-    // gl.clearColor(0.0, 0.0, 0.0, 1.0);
-    gl.lineWidth(1.0);
-
-
+    // Prepare data
     const positions = [
         -0.9,  0.4, 0,
          0.8,  0.4, 0,
@@ -28,6 +16,12 @@ function webgl_main() {
          0.6, -0.4, 0,
         -0.8, -0.4, 0,
     ];
+    const positionBuffer = copyBuffer(gl, positions);
+
+    const glAttributeLocationPosition = gl.getAttribLocation(glProgram, 'position');
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.vertexAttribPointer(glAttributeLocationPosition, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(glAttributeLocationPosition);    
 
     const colors = [
         1, 0, 0, 1,
@@ -37,39 +31,11 @@ function webgl_main() {
         0, 0, 1, 1,
         1, 0, 1, 1,
     ];
-
-    const position_buffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, position_buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-
-    const color_buffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, color_buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
-
-    const vertexShader = gl.createShader(gl.VERTEX_SHADER);
-    gl.shaderSource(vertexShader, vertexShaderCode);
-    gl.compileShader(vertexShader);
-    if ( ! gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
-        console.error(gl.getShaderInfoLog(vertexShader));
-        gl.deleteShader(vertexShader)
-    }
-
-    const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
-    gl.shaderSource(fragmentShader, fragmentShaderCode);
-    gl.compileShader(fragmentShader);
-    if ( ! gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
-        console.error(gl.getShaderInfoLog(fragmentShader));
-        gl.deleteShader(fragmentShader)
-    }
-
-    const glProgram = gl.createProgram();
-    gl.attachShader(glProgram, vertexShader);
-    gl.attachShader(glProgram, fragmentShader);
-    gl.linkProgram(glProgram);
-    if ( ! gl.getProgramParameter(glProgram, gl.LINK_STATUS) ) {
-        console.error( gl.getProgramInfoLog(glProgram) );
-        return; 
-    }
+    const colorBuffer = copyBuffer(gl, colors);
+    const glAttributeLocationColor = gl.getAttribLocation(glProgram, 'color');
+    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+    gl.vertexAttribPointer(glAttributeLocationColor, 4, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(glAttributeLocationColor);
     
     const transformationMatrix = [
         1.0, 0, 0, 0,
@@ -77,23 +43,65 @@ function webgl_main() {
         0, 0, 0.7, 0, 
         0, 0, 0, 1
     ];
-    const glUniformLocationMatrix = gl.getUniformLocation(glProgram, 'transformation');
-    gl.useProgram(glProgram);
-    gl.uniformMatrix4fv(glUniformLocationMatrix, false, transformationMatrix);
+    copyUniformMatrix4fv(gl, glProgram, transformationMatrix, "transformation");
 
-    const glAttributeLocationPosition = gl.getAttribLocation(glProgram, 'position');
-    gl.bindBuffer(gl.ARRAY_BUFFER, position_buffer);
-    gl.vertexAttribPointer(glAttributeLocationPosition, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(glAttributeLocationPosition);
 
-    const glAttributeLocationColor = gl.getAttribLocation(glProgram, 'color');
-    gl.bindBuffer(gl.ARRAY_BUFFER, color_buffer);
-    gl.vertexAttribPointer(glAttributeLocationColor, 4, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(glAttributeLocationColor);
-
+    // DRAW
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram( glProgram );
     gl.drawArrays( gl.TRIANGLES, 0, 6);
+}
+
+function initializeWebGL(canvas) {
+    const gl = canvas.getContext('webgl');
+
+    if (gl === null) {
+        throw new Error("Unable to initialize WebGL");
+    }
+    
+    const pixelRatio = window.devicePixelRatio || 1;
+    canvas.width = pixelRatio * canvas.clientWidth;
+    canvas.height = pixelRatio * canvas.clientHeight;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+
+    gl.clearColor(1.0, 1.0, 1.0, 0.0);
+    gl.lineWidth(1.0);
+    return gl;
+}
+
+function copyBuffer(gl, data) {
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+    return buffer;
+}
+
+function compileShader(gl, shaderType, shaderCode) {
+    const shader = gl.createShader(shaderType);
+    gl.shaderSource(shader, shaderCode);
+    gl.compileShader(shader);
+    if ( ! gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        gl.deleteShader(shader)
+        throw new Error(gl.getShaderInfoLog(shader));
+    }
+    return shader;
+}
+
+function createProgram(gl, shaders) {
+    const glProgram = gl.createProgram();
+    for (const shader of shaders) {
+        gl.attachShader(glProgram, shader);
+    }
+    gl.linkProgram(glProgram);
+    if ( ! gl.getProgramParameter(glProgram, gl.LINK_STATUS) ) {
+        throw new Error(gl.getProgramInfoLog(glProgram));
+    }
+    return glProgram;
+}
+function copyUniformMatrix4fv(gl, program, matrix, locationName) {
+    const glUniformLocationMatrix = gl.getUniformLocation(program, locationName);
+    gl.useProgram(program);
+    gl.uniformMatrix4fv(glUniformLocationMatrix, false, matrix);
 }
 
 const vertexShaderCode = `
