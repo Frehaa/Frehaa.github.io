@@ -35,7 +35,7 @@ function makeDefaultScene() {
     const cylinder = makeDefaultCylinder();
     const texturedTriangle = makeDefaultTexturedTriangle();
 
-    const backgroundColor = Color.black;
+    const backgroundColor = RaytracerColor.black;
 
     const surfaces = [
         plane,
@@ -44,7 +44,7 @@ function makeDefaultScene() {
         cylinder,
         // texturedTriangle
     ];
-    const ambientColor = new Color(1, 1, 1); // Ambient light color
+    const ambientColor = new RaytracerColor(1, 1, 1); // Ambient light color
 
     const lights = [
         makeDefaultPositionalLight(),
@@ -149,7 +149,7 @@ function getPixelColor(scene, camera, x, y) {
 
 function makeDefaultPlane() {
     const transformation = Transformation.translate(0, 0, 0);
-    const material = new MatteMaterial(0.8, new Color(0.7, 0.7, 0.7), 1.0, new Color(0.6, 0.6, 0.6));
+    const material = new MatteMaterial(0.8, new RaytracerColor(0.7, 0.7, 0.7), 1.0, new RaytracerColor(0.6, 0.6, 0.6));
     return new RaytracerPlane(transformation, material);
 }
 
@@ -159,14 +159,14 @@ function makeDefaultSphere() {
     const translate = Transformation.translate(3, -2, 1);
     const transformation = rotate.then(translate).then(scale);
 
-    const material = new MatteMaterial(0.8, new Color(0.9, 0.1, 0.0), 0.1, new Color(1, 0, 0));
+    const material = new MatteMaterial(0.8, new RaytracerColor(0.9, 0.1, 0.0), 0.1, new RaytracerColor(1, 0, 0));
     return new RaytracerSphere(transformation, material);
 }
 function makeDefaultDirectionalLight() {
-    return new RaytracerDirectionalLight(new Vec4(-1, 0, 0.2, 0).normalize(), new Color(0.8, 0.8, 0.8));
+    return new RaytracerDirectionalLight(new Vec4(-1, 0, 0.2, 0).normalize(), new RaytracerColor(0.8, 0.8, 0.8));
 }
 function makeDefaultPositionalLight() {
-    return new RaytracerPositionalLight(new Vec4(2, -2, 8, 1), new Color(0.1, 0.1, 0.7));
+    return new RaytracerPositionalLight(new Vec4(2, -2, 8, 1), new RaytracerColor(0.1, 0.1, 0.7));
 }
 function makeDefaultBox() {
     return new RaytracerBox(new Vec3(), new Vec3())
@@ -177,7 +177,7 @@ function makeDefaultCylinder() {
     const translate = Transformation.translate(0, 0, 2);
     const transformation = rotate.then(translate).then(scale);
 
-    const material = new MatteMaterial(0.8, new Color(0.0, 0.8, 0.1), 0.2, new Color(0.0, 0.4, 0.05));
+    const material = new MatteMaterial(0.8, new RaytracerColor(0.0, 0.8, 0.1), 0.2, new RaytracerColor(0.0, 0.4, 0.05));
     const cylinder = new RaytracerOpenCylinder(transformation, material);
 
     return cylinder;
@@ -268,7 +268,7 @@ class RaytracerBox {
 
 class RaytracerPositionalLight {
     constructor(position, color) {
-        assert(color instanceof Color, "Color must be a Color instance");
+        assert(color instanceof RaytracerColor, "Color must be a Color instance");
         assert(position instanceof Vec4 && position[3] === 1, "Position must be a Vec4");
         this.position = position;
         this.color = color;
@@ -285,7 +285,7 @@ class RaytracerDirectionalLight {
         // We assume the direction is normalized and pointing towards the light source
         assert(direction instanceof Vec4 && direction[3] == 0, "Direction must be a Vec4");
         assert(direction.length() > 0, "Direction vector must not be zero length");
-        assert(color instanceof Color, "Color must be a Color instance");
+        assert(color instanceof RaytracerColor, "Color must be a Color instance");
         this.direction = direction;
         this.color = color;
     }
@@ -294,23 +294,23 @@ class RaytracerDirectionalLight {
     }
 }
 
-class Color {
+class RaytracerColor {
     constructor(r, g, b) {
         this.r = r;
         this.g = g;
         this.b = b;
     }
     scale(scalar) {
-        return new Color(this.r * scalar, this.g * scalar, this.b * scalar);
+        return new RaytracerColor(this.r * scalar, this.g * scalar, this.b * scalar);
     }
     add(other) {
-        return new Color(this.r + other.r, this.g + other.g, this.b + other.b);
+        return new RaytracerColor(this.r + other.r, this.g + other.g, this.b + other.b);
     }
     multiply(other) {
-        return new Color(this.r * other.r, this.g * other.g, this.b * other.b);
+        return new RaytracerColor(this.r * other.r, this.g * other.g, this.b * other.b);
     }
-    static black = new Color(0, 0, 0);
-    static white = new Color(1, 1, 1);
+    static black = new RaytracerColor(0, 0, 0);
+    static white = new RaytracerColor(1, 1, 1);
 }
 
 class MatteMaterial {
