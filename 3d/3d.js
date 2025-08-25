@@ -476,7 +476,7 @@ function raytracerTest() {
 }
 
 function initialize() {
-
+    return webgl_main()
     return wireframeMain();
 
     const scale = Transformation.scale(2, 2, 2);
