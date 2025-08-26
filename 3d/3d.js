@@ -8,6 +8,16 @@ function translateMatrix(x, y, z) {
     ]);
 }
 
+function scaleMatrix(x, y, z) {
+    return Matrix.fromArray([
+        [x, 0, 0, 0],
+        [0, y, 0, 0],
+        [0, 0, z, 0],
+        [0, 0, 0, 1],
+    ]);
+}
+
+
 function rotateXMatrix(rad) {
     let c = Math.cos(rad);
     let s = Math.sin(rad);
@@ -476,6 +486,14 @@ function raytracerTest() {
 }
 
 function initialize() {
+    const t1 = scaleMatrix(2, 2, 2); 
+    const t2 = translateMatrix(-1, 2, -3);
+
+    const t3 = t1.mult(t2);
+
+    console.log(t1, t2, t3);
+    
+
     return webgl_main()
     return wireframeMain();
 

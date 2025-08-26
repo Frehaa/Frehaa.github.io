@@ -55,7 +55,7 @@ class Sphere3D {
         for (let i = 0; i < stripeCount; i++) {
             const bottomBandVertexAIndex = bottomVertexIndex - stripeCount + i;
             const bottomBandVertexBIndex = bottomVertexIndex - stripeCount + (1 + i) % stripeCount;
-            this.addTriangle(bottomBandVertexAIndex, bottomVertexIndex, bottomBandVertexBIndex);
+            this.addTriangle(bottomBandVertexAIndex, bottomBandVertexBIndex, bottomVertexIndex);
         }
     }
 

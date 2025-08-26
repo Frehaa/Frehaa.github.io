@@ -376,6 +376,9 @@ class Transform3D {
         this[14] = this[14] + dz * this[15];
     }
     static createScale(x, y, z) {
+        if (y === undefined) {
+            return Transform3D.createScale(x, x, x);
+        }
         const result = Transform3D._createScale(x, y, z);
         result._inverse = Transform3D._createScale(1/x, 1/y, 1/z);
         result._inverse._inverse = result;
@@ -404,7 +407,7 @@ class Transform3D {
         result[15] = 1;
         return result;
     }
-//         [x, 0, 0, 0],    a b c d
+//         [x, 0, 0, 0],    a b c d       ax
 //         [0, y, 0, 0],    e f g h
 //         [0, 0, z, 0],    i j k l
 //         [0, 0, 0, 1],    m n o p
@@ -424,6 +427,7 @@ class Transform3D {
         this[10] = this[10] * z;
         this[14] = this[14] * z;
     }
+    // Note to self. We scale before we translate. If we scale after then we also multiply the translation.
     scale(x, y, z) {
         if (y === undefined) {
             return this.scale(x, x, x);
@@ -432,7 +436,24 @@ class Transform3D {
         this._inverse._scale(1/x, 1/y, 1/z);
         return this;
     }
-    createPerspective() {
+    static createCameraTransform(position, direction, worldUp) {
+        const cameraBasisW = direction.scale(-1).normalize();
+        const cameraBasisU = worldUp.cross(cameraBasisW).normalize();
+        const cameraBasisV = cameraBasisW.cross(cameraBasisU).normalize();
+
+        this.transformationMatrix = Matrix.fromArray([
+            [cameraBasisU.x, cameraBasisU.y, cameraBasisU.z, 0],
+            [cameraBasisV.x, cameraBasisV.y, cameraBasisV.z, 0], 
+            [cameraBasisW.x, cameraBasisW.y, cameraBasisW.z, 0],
+            [0,                           0,              0, 1]
+        ]).mult(Matrix.fromArray([
+            [1, 0, 0, -position.x],
+            [0, 1, 0, -position.y],
+            [0, 0, 1, -position.z],
+            [0, 0, 0,           1],
+        ])); 
+
+
         const result = new Transform3D();
         result[0] = 1;
         result[1] = 0;
@@ -473,8 +494,30 @@ class Transform3D {
         this._inverse._transpose();
         return this;
     }
-    inverse() {
+    getInverse() {
         return this._inverse;
+    }
+//         [b, b, b, b],    0  4  8  12  
+//         [b, b, b, b],    1  5  9  13
+//         [b, b, b, b],    2  6  10 14
+//         [b, b, b, b],    3  7  11 15
+    _then(b) {
+        for (let i = 0; i < 4; i++) {
+            const tmp0 = this[4 * i];
+            const tmp1 = this[4 * i + 1];
+            const tmp2 = this[4 * i + 2];
+            const tmp3 = this[4 * i + 3];
+
+            this[4 * i]     = tmp0 * b[0] + tmp1 * b[4] + tmp2 * b[8] + tmp3 * b[12];
+            this[4 * i + 1] = tmp0 * b[1] + tmp1 * b[5] + tmp2 * b[9] + tmp3 * b[13];
+            this[4 * i + 2] = tmp0 * b[2] + tmp1 * b[6] + tmp2 * b[10] + tmp3 * b[14];
+            this[4 * i + 3] = tmp0 * b[3] + tmp1 * b[7] + tmp2 * b[11] + tmp3 * b[15];
+        }
+    }
+    then(b) {
+        this._then(b);
+        this._inverse._then(b._inverse);
+        return this;
     }
 }
 

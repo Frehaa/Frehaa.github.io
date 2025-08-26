@@ -42,6 +42,23 @@ function boxColors() {
     return colors;
 }
 
+function createWireframeProgram(gl, vertexShader, positionBuffer, colorBuffer) {
+    const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, allWhiteFragmentShaderSource);
+    const glProgram = createProgram(gl, [vertexShader, fragmentShader]);
+
+    const positionLocation = gl.getAttribLocation(glProgram, 'position');
+    const colorLocation = gl.getAttribLocation(glProgram, 'color');
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(positionLocation);    
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+    gl.vertexAttribPointer(colorLocation, 4, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(colorLocation);    
+    return glProgram;
+}
+
 function sphere3d_scene() {
     const canvas = document.getElementById('canvas');
     const gl = initializeWebGL(canvas);
@@ -52,22 +69,30 @@ function sphere3d_scene() {
     const glProgram = createProgram(gl, [vertexShader, fragmentShader]);
 
 
-    const mySphere = new Sphere3D(18, 36);
+    const mySphere = new Sphere3D(30, 30);
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mySphere.extraVertices), gl.STATIC_DRAW);
+    // gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mySphere.vertices), gl.STATIC_DRAW);
 
     const colorBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mySphere.colors), gl.STATIC_DRAW);
 
+    const indices = [0, 1, 2, 0, 2, 3];
     const indexBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+    // gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(mySphere.extraIndices), gl.STATIC_DRAW);
+    // gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(mySphere.indices), gl.STATIC_DRAW);
+
+    const wireframeProgram = createWireframeProgram(gl, vertexShader, positionBuffer, colorBuffer);
 
     const positionLocation = gl.getAttribLocation(glProgram, 'position');
     const colorLocation = gl.getAttribLocation(glProgram, 'color');
     const transformationLocation = gl.getUniformLocation(glProgram, 'transformation');
+
+    console.log(mySphere.indices, mySphere.vertices)
 
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0);
@@ -77,30 +102,61 @@ function sphere3d_scene() {
     gl.vertexAttribPointer(colorLocation, 4, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(colorLocation);    
 
+
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
     gl.useProgram(glProgram);
 
-    const transformationMatrix = Transform3D.createRotateX(0.1);
+    const camera = new Camera3D(new Vec3(0, 1, 0));
+    camera.setPosition(new Vec3(0, 0, 5));
+    const transformationMatrix = Transform3D.createScale(0.2).translate(-0.5, 0.7, 0);
 
+    const translateMatrix = Transform3D.createTranslate(-0.3, 0.2, 0);
+
+    const rotateXTransform = Transform3D.createRotateX(0.1);
+
+    console.log(transformationMatrix.toFloat32Array());
+
+
+    // gl.enable(gl.CULL_FACE);
+    // gl.cullFace(gl.FRONT);
+    gl.lineWidth(10.0);
     gl.clearColor(0.0, 0.0, 0.0, 1.0); 
     gl.clearDepth(-2.0); // Clear everything
     gl.enable(gl.DEPTH_TEST); // Enable depth testing
     gl.depthFunc(gl.GEQUAL); // Near things obscure far things
 
+    let lastTime = 0;
     function render(time) {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         const rad = Math.PI * time * 0.0001;
 
-        transformationMatrix.reset().rotateY(rad);
+        // x += (Math.random() - 0.5) * 0.02;
+        // y += (Math.random() - 0.5) * 0.001;
+        // s += (Math.random() - 0.5) * 0.04;
+
+        // z += Math.random();
+
+        const deltaTime = time - lastTime;
+        // console.log(Math.round(deltaTime));
+        
+        lastTime = time;
+
+        transformationMatrix.reset().rotateY(rad).then(rotateXTransform)
         gl.uniformMatrix4fv(transformationLocation, false, transformationMatrix.toFloat32Array(), 0, 0);
+        // gl.uniform1f(colorToggleLocation, 0.0);
 
         {
-        const vertexCount = mySphere.indices.length;
+        const vertexCount = mySphere.extraIndices.length
         const type = gl.UNSIGNED_SHORT;
         const offset = 0;
-        // gl.drawArrays( gl.LINES, 0, 7);
-        gl.drawElements(gl.TRIANGLES, vertexCount, type, offset);
-        // gl.drawElements(gl.LINE_LOOP, vertexCount, type, offset);
+        // gl.drawArrays(gl.TRIANGLES, 0 , vertexCount);
+        // gl.drawArrays(gl.LINE_STRIP, 0 , vertexCount);
+        // gl.drawElements(gl.TRIANGLES, vertexCount, type, offset);
+        // gl.uniform1f(colorToggleLocation, 1.0);
+
+        // gl.useProgram(wireframeProgram);
+        // gl.uniformMatrix4fv(wireTransformationLocation, false, transformationMatrix.toFloat32Array(), 0, 0);
+        gl.drawElements(gl.LINE_LOOP, vertexCount, type, offset);
         }            
 
         requestAnimationFrame(render);
@@ -230,8 +286,9 @@ function compileShader(gl, shaderType, shaderCode) {
     gl.shaderSource(shader, shaderCode);
     gl.compileShader(shader);
     if ( ! gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        const logInfo = gl.getShaderInfoLog(shader);
         gl.deleteShader(shader)
-        throw new Error(gl.getShaderInfoLog(shader));
+        throw new Error(logInfo);
     }
     return shader;
 }
@@ -583,7 +640,7 @@ function moz_drawScene(gl, programInfo, buffers) {
                 modelViewMatrix.toFloat32Array()
             );
 
-            const inverseMatrix = modelViewMatrix.inverse();
+            const inverseMatrix = modelViewMatrix.getInverse();
             gl.uniformMatrix4fv(
                 programInfo.uniformLocations.normalMatrix,
                 false,
