@@ -344,7 +344,7 @@ class Transform3D {
         result[15] = 1;
         return result;
     }
-    static createTranslate(deltaX, deltaY, deltaZ) {
+    static createTranslate(deltaX = 0, deltaY = 0, deltaZ = 0) {
         const result = Transform3D._createTranslate(deltaX, deltaY, deltaZ);
         result._inverse =  Transform3D._createTranslate(-deltaX, -deltaY, -deltaZ);
         result._inverse._inverse = result;
@@ -355,10 +355,10 @@ class Transform3D {
         this._inverse._translate(-dx, -dy, -dz);
         return this;
     }
-//         [1, 0, 0, x],    a b c d
-//         [0, 1, 0, y],    e f g h
-//         [0, 0, 1, z],    i j k l
-//         [0, 0, 0, 1],    m n o p
+//         [1, 0, 0, x],    0  4  8  12
+//         [0, 1, 0, y],    1  5  9  13
+//         [0, 0, 1, z],    2  6  10 14
+//         [0, 0, 0, 1],    3  7  11 15
     _translate(dx, dy, dz) {
         this[0] = this[0] + dx * this[3];
         this[4] = this[4] + dx * this[7];
@@ -441,40 +441,136 @@ class Transform3D {
         const cameraBasisU = worldUp.cross(cameraBasisW).normalize();
         const cameraBasisV = cameraBasisW.cross(cameraBasisU).normalize();
 
-        this.transformationMatrix = Matrix.fromArray([
-            [cameraBasisU.x, cameraBasisU.y, cameraBasisU.z, 0],
-            [cameraBasisV.x, cameraBasisV.y, cameraBasisV.z, 0], 
-            [cameraBasisW.x, cameraBasisW.y, cameraBasisW.z, 0],
-            [0,                           0,              0, 1]
-        ]).mult(Matrix.fromArray([
-            [1, 0, 0, -position.x],
-            [0, 1, 0, -position.y],
-            [0, 0, 1, -position.z],
-            [0, 0, 0,           1],
-        ])); 
+        // this.transformationMatrix = Matrix.fromArray([
+        //     [cameraBasisU.x, cameraBasisU.y, cameraBasisU.z, 0],
+        //     [cameraBasisV.x, cameraBasisV.y, cameraBasisV.z, 0], 
+        //     [cameraBasisW.x, cameraBasisW.y, cameraBasisW.z, 0],
+        //     [0,                           0,              0, 1]
+        // ]).mult(Matrix.fromArray([
+        //     [1, 0, 0, -position.x],
+        //     [0, 1, 0, -position.y],
+        //     [0, 0, 1, -position.z],
+        //     [0, 0, 0,           1],
+        // ])); 
+
+        // console.log(cameraBasisW, cameraBasisU, cameraBasisV);
+        
 
 
+        const cameraTransform = new Transform3D();
+        cameraTransform[0] = cameraBasisU.x;
+        cameraTransform[1] = cameraBasisV.x;
+        cameraTransform[2] = cameraBasisW.x;
+        cameraTransform[3] = 0;
+
+        cameraTransform[4] = cameraBasisU.y;
+        cameraTransform[5] = cameraBasisV.y;
+        cameraTransform[6] = cameraBasisW.y;
+        cameraTransform[7] = 0;
+
+        cameraTransform[8] = cameraBasisU.z;
+        cameraTransform[9] = cameraBasisV.z;
+        cameraTransform[10] = cameraBasisW.z;
+        cameraTransform[11] = 0;
+
+        cameraTransform[12] = 0;
+        cameraTransform[13] = 0;
+        cameraTransform[14] = 0;
+        cameraTransform[15] = 1;
+
+        const result = Transform3D.createTranslate(-position.x, -position.y, -position.z)._then(cameraTransform);
+        return result;
+    }
+    static createViewportTransform(widthInPixels, heightInPixels) {
         const result = new Transform3D();
-        result[0] = 1;
+        result[0] = widthInPixels / 2;
         result[1] = 0;
         result[2] = 0;
         result[3] = 0;
-
         result[4] = 0;
-        result[5] = 1;
+        result[5] = heightInPixels / 2;
         result[6] = 0;
         result[7] = 0;
-
         result[8] = 0;
         result[9] = 0;
-        result[10] = 1;
+        result[10] = 0;
         result[11] = 0;
+        result[12] = (widthInPixels - 1) / 2;
+        result[13] = (heightInPixels - 1) / 2;
+        result[14] = 0;
+        result[15] = 0;
 
+        // this._inverse = new Transform3D();
+        // this._inverse[0] = 1 / (widthInPixels / 2);
+        // this._inverse[1] = 0;
+        // this._inverse[2] = 0;
+        // this._inverse[3] = 0;
+        // this._inverse[4] = 0;
+        // this._inverse[5] = 1 / (heightInPixels / 2);
+        // this._inverse[6] = 0;
+        // this._inverse[7] = 0;
+        // this._inverse[8] = 0;
+        // this._inverse[9] = 0;
+        // this._inverse[10] = 0;
+        // this._inverse[11] = 0;
+        // this._inverse[12] = -(widthInPixels - 1) / 2;
+        // this._inverse[13] = -(heightInPixels - 1) / 2;
+        // this._inverse[14] = 0;
+        // this._inverse[15] = 1;
+        return result;
+    }
+    static createOrthographicTransform(leftPlane, rightPlane, bottomPlane, topPlane, nearPlane, farPlane) {
+        const result = new Transform3D();
+        result[0] = 2 / (rightPlane - leftPlane);
+        result[1] = 0;
+        result[2] = 0;
+        result[3] = 0;
+        result[4] = 0;
+        result[5] = 2 / (topPlane - bottomPlane);
+        result[6] = 0;
+        result[7] = 0;
+        result[8] = 0;
+        result[9] = 0;
+        result[10] = 2 / (nearPlane - farPlane);
+        result[11] = 0;
+        result[12] = -(rightPlane + leftPlane) / (rightPlane - leftPlane);
+        result[13] = -(topPlane + bottomPlane) / (topPlane - bottomPlane);
+        result[14] = -(nearPlane + farPlane) / (nearPlane - farPlane);
+        result[15] = 1;
+ 
+        return result;
+    }
+    static createPerspectiveTransform(leftPlane, rightPlane, topPlane, bottomPlane, nearPlane, farPlane) {
+    //        const perspectiveProjectionTransform = Matrix.fromArray([
+    //     [ (2*nearPlane) / (rightPlane - leftPlane),                                         0,  (leftPlane + rightPlane)/ (rightPlane - leftPlane),                                                   0],
+    //     [                                        0,  (2*nearPlane) / (topPlane - bottomPlane), (bottomPlane + topPlane) / (topPlane - bottomPlane),                                                   0],
+    //     [                                        0,                                         0,     -(farPlane + nearPlane) / (farPlane - nearPlane), -(2 * farPlane * nearPlane) / (farPlane - nearPlane)],
+    //     [                                        0,                                         0,                                                   -1,                                                   0],
+    // ]);
+
+        const result = new Transform3D();
+        result[0] = (2*nearPlane) / (rightPlane - leftPlane);
+        result[1] = 0;
+        result[2] = 0;
+        result[3] = 0;
+        result[4] = 0;
+        result[5] = (2*nearPlane) / (topPlane - bottomPlane);
+        result[6] = 0;
+        result[7] = 0;
+        result[8] = (leftPlane + rightPlane)/ (leftPlane - rightPlane);
+        // result[8] = (leftPlane + rightPlane)/ (rightPlane - leftPlane);
+        result[9] = (bottomPlane + topPlane) / (bottomPlane - topPlane);
+        // result[9] = (bottomPlane + topPlane) / (topPlane - bottomPlane);
+        result[10] = -(farPlane + nearPlane) / (nearPlane - farPlane);
+        // result[10] = -(farPlane + nearPlane) / (farPlane - nearPlane);
+        result[11] = -1;
         result[12] = 0;
         result[13] = 0;
-        result[14] = 0;
+        result[14] = -(2 * farPlane * nearPlane) / (farPlane - nearPlane);
         result[15] = 1;
+ 
         return result;
+     
     }
     _swap(a, b) {
         let tmp = this[a];
@@ -513,11 +609,27 @@ class Transform3D {
             this[4 * i + 2] = tmp0 * b[2] + tmp1 * b[6] + tmp2 * b[10] + tmp3 * b[14];
             this[4 * i + 3] = tmp0 * b[3] + tmp1 * b[7] + tmp2 * b[11] + tmp3 * b[15];
         }
+        return this;
     }
     then(b) {
         this._then(b);
         this._inverse._then(b._inverse);
         return this;
+    }
+    transformVec4(b) {
+        const x = this[0] * b[0] + this[4] * b[1] + this[8] * b[2] + this[12] * b[3];
+        const y = this[1] * b[0] + this[5] * b[1] + this[9] * b[2] + this[13] * b[3];
+        const z = this[2] * b[0] + this[6] * b[1] + this[10] * b[2] + this[14] * b[3];
+        const w = this[3] * b[0] + this[7] * b[1] + this[11] * b[2] + this[15] * b[3];
+        const result = new Vec4(x, y, z, w);
+        return result;
+    }
+    copyTo(target){
+        for (let i = 0; i < this.length; i++) {
+            target[i] = this[i];
+            target._inverse[i] = this._inverse[i];
+        }
+        return target;
     }
 }
 

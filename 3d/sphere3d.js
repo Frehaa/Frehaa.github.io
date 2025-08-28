@@ -57,6 +57,9 @@ class Sphere3D {
             const bottomBandVertexBIndex = bottomVertexIndex - stripeCount + (1 + i) % stripeCount;
             this.addTriangle(bottomBandVertexAIndex, bottomBandVertexBIndex, bottomVertexIndex);
         }
+    
+        this.vertices = this.extraVertices;
+        this.indices = this.extraIndices;
     }
 
     addVertex(x, y, z) {

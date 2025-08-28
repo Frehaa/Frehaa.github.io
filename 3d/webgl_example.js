@@ -79,20 +79,15 @@ function sphere3d_scene() {
     gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mySphere.colors), gl.STATIC_DRAW);
 
-    const indices = [0, 1, 2, 0, 2, 3];
     const indexBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
     // gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(mySphere.extraIndices), gl.STATIC_DRAW);
     // gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(mySphere.indices), gl.STATIC_DRAW);
 
-    const wireframeProgram = createWireframeProgram(gl, vertexShader, positionBuffer, colorBuffer);
-
     const positionLocation = gl.getAttribLocation(glProgram, 'position');
     const colorLocation = gl.getAttribLocation(glProgram, 'color');
     const transformationLocation = gl.getUniformLocation(glProgram, 'transformation');
-
-    console.log(mySphere.indices, mySphere.vertices)
 
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0);
@@ -106,43 +101,87 @@ function sphere3d_scene() {
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
     gl.useProgram(glProgram);
 
-    const camera = new Camera3D(new Vec3(0, 1, 0));
-    camera.setPosition(new Vec3(0, 0, 5));
-    const transformationMatrix = Transform3D.createScale(0.2).translate(-0.5, 0.7, 0);
-
-    const translateMatrix = Transform3D.createTranslate(-0.3, 0.2, 0);
-
-    const rotateXTransform = Transform3D.createRotateX(0.1);
-
-    console.log(transformationMatrix.toFloat32Array());
+    // TODO: Make things disapear after the camera moves too far forward.
+    const camera = new Camera3D();
+    camera.setPosition(new Vec3(0, 0, 0));
+    // camera.turnHorizontal(-Math.PI / 4)
+    const transformationMatrix = Transform3D.createIdentity();
 
 
-    // gl.enable(gl.CULL_FACE);
-    // gl.cullFace(gl.FRONT);
-    gl.lineWidth(10.0);
-    gl.clearColor(0.0, 0.0, 0.0, 1.0); 
-    gl.clearDepth(-2.0); // Clear everything
+    // I guess this is unnecessary when using WebGl because the shader handles this for us. We just need to make sure the object is in the canonical view volume ([-1, 1]^3)
+    // const viewportTransformation = Transform3D.createViewportTransform(canvas.width, canvas.height);
+
+    const leftPlane = -5;
+    const rightPlane = 5;
+    const bottomPlane = -5;
+    const topPlane = 5;
+    const nearPlane = 0;
+    const farPlane = -10;
+
+    document.addEventListener('keyup', e => {
+        switch (e.code) {
+            case "ArrowRight": {
+                camera.turnHorizontal(0.1);
+            } break;
+            case "ArrowLeft": {
+                camera.turnHorizontal(-0.1);
+            } break;
+            case "ArrowUp": {
+                camera.turnVertical(0.1);
+            } break;
+            case "ArrowDown": {
+                camera.turnVertical(-0.1);
+            } break;
+            case "KeyW": {
+                camera.move(new Vec3(0, 0, -1));
+            } break;
+            case "KeyA": {
+                camera.move(new Vec3(-1, 0, 0));
+            } break;
+            case "KeyS": {
+                camera.move(new Vec3(0, 0, 1));
+            } break;
+            case "KeyD": {
+                camera.move(new Vec3(1, 0, 0));
+            } break;
+            default:
+                break;
+        }
+    })
+
+    // return;
+
+    const projectionTransformation = Transform3D.createOrthographicTransform(leftPlane, rightPlane, bottomPlane, topPlane, nearPlane, farPlane);
+    const perspectiveTransformation = Transform3D.createPerspectiveTransform(leftPlane, rightPlane, bottomPlane, topPlane, nearPlane, farPlane);
+
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.FRONT_AND_BACK);
+    gl.lineWidth(1.0);
+    gl.clearColor(0.1, 0.1, 0.1, 1.0); 
+    gl.clearDepth(-0.0); // Clear everything
     gl.enable(gl.DEPTH_TEST); // Enable depth testing
     gl.depthFunc(gl.GEQUAL); // Near things obscure far things
 
     let lastTime = 0;
     function render(time) {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        const rad = Math.PI * time * 0.0001;
-
-        // x += (Math.random() - 0.5) * 0.02;
-        // y += (Math.random() - 0.5) * 0.001;
-        // s += (Math.random() - 0.5) * 0.04;
-
-        // z += Math.random();
-
+        const rad = time * 0.0003;
         const deltaTime = time - lastTime;
-        // console.log(Math.round(deltaTime));
         
         lastTime = time;
 
-        transformationMatrix.reset().rotateY(rad).then(rotateXTransform)
+        // camera.turnHorizontal(0.01);
+        // TODO: Why does the object I am looking at not move when I turn horizontally or vertically? The answer is that I didn't translate before the camera transformation
+        // TODO: Maybe I should try to apply the transformations to the origin point. This example makes it clear (conceptually) that translating should happen before other transformations
+        // TODO: The object moves when I turn the camera, but it moves in an unexpected manner. It does not disapear even if the camera turns its back on the element. 
+        //      There is no back in clip space. There is only inside or not. As long as the transformation leaves the element in clip space then it should be visible.
+        //      Maybe we should try to do a viewport transformation too
+        // I gues the reason stuff didn't disapear is because I was rotating things around origin which means its distance to origin was also the same (sensibly). 
+        // but the view volume I had picked was even a big box around the origin so if something was inside the volume before I made my camera transformation, then it would also be inside after (ignoring corner case with corners and such). 
+
+        transformationMatrix.reset().scale(2).rotateX(0.1).rotateY(rad).translate(0, 0, -10)._then(camera.getTransformation())._then(projectionTransformation);
         gl.uniformMatrix4fv(transformationLocation, false, transformationMatrix.toFloat32Array(), 0, 0);
+
         // gl.uniform1f(colorToggleLocation, 0.0);
 
         {
@@ -163,13 +202,321 @@ function sphere3d_scene() {
     }
 
     render(0);
+}
 
+// What is the appropriate way to handle drawing different elements? 
+// Is changing the program often fine? 
+// Should I reuse the same position buffer for two different objects? 
+// Or is reuse more for the sake of LOD or something like that? 
+
+function createIndexedVertexColorProgram(gl, surface) {
+    const vertexShader = compileShader(gl, gl.VERTEX_SHADER, vertexShaderCode);
+    const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, fragmentShaderCode);
+
+    const glProgram = createProgram(gl, [vertexShader, fragmentShader]);
+
+    const positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(surface.vertices), gl.STATIC_DRAW);
+
+    const colorBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(surface.colors), gl.STATIC_DRAW);
+
+    const indexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(surface.indices), gl.STATIC_DRAW);
+
+    const positionLocation = gl.getAttribLocation(glProgram, 'position');
+    const colorLocation = gl.getAttribLocation(glProgram, 'color');
+    const transformationLocation = gl.getUniformLocation(glProgram, 'transformation');
+    
+    return {
+        glProgram, 
+        buffers: {
+            index: indexBuffer
+        },
+        locations: {
+            position: positionLocation,
+            color: colorLocation,
+            transformation: transformationLocation, 
+        }
+    };
+}
+
+function addCameraMouseControlEventListeners(camera) {
+    let mouseDown = false;
+    const leftMouse = 0;
+    document.addEventListener('mousedown', e => {
+        if (e.button == leftMouse) {
+            mouseDown = true;
+        }
+    });
+    document.addEventListener('mouseup', e => {
+        if (e.button == leftMouse) {
+            mouseDown = false;
+        }
+    });
+    document.addEventListener('mousemove', e => {
+        if (mouseDown) {
+            camera.turnHorizontal(-e.movementX * 0.002);
+            camera.turnVertical(-e.movementY * 0.002);
+        }
+    })
 
 
 }
+function addKeyEventListener(pressedKeysSet) {
+    document.addEventListener('keydown', e => {
+        pressedKeysSet.add(e.code);
+    });
+    document.addEventListener('keyup', e => {
+        pressedKeysSet.delete(e.code);
+    })
+}
+function updateCamera(camera, pressedKeysSet, deltaTime) {
+    if (pressedKeysSet.size === 0) return;
+    
+    let moveDeltaX = 0;
+    let moveDeltaY = 0;
+    let moveDeltaZ = 0;
+    for (const key of pressedKeysSet) {
+        
+        switch (key) {
+            case "KeyW": {
+                moveDeltaZ += 1;
+            } break;
+            case "KeyS": {
+                moveDeltaZ -= 1;
+            } break;
+            case "KeyE": {
+                moveDeltaX += 1;
+            } break;
+            case "KeyQ": {
+                moveDeltaX -= 1;
+            } break;
+            case "Space": {
+                moveDeltaY += 1;
+            } break;
+            case "KeyC": {
+                moveDeltaY -= 1;
+            } break;
+            case "KeyA": {
+                camera.turnHorizontal(-0.001 * deltaTime);
+            } break;
+            case "KeyD": {
+                camera.turnHorizontal(0.001 * deltaTime);
+            } break;
+            case "ArrowUp": {
+                camera.turnVertical(-0.001 * deltaTime);
+            } break;
+            case "ArrowLeft": {
+                camera.turnHorizontal(-0.001 * deltaTime);
+            } break;
+            case "ArrowDown": {
+                camera.turnVertical(0.001 * deltaTime);
+            } break;
+            case "ArrowRight": {
+                camera.turnHorizontal(0.001 * deltaTime);
+            } break;
+        }
+    }
+
+    camera.moveRelative(new Vec3(moveDeltaX, moveDeltaY, moveDeltaZ).scale(deltaTime * 0.01));
+}
+
+function simpleScene() {
+   // We are inside a box wth 4 walls, a floor and a ceiling.
+    // There are 2 spheres, a box, and pyramid inside
+    // There is a point light and ambient light with phong shading.
+    // We have simple camera controls. 
+
+    const canvas = document.getElementById('canvas');
+    const gl = initializeWebGL(canvas);
+
+    // How big is the house? 10x10x10? Sure
+    const box = new Box3D();
+    const bigBoxTransformation = Transform3D.createScale(15, 15, 15).translate(0, 7.5, 0);
+    const smallBoxTransformation = Transform3D.createScale(1, 1, 1.5).translate(2, 0.6, -3.5);
+
+    const sphere = new Sphere3D(38, 20);
+    const bigSphereTransformation = Transform3D.createScale(2, 2, 2).translate(-3.5, 5, 3);
+    const smallSphereTransformation = Transform3D.createScale(0.5, 0.5, 0.5).translate(1, 3, -2.5);
+
+    const boxProgramInfo = createIndexedVertexColorProgram(gl, box);
+
+    // const sphereProgramInfo = createIndexedVertexColorProgram(gl, sphere);
+
+
+    const camera = new Camera3D();
+    camera.setPosition(new Vec3(0, 3, 0));
+    const pressedKeysSet = new Set();
+
+    addCameraMouseControlEventListeners(camera, pressedKeysSet);
+    addKeyEventListener(pressedKeysSet);
+
+    const leftPlane = -2;
+    const rightPlane = 2;
+    const bottomPlane = -1.5;
+    const topPlane = 1.5;
+    const nearPlane = 0;
+    const farPlane = -20;
+
+    const transformBuffer = Transform3D.createIdentity();
+    const projectionTransformation = Transform3D.createOrthographicTransform(leftPlane, rightPlane, bottomPlane, topPlane, nearPlane, farPlane);
+    // I guess to implement the perspective transformation I still need to divide by the w coordinate from the matrix.
+    const perspectiveTransformation = Transform3D.createPerspectiveTransform(leftPlane, rightPlane, bottomPlane, topPlane, nearPlane, farPlane);
+
+    // gl.enable(gl.CULL_FACE);
+    // gl.cullFace(gl.FRONT_AND_BACK);
+    gl.lineWidth(1.0);
+    gl.clearColor(0.1, 0.1, 0.1, 1.0); 
+    gl.clearDepth(-0.0); // Clear everything
+    gl.enable(gl.DEPTH_TEST); // Enable depth testing
+    gl.depthFunc(gl.GEQUAL); // Near things obscure far things
+
+    function drawBox(transformation) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, boxProgramInfo.buffers.position);
+        gl.vertexAttribPointer(boxProgramInfo.buffers.position, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(boxProgramInfo.locations.position);    
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, boxProgramInfo.buffers.color);
+        gl.vertexAttribPointer(boxProgramInfo.locations.color, 4, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(boxProgramInfo.locations.color);    
+
+
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, boxProgramInfo.buffers.index);
+        gl.useProgram(boxProgramInfo.glProgram);
+
+        transformation.copyTo(transformBuffer)._then(camera.getTransformation())._then(projectionTransformation);
+        gl.uniformMatrix4fv(boxProgramInfo.locations.transformation, false, transformBuffer.toFloat32Array(), 0, 0);
+        const vertexCount = box.indices.length
+        const type = gl.UNSIGNED_SHORT;
+        const offset = 0;
+        gl.drawElements(gl.TRIANGLES, vertexCount, type, offset);
+    }
+
+    function drawSphere(transformation) {
+        transformation.copyTo(transformBuffer)._then(camera.getTransformation())._then(projectionTransformation);
+        gl.uniformMatrix4fv(sphereProgramInfo.transformationLocation, false, transformBuffer.toFloat32Array(), 0, 0);
+        const vertexCount = sphere.indices.length
+        const type = gl.UNSIGNED_SHORT;
+        const offset = 0;
+        gl.drawElements(gl.TRIANGLES, vertexCount, type, offset);
+    }
+
+    let lastTime = 0;
+    function render(time) {
+        const deltaTime = time - lastTime;
+        lastTime = time;
+        updateCamera(camera, pressedKeysSet, deltaTime);
+
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        drawBox(bigBoxTransformation);
+        drawBox(smallBoxTransformation);
+
+        // gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sphereIndexBuffer);
+        // gl.useProgram(glSphereProgram);
+
+        // drawSphere(bigSphereTransformation);
+        // drawSphere(smallSphereTransformation);
+
+        requestAnimationFrame(render);
+    }
+
+    render(0);
+
+}
+
+function dot3d_scene() {
+    const canvas = document.getElementById('canvas');
+    const gl = initializeWebGL(canvas);
+
+    const vertexShader = compileShader(gl, gl.VERTEX_SHADER, vertexShaderCode);
+    const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, fragmentShaderCode);
+
+    const glProgram = createProgram(gl, [vertexShader, fragmentShader]);
+
+
+    const points = [
+        0, 0, 0, 
+        0.9, 0, 0.1, 
+        0, 0.9, 0.2, 
+        -0.4, -0.3, 0.3, 
+        0.8, -0.1, 0.4 
+    ];
+
+    const colors = [
+        1, 0, 0, 1, 
+        0, 1, 0, 1, 
+        0, 0, 1, 1, 
+        1, 1, 1, 1,
+        1, 1, 0, 1
+    ]
+
+    const positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(points), gl.STATIC_DRAW);
+    // gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mySphere.vertices), gl.STATIC_DRAW);
+
+    const colorBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
+
+    // const indexBuffer = gl.createBuffer();
+    // gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+    // gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+    // gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(mySphere.extraIndices), gl.STATIC_DRAW);
+    // gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(mySphere.indices), gl.STATIC_DRAW);
+
+    const positionLocation = gl.getAttribLocation(glProgram, 'position');
+    const colorLocation = gl.getAttribLocation(glProgram, 'color');
+    const transformationLocation = gl.getUniformLocation(glProgram, 'transformation');
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(positionLocation);    
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+    gl.vertexAttribPointer(colorLocation, 4, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(colorLocation);    
+
+    gl.useProgram(glProgram);
+
+    const transformationMatrix = Transform3D.createIdentity();
+
+    gl.lineWidth(1.0);
+    gl.clearColor(0, 0, 0, 1); 
+    gl.clearDepth(-0.0); // Clear everything
+    gl.enable(gl.DEPTH_TEST); // Enable depth testing
+    gl.depthFunc(gl.GEQUAL); // Near things obscure far things
+
+    document.gl = gl;
+
+
+    console.log(
+     gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE)
+    );
+
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.uniformMatrix4fv(transformationLocation, false, transformationMatrix.toFloat32Array(), 0, 0);
+
+    // TODO: Make a thick line with triangles. A thick line is really just a rectangle and a rectangle is just 2 triangles.  
+    // TODO: Alternatively, we can make a cylinder 
+
+    // gl.drawArrays(gl.LINE_STRIP, 0, 5);
+    {
+        const offset = 0;
+        const vertexCount = 5;
+        gl.drawArrays(gl.POINTS, offset, vertexCount - offset);
+    }
+}
 
 function webgl_main() {
-    return sphere3d_scene();
+    return simpleScene();
+    // return dot3d_scene();
+    // return sphere3d_scene();
     return mozila_tutorial_main();
     const canvas = document.getElementById('canvas');
     const gl = initializeWebGL(canvas);
@@ -320,6 +667,7 @@ varying vec4 vcolor;
 
 void main() {
     gl_Position = transformation * vec4(position, 1);
+    gl_PointSize = 5.0;
     vcolor = color;
 }
 `;

@@ -1,11 +1,10 @@
 // Literature uses v for up, w for negative direction, and u for right
 class Camera3D {
     // Creates a new camera with position at origin and direction in the -z direction
-    constructor(worldUp) {
-        this.position = new Vec4(0, 0, 0, 1);
-        this.direction = new Vec4(0, 0, -1, 0);
-        this.worldUp = worldUp;
-        this.right = new Vec4(1, 0, 0, 0);
+    constructor() {
+        this.position = new Vec3(0, 0, 0);
+        // this.direction = new Vec4(0, 0, -1, 0);
+        // this.right = new Vec4(1, 0, 0, 0);
 
         this.yawRadians = 0;
         this.rollRadians = 0;
@@ -14,18 +13,21 @@ class Camera3D {
         this.transformation = null;
     }
 
+    // Turn horizontally in clockwise direction.
     turnHorizontal(radians) {
         this.yawRadians += radians;
         this.transformation = null;
     }
 
+    // Turn vertically in clockwise direction.
     turnVertical(radians) {
-        this.pitchRadians += radians;
+        this.pitchRadians -= radians;
         this.transformation = null;
     }
 
+    // Lean in clockwise direction (right). Leans left with negative values.
     lean(radians) {
-        this.rollRadians += radians;
+        this.rollRadians = clamp(this.rollRadians + radians, -Math.PI / 2, Math.PI / 2);
         this.transformation = null;
     }
 
@@ -34,38 +36,36 @@ class Camera3D {
         this.transformation = null;
     }
 
+    moveRelative(delta) {
+        const dirX = Math.sin(this.yawRadians);
+        const dirZ = -Math.cos(this.yawRadians);
+        const direction = new Vec3(dirX, 0, dirZ).normalize();
+
+        const right = new Vec3(-dirZ, 0, dirX);
+
+        this.position = this.position.add(direction.scale(delta.z)).add(right.scale(delta.x)).add(new Vec3(0, delta.y, 0))
+        this.transformation = null;
+    }
+
     setPosition(newPosition) {
         this.position = newPosition;
         this.transformation = null;
     }
 
-    // TODO?: Have a class for handling transformations (e.g. a wrapper for a matrix)? 
     getTransformation() {
-        // We only recompute if we need to
+        // Only recompute if needed
         if (this.transformation !== null) { return this.transformation; } 
 
-        const cameraPosition = new Vec3(this.position.x, this.position.y, this.position.z);
-        const cameraDirection = new Vec3(this.direction.x, this.direction.y, this.direction.z);
-        const cameraUp = new Vec3(this.worldUp.x, this.worldUp.y, this.worldUp.z);
+        const dirX = Math.sin(this.yawRadians);
+        const dirY = Math.sin(this.pitchRadians);
+        const dirZ = -Math.cos(this.yawRadians);
+        const direction = new Vec3(dirX, dirY, dirZ);
 
-        this.transformation = Transform3D.createCameraTransform(cameraPosition, cameraDirection, cameraUp);
-        return this.transformation;
+        const upX = Math.sin(this.rollRadians);
+        const upY = Math.cos(this.rollRadians);
+        const cameraUp = new Vec3(upX, upY, 0);
 
-        const cameraBasisW = cameraDirection.scale(-1).normalize();
-        const cameraBasisU = cameraUp.cross(cameraBasisW).normalize();
-        const cameraBasisV = cameraBasisW.cross(cameraBasisU).normalize();
-        this.transformation = Matrix.fromArray([
-            [cameraBasisU.x, cameraBasisU.y, cameraBasisU.z, 0],
-            [cameraBasisV.x, cameraBasisV.y, cameraBasisV.z, 0], 
-            [cameraBasisW.x, cameraBasisW.y, cameraBasisW.z, 0],
-            [0,                           0,              0, 1]
-        ]).mult(Matrix.fromArray([
-            [1, 0, 0, -cameraPosition.x],
-            [0, 1, 0, -cameraPosition.y],
-            [0, 0, 1, -cameraPosition.z],
-            [0, 0, 0,                 1],
-        ])); 
-
+        this.transformation = Transform3D.createCameraTransform(this.position, direction, cameraUp);
         return this.transformation;
     }
 

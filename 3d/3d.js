@@ -486,14 +486,6 @@ function raytracerTest() {
 }
 
 function initialize() {
-    const t1 = scaleMatrix(2, 2, 2); 
-    const t2 = translateMatrix(-1, 2, -3);
-
-    const t3 = t1.mult(t2);
-
-    console.log(t1, t2, t3);
-    
-
     return webgl_main()
     return wireframeMain();
 
