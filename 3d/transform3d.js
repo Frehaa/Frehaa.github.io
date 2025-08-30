@@ -519,58 +519,85 @@ class Transform3D {
         // this._inverse[15] = 1;
         return result;
     }
+    static createOrthographicTransformFromFieldOfView(widthInPixels, heightInPixels, fieldOfViewTheta, depth) {
+        // TODO
+        throw new Error("Not Implemented.");
+    } 
     static createOrthographicTransform(leftPlane, rightPlane, bottomPlane, topPlane, nearPlane, farPlane) {
+        const [l,r,t,b,n,f] = [leftPlane, rightPlane, topPlane, bottomPlane, nearPlane, farPlane];
         const result = new Transform3D();
-        result[0] = 2 / (rightPlane - leftPlane);
+        result[0] = 2 / (r - l);
         result[1] = 0;
         result[2] = 0;
         result[3] = 0;
+
         result[4] = 0;
-        result[5] = 2 / (topPlane - bottomPlane);
+        result[5] = 2 / (t - b);
         result[6] = 0;
         result[7] = 0;
+
         result[8] = 0;
         result[9] = 0;
-        result[10] = 2 / (nearPlane - farPlane);
+        result[10] = 2 / (n - f);
         result[11] = 0;
-        result[12] = -(rightPlane + leftPlane) / (rightPlane - leftPlane);
-        result[13] = -(topPlane + bottomPlane) / (topPlane - bottomPlane);
-        result[14] = -(nearPlane + farPlane) / (nearPlane - farPlane);
+
+        result[12] = -(r + l) / (r - l);
+        result[13] = -(t + b) / (t - b);
+        result[14] = -(n + f) / (n - f);
         result[15] = 1;
  
         return result;
     }
-    static createPerspectiveTransform(leftPlane, rightPlane, topPlane, bottomPlane, nearPlane, farPlane) {
-    //        const perspectiveProjectionTransform = Matrix.fromArray([
-    //     [ (2*nearPlane) / (rightPlane - leftPlane),                                         0,  (leftPlane + rightPlane)/ (rightPlane - leftPlane),                                                   0],
-    //     [                                        0,  (2*nearPlane) / (topPlane - bottomPlane), (bottomPlane + topPlane) / (topPlane - bottomPlane),                                                   0],
-    //     [                                        0,                                         0,     -(farPlane + nearPlane) / (farPlane - nearPlane), -(2 * farPlane * nearPlane) / (farPlane - nearPlane)],
-    //     [                                        0,                                         0,                                                   -1,                                                   0],
-    // ]);
-
+    static createPerspectiveTransformOpenGL(leftPlane, rightPlane, bottomPlane, topPlane, nearPlane, farPlane) {
+        const [l,r,t,b,n,f] = [leftPlane, rightPlane, topPlane, bottomPlane, Math.abs(nearPlane), Math.abs(farPlane)];
         const result = new Transform3D();
-        result[0] = (2*nearPlane) / (rightPlane - leftPlane);
+        result[0] = (2*n) / (r - l);
         result[1] = 0;
         result[2] = 0;
         result[3] = 0;
+
         result[4] = 0;
-        result[5] = (2*nearPlane) / (topPlane - bottomPlane);
+        result[5] = (2*n) / (t - b);
         result[6] = 0;
         result[7] = 0;
-        result[8] = (leftPlane + rightPlane)/ (leftPlane - rightPlane);
-        // result[8] = (leftPlane + rightPlane)/ (rightPlane - leftPlane);
-        result[9] = (bottomPlane + topPlane) / (bottomPlane - topPlane);
-        // result[9] = (bottomPlane + topPlane) / (topPlane - bottomPlane);
-        result[10] = -(farPlane + nearPlane) / (nearPlane - farPlane);
-        // result[10] = -(farPlane + nearPlane) / (farPlane - nearPlane);
+
+        result[8] = (r + l)/ (r - l);
+        result[9] = (t + b) / (t - b);
+        result[10] = (n + f) / (n - f);
         result[11] = -1;
+
         result[12] = 0;
         result[13] = 0;
-        result[14] = -(2 * farPlane * nearPlane) / (farPlane - nearPlane);
-        result[15] = 1;
+        result[14] = -(2 * f * n) / (n - f);
+        result[15] = 0;
  
         return result;
-     
+    }
+    static createPerspectiveTransform(leftPlane, rightPlane, bottomPlane, topPlane, nearPlane, farPlane) {
+        const [l,r,t,b,n,f] = [leftPlane, rightPlane, topPlane, bottomPlane, nearPlane, farPlane];
+
+        const result = new Transform3D();
+        result[0] = (2*n) / (r - l);
+        result[1] = 0;
+        result[2] = 0;
+        result[3] = 0;
+
+        result[4] = 0;
+        result[5] = (2*n) / (t - b);
+        result[6] = 0;
+        result[7] = 0;
+
+        result[8] = (l + r)/ (l - r);
+        result[9] = (b + t) / (b - t);
+        result[10] = (f + n) / (n - f);
+        result[11] = 1;
+
+        result[12] = 0;
+        result[13] = 0;
+        result[14] = (2 * f * n) / (f - n);
+        result[15] = 0;
+ 
+        return result;
     }
     _swap(a, b) {
         let tmp = this[a];
@@ -625,12 +652,13 @@ class Transform3D {
         return result;
     }
     copyTo(target){
-        for (let i = 0; i < this.length; i++) {
+        for (let i = 0; i < 16; i++) {
             target[i] = this[i];
             target._inverse[i] = this._inverse[i];
         }
         return target;
     }
+
 }
 
 function test_transform3d() {
