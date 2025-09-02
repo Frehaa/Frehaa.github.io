@@ -288,7 +288,7 @@ class Transform3D {
         result._inverse._inverse = result;
         return result;
     }
-// function rotateZMatrix(rad) {
+// function rotateZMatrix(rad) 
 //     let c = Math.cos(rad);
 //     let s = Math.sin(rad);
 //     return Matrix.fromArray([
@@ -453,8 +453,13 @@ class Transform3D {
         //     [0, 0, 0,           1],
         // ])); 
 
+        // Position = (0, 0, 0);
+        // Direction = (0, 0, -1)
+        // Up = (0, 1, 0)
+
         // console.log(cameraBasisW, cameraBasisU, cameraBasisV);
         
+
 
 
         const cameraTransform = new Transform3D();
@@ -524,9 +529,15 @@ class Transform3D {
         throw new Error("Not Implemented.");
     } 
     static createOrthographicTransform(leftPlane, rightPlane, bottomPlane, topPlane, nearPlane, farPlane) {
+        // 2 / (5 --5) = 2 / 10 = 0.2 // So intuitively we make the thing smaller
+
+        // 2 / (20 - 10) = 2 / 10 = 0.2
+        // -(20 + 10) / (20 - 10) = -30 / 10 = -3 
+        // -3 * 5 = -15  // So intuitvely we move things into their positions.
+
         const [l,r,t,b,n,f] = [leftPlane, rightPlane, topPlane, bottomPlane, nearPlane, farPlane];
         const result = new Transform3D();
-        result[0] = 2 / (r - l);
+        result[0] = 2 / (r - l); // Scale accordingly to the size of the viewbox
         result[1] = 0;
         result[2] = 0;
         result[3] = 0;
@@ -541,7 +552,7 @@ class Transform3D {
         result[10] = 2 / (n - f);
         result[11] = 0;
 
-        result[12] = -(r + l) / (r - l);
+        result[12] = -(r + l) / (r - l); // This moves something between l and r into the correct position, with the scaling accounted for. 
         result[13] = -(t + b) / (t - b);
         result[14] = -(n + f) / (n - f);
         result[15] = 1;
@@ -568,7 +579,7 @@ class Transform3D {
 
         result[12] = 0;
         result[13] = 0;
-        result[14] = -(2 * f * n) / (n - f);
+        result[14] = -(2 * f * n) / (f - n);
         result[15] = 0;
  
         return result;

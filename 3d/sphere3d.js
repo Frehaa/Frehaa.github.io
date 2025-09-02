@@ -108,25 +108,77 @@ class Sphere3D {
         this.extraIndices.push(this.triangleCount);
         this.triangleCount++;
 
-        // For now, each triangle gets a random color
-        const red = Math.random();
-        const green = Math.random();
-        const blue = Math.random();
+        if (this.vertices[vertexAIdx+2] > 0.0) {
+            this.colors.push(1);
+            this.colors.push(0);
+            this.colors.push(0);
+            this.colors.push(1.0);
+        } else {
+            this.colors.push(0);
+            this.colors.push(0);
+            this.colors.push(1);
+            this.colors.push(1.0);
+        }
+        if (this.vertices[vertexBIdx+2] > 0.0) {
+            this.colors.push(1);
+            this.colors.push(0);
+            this.colors.push(0);
+            this.colors.push(1.0);
+        } else {
+            this.colors.push(0);
+            this.colors.push(0);
+            this.colors.push(1);
+            this.colors.push(1.0);
+        }        
+        if (this.vertices[vertexCIdx+2] > 0.0) {
+            this.colors.push(1);
+            this.colors.push(0);
+            this.colors.push(0);
+            this.colors.push(1.0);
+        } else {
+            this.colors.push(0);
+            this.colors.push(0);
+            this.colors.push(1);
+            this.colors.push(1.0);
+        }
 
-        this.colors.push(red);
-        this.colors.push(green);
-        this.colors.push(blue);
-        this.colors.push(1.0);
+        // if (this.vertices[vertexAIdx+2] <= 0.0) {
+        //     this.colors.push(1);
+        //     this.colors.push(0);
+        //     this.colors.push(0);
+        //     this.colors.push(1.0);
 
-        this.colors.push(red);
-        this.colors.push(green);
-        this.colors.push(blue);
-        this.colors.push(1.0);
+        //     this.colors.push(1);
+        //     this.colors.push(0);
+        //     this.colors.push(0);
+        //     this.colors.push(1.0);
 
-        this.colors.push(red);
-        this.colors.push(green);
-        this.colors.push(blue);
-        this.colors.push(1.0);
+        //     this.colors.push(1);
+        //     this.colors.push(0);
+        //     this.colors.push(0);
+        //     this.colors.push(1.0);
+        // } else {
+        //     // For now, each triangle gets a random color
+        //     const red = Math.random();
+        //     const green = Math.random();
+        //     const blue = Math.random();
+
+        //     this.colors.push(0);
+        //     this.colors.push(0);
+        //     this.colors.push(1);
+        //     this.colors.push(1.0);
+
+        //     this.colors.push(0);
+        //     this.colors.push(0);
+        //     this.colors.push(1);
+        //     this.colors.push(1.0);
+
+        //     this.colors.push(0);
+        //     this.colors.push(0);
+        //     this.colors.push(1);
+        //     this.colors.push(1.0);
+
+        // }
     }
 
     // This is the problem when trying to color the tryingles differently but
