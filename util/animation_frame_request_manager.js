@@ -15,7 +15,7 @@ class AnimationFrameRequestManager {
             self.dt = time - self.lastTimeMs;
             self.elapsedTimeMs += self.dt;
 
-            self.updateCallback(self.dt);
+            self.updateCallback(self.dt, time);
 
             self.lastTimeMs = time;
             requestAnimationFrame(self.handleAnimationFrame);
