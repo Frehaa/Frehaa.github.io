@@ -622,6 +622,7 @@ class Transform3D {
         this._swap(6, 9);
         this._swap(7, 13);
         this._swap(11, 14);
+        return this;
     }
     transpose() {
         this._transpose();
