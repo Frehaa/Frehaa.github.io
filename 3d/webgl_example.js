@@ -487,7 +487,12 @@ function testMultiple() {
     const canvas = document.getElementById('canvas');
     const gl = initializeWebGL(canvas);
 
-    // How big is the house? 10x10x10? Sure
+    gl.lineWidth(1.0);
+    gl.clearColor(0, 0, 0, 1); 
+    gl.clearDepth(-0.0); // Clear everything
+    gl.enable(gl.DEPTH_TEST); // Enable depth testing
+    gl.depthFunc(gl.GEQUAL); // Near things obscure far things
+
     const box = new Box3D();
     const bigBoxTransformation = Transform3D.createScale(5, 5, 5).rotateX(3.4).rotateY(-0.2).rotateZ(2.5).translate(-3, -3, 0);
     const smallBoxTransformation = Transform3D.createScale(1, 1, 1.5).rotateX(0.1).rotateY(0.2).rotateZ(0.3).translate(2, 0.6, -3.5);
@@ -559,21 +564,11 @@ function testMultiple() {
     gl.vertexAttribPointer(colorLocation, 4, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(colorLocation);    
 
-
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sphereIndexBuffer);
-    gl.useProgram(glProgram);
-
-    // const transformationMatrix = Transform3D.createIdentity()//._then(camera.getTransformation())._then(projectionTransformation);
-
-
-    gl.lineWidth(1.0);
-    gl.clearColor(0, 0, 0, 1); 
-    gl.clearDepth(-0.0); // Clear everything
-    gl.enable(gl.DEPTH_TEST); // Enable depth testing
-    gl.depthFunc(gl.GEQUAL); // Near things obscure far things
 
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+    gl.useProgram(glProgram);
     {    
     smallSphereTransformation.copyTo(transformBuffer)._then(camera.getTransformation())._then(projectionTransformation);
     gl.uniformMatrix4fv(transformationLocation, false, transformBuffer.toFloat32Array(), 0, 0);
@@ -582,8 +577,6 @@ function testMultiple() {
     const offset = 0;
     gl.drawElements(gl.TRIANGLES, vertexCount, type, offset);
     }
-
-
     {
     bigSphereTransformation.copyTo(transformBuffer)._then(camera.getTransformation())._then(projectionTransformation);
     gl.uniformMatrix4fv(transformationLocation, false, transformBuffer.toFloat32Array(), 0, 0);
@@ -597,22 +590,9 @@ function testMultiple() {
     gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(positionLocation);    
 
-    // gl.bindBuffer(gl.ARRAY_BUFFER, boxColorBuffer);
-    // gl.vertexAttribPointer(colorLocation, 4, gl.FLOAT, false, 0, 0);
-    // gl.enableVertexAttribArray(colorLocation);    
-
-
-    console.log("test")
-    console.log(positionLocation, positionLocationWhite);
-    console.log(colorLocation, colorLocationWhite);
-    
-
     // So after I am done drawing my spheres. I need to bind the other buffers and enable them 
 
-
     // So the program is just for locations and the shaders. The buffers are somewhat decoubled
-
-
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, boxIndexBuffer);
 
     gl.useProgram(glProgramWhite);
@@ -1115,7 +1095,7 @@ function testLighting() {
     animationFrameRequestManager.start();
 }
 
-function DrawableBoxWrapper(gl, box, viewFromInside = false) {
+function DrawableBoxWrapper(gl, box, viewFromOutside = true) {
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(box.vertices), gl.STATIC_DRAW);
@@ -1124,13 +1104,7 @@ function DrawableBoxWrapper(gl, box, viewFromInside = false) {
     gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(box.colors), gl.STATIC_DRAW);
 
-
-    let normals = box.normals;
-    if (viewFromInside) { 
-        // This is to flip the normals if we are looking form outside the object. Right now the normals are pointing inwards, so they need to be flipped to point outwards if we want correct lighting looking from outside. This is just flipping the sign since the box is axis aligned.
-        normals = normals.map(x => -x);
-        console.log(normals, box.vertices)
-    }
+    const normals = viewFromOutside? box.normals : box.normals.map(x => -x);
     const normalBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW)
@@ -1159,6 +1133,8 @@ function DrawableBoxWrapper(gl, box, viewFromInside = false) {
             boxTransformation._then(cameraTransformation);
             gl.uniformMatrix4fv(locations.transformation, false, boxTransformation.toFloat32Array());
 
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+
             gl.drawElements(gl.TRIANGLES, box.indices.length, gl.UNSIGNED_SHORT, 0);
         }
     }
@@ -1167,65 +1143,23 @@ function DrawableBoxWrapper(gl, box, viewFromInside = false) {
 
 function testLighting2() {
     const canvas = document.getElementById('canvas');
-    const gl = initializeWebGL(canvas);
+    const lightPosition = [0, 0, 1];
+    const boxTransformInfo = {
+        xRotation: 0,
+        yRotation: 0,
+        zRotation: 0,
+        dx: 0,
+        dy: 0,
+        dz: 0,
+    };
 
-    const vertexShader = compileShader(gl, gl.VERTEX_SHADER, positionColorNormalTransformationVertexShaderSource);
-    const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, colorNormalLightPositionUniformFragmentShaderSource);
-
-    const glProgram = createProgram(gl, [vertexShader, fragmentShader]);
-
-    const sphere = new Sphere3D(36, 18);
-    const lightSphereTransformation = Transform3D.createIdentity();
-
+    const sphere = new Sphere3D(18, 9);
+    const sphereTransformation = Transform3D.createIdentity() ;
     const box = new Box3D();
-    const boxTransformation = Transform3D.createIdentity();
-
+    const boxTransformation = Transform3D.createIdentity() ;
     const camera = new Camera3D();
-    camera.setPosition(new Vec3(0, 0, 0));
-
-    const positionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(box.vertices), gl.STATIC_DRAW);
-
-    const colorBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(box.colors), gl.STATIC_DRAW);
-
-    box.normals = box.normals.map(v => -v);
-    const normalBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(box.normals), gl.STATIC_DRAW)
-
-    const indexBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(box.indices), gl.STATIC_DRAW);
-
-    const locations = {
-        position: gl.getAttribLocation(glProgram, 'position'),
-        color: gl.getAttribLocation(glProgram, 'color'),
-        normal: gl.getAttribLocation(glProgram, 'normal'),
-        lightPosition: gl.getUniformLocation(glProgram, 'uLightPosition'),
-        normalMatrix: gl.getUniformLocation(glProgram, 'uNormalMatrix'),
-        transformation: gl.getUniformLocation(glProgram, 'transformation'),
-
-    }
-
-    const positionLocation = locations.position;
-    const colorLocation = locations.color;
-    const normalLocation = locations.normal;
-    const lightPositionLocation = locations.lightPosition;
-    const normalMatrixLocation = locations.normalMatrix;
-
-    const transformationLocation = locations.transformation;
-
-    gl.useProgram(glProgram);
-
-    gl.clearColor(0.1, 0.1, 0.1, 1);
-    gl.enable(gl.DEPTH_TEST);
-    gl.depthFunc(gl.LEQUAL); // Near things obscure far things
-
-
-
+    
+    // Controls
     const pressedKeys = new Set();
     document.addEventListener('keyup', e => {
         pressedKeys.delete(e.code);
@@ -1233,10 +1167,13 @@ function testLighting2() {
     document.addEventListener('keydown', e => {
         console.log("Keydown", e.code);
         pressedKeys.add(e.code);
+        if (e.code === "KeyP") {
+            animationFrameRequestManager.togglePause();
+        }
     });
 
-    const lightPosition = [0, 0, 1];
     function updatePosition(deltaTime) {
+        const alternative = pressedKeys.has("ShiftLeft")? -1 : 1;
         for (const key of pressedKeys) {
             switch (key) {
                 case "ArrowRight": {
@@ -1270,13 +1207,13 @@ function testLighting2() {
                     camera.move(new Vec3(0, 0.001 * deltaTime, 0));
                 } break;
                 case "Digit1": {
-                    boxTransformInfo.xRotation += 0.001 * deltaTime;
+                    boxTransformInfo.xRotation += alternative * 0.001 * deltaTime;
                 } break;
                 case "Digit2": {
-                    boxTransformInfo.yRotation += 0.001 * deltaTime;
+                    boxTransformInfo.yRotation += alternative * 0.001 * deltaTime;
                 } break;
                 case "Digit3": {
-                    boxTransformInfo.zRotation += 0.001 * deltaTime;
+                    boxTransformInfo.zRotation += alternative * 0.001 * deltaTime;
                 } break;
 
                 case "KeyJ": {
@@ -1293,8 +1230,8 @@ function testLighting2() {
                 } break;
                 case "KeyH": {
                     console.log(camera, lightPosition, leftMouseDown)
+                    console.log(sphereTransformation);
                 } break;
-
             }            
         }
     }
@@ -1317,34 +1254,74 @@ function testLighting2() {
         }
     })
 
-    const transformBuffer = Transform3D.createIdentity();
 
-    const boxTransformInfo = {
-        xRotation: 0,
-        yRotation: 0,
-        zRotation: 0,
-        dx: 0,
-        dy: 0,
-        dz: 0,
-    };
+    // Drawing stuff
+    const gl = initializeWebGL(canvas);
 
-    const drawableBox = DrawableBoxWrapper(gl, box, true);
+    const vertexShader = compileShader(gl, gl.VERTEX_SHADER, positionColorNormalTransformationVertexShaderSource);
+    const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, colorNormalLightPositionUniformFragmentShaderSource);
+    const glProgram = createProgram(gl, [vertexShader, fragmentShader]);
+
+    const lightVertexShader = compileShader(gl, gl.VERTEX_SHADER, transformationVertexShaderSource)
+    const lightFragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, allWhiteFragmentShaderSource);
+    const lightProgram = createProgram(gl, [lightVertexShader, lightFragmentShader]);
 
 
+    const spherePositionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, spherePositionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(sphere.vertices), gl.STATIC_DRAW);
+
+    const sphereIndexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sphereIndexBuffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(sphere.indices), gl.STATIC_DRAW);
+    
+
+    const locations = {
+        position: gl.getAttribLocation(glProgram, 'position'),
+        color: gl.getAttribLocation(glProgram, 'color'),
+        normal: gl.getAttribLocation(glProgram, 'normal'),
+        lightPosition: gl.getUniformLocation(glProgram, 'uLightPosition'),
+        normalMatrix: gl.getUniformLocation(glProgram, 'uNormalMatrix'),
+        transformation: gl.getUniformLocation(glProgram, 'transformation'),
+        lightTransformation: gl.getUniformLocation(lightProgram, 'uTransformation'),
+        lightVertexPosition: gl.getAttribLocation(lightProgram, 'position'),
+    }
+
+    gl.clearColor(0.1, 0.1, 0.1, 1);
+    gl.enable(gl.DEPTH_TEST);
+    gl.clearDepth(-1);
+    gl.depthFunc(gl.GEQUAL); // Near things obscure far things
+
+    const drawableBox = DrawableBoxWrapper(gl, box);
     const animationFrameRequestManager = new AnimationFrameRequestManager((dt, time) => {
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         updatePosition(dt);
-        boxTransformation.reset().rotateX(boxTransformInfo.xRotation).rotateY(boxTransformInfo.yRotation).rotateZ(boxTransformInfo.zRotation).translate(boxTransformInfo.dx, boxTransformInfo.dy, boxTransformInfo.dz);
-        // boxTransformation.copyTo(transformBuffer)._then(camera.getTransformation());
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        gl.uniform3fv(lightPositionLocation, new Float32Array(lightPosition));
+        gl.useProgram(glProgram);
+        boxTransformation.reset().scale(0.5, 0.7, 1.2).rotateX(boxTransformInfo.xRotation).rotateY(boxTransformInfo.yRotation).rotateZ(boxTransformInfo.zRotation).translate(boxTransformInfo.dx, boxTransformInfo.dy, boxTransformInfo.dz);
+        // boxTransformation.reset().rotateX(boxTransformInfo.xRotation).rotateY(boxTransformInfo.yRotation).rotateZ(boxTransformInfo.zRotation).translate(boxTransformInfo.dx, boxTransformInfo.dy, boxTransformInfo.dz);
+        
+        gl.uniform3fv(locations.lightPosition, new Float32Array(lightPosition));
 
         drawableBox.draw(locations, boxTransformation, camera.getTransformation());
-        // gl.uniformMatrix4fv(transformationLocation, false, transformBuffer.toFloat32Array());
-        // gl.uniformMatrix4fv(normalMatrixLocation, false, boxTransformation.getInverse().toFloat32Array());
-        // gl.drawElements(gl.TRIANGLES, box.indices.length, gl.UNSIGNED_SHORT, 0);
+
+        // lightPosition.z ranges from 1 to -1. We want it to be 0.05 or something when 1 and 0.001 when -1. What is the computation
 
 
+        const lightSize = ((lightPosition[2] + 1) / 2) * 0.05 + 0.001;
+        sphereTransformation.reset().scale(lightSize).translate(...lightPosition);
+        gl.useProgram(lightProgram);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, spherePositionBuffer);
+        gl.vertexAttribPointer(locations.lightVertexPosition, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(locations.lightVertexPosition);
+
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sphereIndexBuffer);
+
+        gl.uniformMatrix4fv(locations.lightTransformation, false, sphereTransformation.toFloat32Array());
+
+        // gl.drawArrays(gl.TRIANGLES, 0, 2160)
+        gl.drawElements(gl.TRIANGLES, sphere.indices.length, gl.UNSIGNED_SHORT, 0);
 
     });
     animationFrameRequestManager.start();
@@ -1355,9 +1332,9 @@ attribute vec3 position;
 attribute vec3 normal;
 attribute vec4 color;
 
-varying lowp vec4 vColor;
-varying lowp vec3 vNormal;
-varying lowp vec3 vPosition;
+varying highp vec4 vColor;
+varying highp vec3 vNormal;
+varying highp vec3 vPosition;
 
 uniform mat4 transformation;
 
@@ -1365,7 +1342,7 @@ void main() {
     gl_Position =  transformation * vec4(position, 1);
     vColor = color;
     vNormal = normal;
-    vPosition = position;
+    vPosition = gl_Position.xyz;
 }
 `;
 
@@ -1400,7 +1377,6 @@ void main() {
 
     highp vec3 directionalLightColor = vec3(1, 1, 1);
     highp vec3 directionalVector = normalize(uLightPosition - vPosition);
-
     highp vec4 transformedNormal = uNormalMatrix * vec4(vNormal, 0.0);
 
     highp float directional = max(dot(transformedNormal.xyz, directionalVector), 0.0);
@@ -1410,10 +1386,10 @@ void main() {
 }`;
 
 function webgl_main() {
-    // return testLighting2()
+    return testLighting2()
     return testLighting()
     return drawDiablo()
-    // return testMultiple();
+    return testMultiple();
     return simpleScene();
     // return testCullingSphere();
     // return testCulling();
@@ -1975,13 +1951,12 @@ function moz_setNormalAttribute(gl, buffers, programInfo) {
 }
 
 const transformationVertexShaderSource = `
-    attribute vec4 aVertexPosition;
+    attribute vec3 position;
 
-    uniform mat4 uModelViewMatrix;
-    uniform mat4 uProjectionMatrix;
+    uniform mat4 uTransformation;
 
     void main() {
-      gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+      gl_Position = uTransformation * vec4(position, 1.0);
     }
   `;
 

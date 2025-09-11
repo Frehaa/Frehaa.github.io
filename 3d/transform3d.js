@@ -185,11 +185,28 @@ class Transform3D {
         this[14] = this[13] * sin + this[14] * cos;
         this[13] = tmp;
     }
+    _rotateXInv(cos, sin) {
+        let tmp = this[4];
+        this[4] = tmp * cos + this[8] * -sin;
+        this[8] = tmp * sin + this[8] * cos;
+
+        tmp = this[5];
+        this[5] = tmp * cos + this[9] * -sin;
+        this[9] = tmp * sin + this[9] * cos;
+
+        tmp = this[6];
+        this[6] = tmp * cos + this[10] * -sin;
+        this[10] = tmp * sin + this[10] * cos;
+
+        tmp = this[7];
+        this[7] = tmp * cos + this[11] * -sin;
+        this[11] = tmp * sin + this[11] * cos;
+    }
     rotateX(radians) {
-        let c = Math.cos(radians);
-        let s = Math.sin(radians);
+        const c = Math.cos(radians);
+        const s = Math.sin(radians);
         this._rotateX(c, s);
-        this._inverse._rotateX(c, -s);
+        this._inverse._rotateXInv(c, s);
         return this;
     }
     static _createRotateY(cos, sin) {
@@ -249,12 +266,29 @@ class Transform3D {
         tmp = this[12] * cos + this[14] * sin;
         this[14] = this[14] * cos - this[12] * sin;
         this[12] = tmp;
+    }    
+    _rotateYInv(cos, sin) {
+        let tmp = this[0];
+        this[0] = tmp * cos + this[8] * sin;
+        this[8] = tmp * -sin + this[8] * cos;
+
+        tmp = this[1];
+        this[1] = tmp * cos + this[9] * sin;
+        this[9] = tmp * -sin + this[9] * cos;
+
+        tmp = this[2];
+        this[2] = tmp * cos + this[10] * sin;
+        this[10] = tmp * -sin + this[10] * cos;
+
+        tmp = this[3];
+        this[3] = tmp * cos + this[11] * sin;
+        this[11] = tmp * -sin + this[11] * cos;
     }
     rotateY(radians) {
         let c = Math.cos(radians);
         let s = Math.sin(radians);
         this._rotateY(c, s);
-        this._inverse._rotateY(c, -s);
+        this._inverse._rotateYInv(c, s);
         return this;
     }
     static _createRotateZ(cos, sin) {
@@ -314,11 +348,28 @@ class Transform3D {
         this[13] = this[12] * sin + this[13] * cos;
         this[12] = tmp;
     }
+    _rotateZInv(cos, sin) {
+        let tmp = this[0];
+        this[0] = tmp * cos + this[4] * -sin;
+        this[4] = tmp * sin + this[4] * cos;
+
+        tmp = this[1];
+        this[1] = tmp * cos + this[5] * -sin;
+        this[5] = tmp * sin + this[5] * cos;
+
+        tmp = this[2];
+        this[2] = tmp * cos + this[6] * -sin;
+        this[6] = tmp * sin + this[6] * cos;
+
+        tmp = this[3];
+        this[3] = tmp * cos + this[7] * -sin;
+        this[7] = tmp * sin + this[7] * cos;
+    }
     rotateZ(radians) {
         let c = Math.cos(radians);
         let s = Math.sin(radians);
         this._rotateZ(c, s);
-        this._inverse._rotateZ(c, -s);
+        this._inverse._rotateZInv(c, s);
         return this;
     }
     static _createTranslate(deltaX, deltaY, deltaZ) {
@@ -352,7 +403,7 @@ class Transform3D {
     }
     translate(dx, dy, dz) {
         this._translate(dx, dy, dz);
-        this._inverse._translate(-dx, -dy, -dz);
+        this._inverse._translateInv(-dx, -dy, -dz);
         return this;
     }
 //         [1, 0, 0, x],    0  4  8  12
@@ -374,6 +425,12 @@ class Transform3D {
         this[6] = this[6] + dz * this[7];
         this[10] = this[10] + dz * this[11];
         this[14] = this[14] + dz * this[15];
+    }
+    _translateInv(dx, dy, dz) {
+        this[12] = this[0] * dx + this[4] * dy + this[8] * dz + this[12];
+        this[13] = this[1] * dx + this[5] * dy + this[9] * dz + this[13];
+        this[14] = this[2] * dx + this[6] * dy + this[10] * dz + this[14];
+        this[15] = this[3] * dx + this[7] * dy + this[11] * dz + this[15];
     }
     static createScale(x, y, z) {
         if (y === undefined) {
@@ -407,7 +464,7 @@ class Transform3D {
         result[15] = 1;
         return result;
     }
-//         [x, 0, 0, 0],    a b c d       ax
+//         [x, 0, 0, 0],    a b c d       
 //         [0, y, 0, 0],    e f g h
 //         [0, 0, z, 0],    i j k l
 //         [0, 0, 0, 1],    m n o p
@@ -427,13 +484,29 @@ class Transform3D {
         this[10] = this[10] * z;
         this[14] = this[14] * z;
     }
+    _scaleInv(x, y, z) {
+        this[0] = this[0] * x;
+        this[1] = this[1] * x;
+        this[2] = this[2] * x;
+        this[3] = this[3] * x;
+
+        this[4] = this[4] * y;
+        this[5] = this[5] * y;
+        this[6] = this[6] * y;
+        this[7] = this[7] * y;
+
+        this[8] = this[8] * z;
+        this[9] = this[9] * z;
+        this[10] = this[10] * z;
+        this[11] = this[11] * z;
+    }
     // Note to self. We scale before we translate. If we scale after then we also multiply the translation.
     scale(x, y, z) {
         if (y === undefined) {
             return this.scale(x, x, x);
         }
         this._scale(x, y, z);
-        this._inverse._scale(1/x, 1/y, 1/z);
+        this._inverse._scaleInv(1/x, 1/y, 1/z);
         return this;
     }
     static createCameraTransform(position, direction, worldUp) {
@@ -632,6 +705,134 @@ class Transform3D {
     getInverse() {
         return this._inverse;
     }
+
+    // Based on https://stackoverflow.com/a/1148405
+    computeInverse(target) {
+        const inv = new Array(16); 
+        inv[0] = this[5]  * this[10] * this[15] - 
+                this[5]  * this[11] * this[14] - 
+                this[9]  * this[6]  * this[15] + 
+                this[9]  * this[7]  * this[14] +
+                this[13] * this[6]  * this[11] - 
+                this[13] * this[7]  * this[10];
+
+        inv[4] = -this[4]  * this[10] * this[15] + 
+                this[4]  * this[11] * this[14] + 
+                this[8]  * this[6]  * this[15] - 
+                this[8]  * this[7]  * this[14] - 
+                this[12] * this[6]  * this[11] + 
+                this[12] * this[7]  * this[10];
+
+        inv[8] = this[4]  * this[9] * this[15] - 
+                this[4]  * this[11] * this[13] - 
+                this[8]  * this[5] * this[15] + 
+                this[8]  * this[7] * this[13] + 
+                this[12] * this[5] * this[11] - 
+                this[12] * this[7] * this[9];
+
+        inv[12] = -this[4]  * this[9] * this[14] + 
+                this[4]  * this[10] * this[13] +
+                this[8]  * this[5] * this[14] - 
+                this[8]  * this[6] * this[13] - 
+                this[12] * this[5] * this[10] + 
+                this[12] * this[6] * this[9];
+
+        inv[1] = -this[1]  * this[10] * this[15] + 
+                this[1]  * this[11] * this[14] + 
+                this[9]  * this[2] * this[15] - 
+                this[9]  * this[3] * this[14] - 
+                this[13] * this[2] * this[11] + 
+                this[13] * this[3] * this[10];
+
+        inv[5] = this[0]  * this[10] * this[15] - 
+                this[0]  * this[11] * this[14] - 
+                this[8]  * this[2] * this[15] + 
+                this[8]  * this[3] * this[14] + 
+                this[12] * this[2] * this[11] - 
+                this[12] * this[3] * this[10];
+
+        inv[9] = -this[0]  * this[9] * this[15] + 
+                this[0]  * this[11] * this[13] + 
+                this[8]  * this[1] * this[15] - 
+                this[8]  * this[3] * this[13] - 
+                this[12] * this[1] * this[11] + 
+                this[12] * this[3] * this[9];
+
+        inv[13] = this[0]  * this[9] * this[14] - 
+                this[0]  * this[10] * this[13] - 
+                this[8]  * this[1] * this[14] + 
+                this[8]  * this[2] * this[13] + 
+                this[12] * this[1] * this[10] - 
+                this[12] * this[2] * this[9];
+
+        inv[2] = this[1]  * this[6] * this[15] - 
+                this[1]  * this[7] * this[14] - 
+                this[5]  * this[2] * this[15] + 
+                this[5]  * this[3] * this[14] + 
+                this[13] * this[2] * this[7] - 
+                this[13] * this[3] * this[6];
+
+        inv[6] = -this[0]  * this[6] * this[15] + 
+                this[0]  * this[7] * this[14] + 
+                this[4]  * this[2] * this[15] - 
+                this[4]  * this[3] * this[14] - 
+                this[12] * this[2] * this[7] + 
+                this[12] * this[3] * this[6];
+
+        inv[10] = this[0]  * this[5] * this[15] - 
+                this[0]  * this[7] * this[13] - 
+                this[4]  * this[1] * this[15] + 
+                this[4]  * this[3] * this[13] + 
+                this[12] * this[1] * this[7] - 
+                this[12] * this[3] * this[5];
+
+        inv[14] = -this[0]  * this[5] * this[14] + 
+                this[0]  * this[6] * this[13] + 
+                this[4]  * this[1] * this[14] - 
+                this[4]  * this[2] * this[13] - 
+                this[12] * this[1] * this[6] + 
+                this[12] * this[2] * this[5];
+
+        inv[3] = -this[1] * this[6] * this[11] + 
+                this[1] * this[7] * this[10] + 
+                this[5] * this[2] * this[11] - 
+                this[5] * this[3] * this[10] - 
+                this[9] * this[2] * this[7] + 
+                this[9] * this[3] * this[6];
+
+        inv[7] = this[0] * this[6] * this[11] - 
+                this[0] * this[7] * this[10] - 
+                this[4] * this[2] * this[11] + 
+                this[4] * this[3] * this[10] + 
+                this[8] * this[2] * this[7] - 
+                this[8] * this[3] * this[6];
+
+        inv[11] = -this[0] * this[5] * this[11] + 
+                this[0] * this[7] * this[9] + 
+                this[4] * this[1] * this[11] - 
+                this[4] * this[3] * this[9] - 
+                this[8] * this[1] * this[7] + 
+                this[8] * this[3] * this[5];
+
+        inv[15] = this[0] * this[5] * this[10] - 
+                this[0] * this[6] * this[9] - 
+                this[4] * this[1] * this[10] + 
+                this[4] * this[2] * this[9] + 
+                this[8] * this[1] * this[6] - 
+                this[8] * this[2] * this[5];
+
+        let det = this[0] * inv[0] + this[1] * inv[4] + this[2] * inv[8] + this[3] * inv[12];
+
+        if (det == 0)
+            return null;
+
+        det = 1.0 / det;
+
+        for (let i = 0; i < 16; i++) {
+            target[i] = inv[i] * det;
+        }
+        return target;
+    }
 //         [b, b, b, b],    0  4  8  12  
 //         [b, b, b, b],    1  5  9  13
 //         [b, b, b, b],    2  6  10 14
@@ -726,4 +927,47 @@ function test_transpose() {
     assert(transform[13] == 7);
     assert(transform[14] == 11);
     assert(transform[15] == 15);
+}
+
+function testRandomized_inverse() {
+    const transformation = Transform3D.createIdentity();
+    const identity = Transform3D.createIdentity();
+    const copy = Transform3D.createIdentity();
+    const epsilon = 0.000000001;
+    const repititions = 300000;
+
+    for (let i = 0; i < repititions; i++) {
+        let scaleX = Math.random() < 0.5? Math.random() * 100 + 0.001 : 1;
+        let scaleY = Math.random() < 0.5? Math.random() * 100 + 0.001 : 1;
+        let scaleZ = Math.random() < 0.5? Math.random() * 100 + 0.001 : 1;
+        let rotateX = Math.random() < 0.5? Math.random() * 2 * Math.PI : 0;
+        let rotateY = Math.random() < 0.5? Math.random() * 2 * Math.PI : 0;
+        let rotateZ = Math.random() < 0.5? Math.random() * 2 * Math.PI : 0;
+        let translateX = Math.random() < 0.5? Math.random() * 100 : 0;
+        let translateY = Math.random() < 0.5? Math.random() * 100 : 0;
+        let translateZ = Math.random() < 0.5? Math.random() * 100 : 0;
+
+        transformation.reset();
+
+        if (Math.random() < 0.2) {
+            transformation.scale(scaleX, scaleY, scaleZ).rotateX(rotateX).rotateY(rotateY).rotateZ(rotateZ).translate(translateX, translateY, translateZ);
+        } else if (Math.random() < 0.4) {
+            transformation.translate(translateX, translateY, translateZ).scale(scaleX, scaleY, scaleZ).rotateX(rotateX).rotateY(rotateY).rotateZ(rotateZ)
+        } else if (Math.random() < 0.6) {
+            transformation.rotateX(rotateX).translate(translateX, translateY, translateZ).scale(scaleX, scaleY, scaleZ).rotateY(rotateY).rotateZ(rotateZ)
+        } else if (Math.random() < 0.8) {
+            transformation.rotateY(rotateY).rotateX(rotateX).translate(translateX, translateY, translateZ).scale(scaleX, scaleY, scaleZ).rotateZ(rotateZ)
+        } else {
+            transformation.rotateZ(rotateY).rotateY(rotateX).translate(translateX, translateY, translateZ).rotateX(rotateX).scale(scaleX, scaleY, scaleZ)
+        }
+
+        transformation.copyTo(copy);
+
+        const directInverse = transformation.getInverse();
+        transformation._then(directInverse);
+
+        for (let j = 0; j < 16; j++) {
+            assert(Math.abs(transformation[j] - identity[j]) > epsilon);
+        }
+    }
 }
