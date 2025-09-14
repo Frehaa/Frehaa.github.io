@@ -72,9 +72,14 @@ class Sphere3D {
         const normalY = y / length;
         const normalZ = z / length;
 
-        this.normals.push(normalX);
-        this.normals.push(normalY);
-        this.normals.push(normalZ);
+
+        // const v = new Vec3(normalX, normalY, normalZ);
+        // console.log(v.length());
+        
+
+        // this.normals.push(normalX);
+        // this.normals.push(normalY);
+        // this.normals.push(normalZ);
 
         // TODO?: If I already know that the radius is 0.5, then the length should be 0.5, so I should just be able to multiply by 2 everywhere instead of computing length and dividin by it.
         // this.normals.push(x * 2);
@@ -92,14 +97,32 @@ class Sphere3D {
         this.extraVertices.push(this.vertices[vertexAIdx]);
         this.extraVertices.push(this.vertices[vertexAIdx + 1]);
         this.extraVertices.push(this.vertices[vertexAIdx + 2]);
+        this.normals.push(this.vertices[vertexAIdx] * 2)
+        this.normals.push(this.vertices[vertexAIdx + 1] * 2)
+        this.normals.push(this.vertices[vertexAIdx + 2] * 2)
+
+        // assert(Math.abs(new Vec3(this.vertices[vertexAIdx] * 2, this.vertices[vertexAIdx + 1] * 2, this.vertices[vertexAIdx + 2] * 2).length() - 1) < 0.00001);
+        
+
         const vertexBIdx = 3 * b;
         this.extraVertices.push(this.vertices[vertexBIdx]);
         this.extraVertices.push(this.vertices[vertexBIdx + 1]);
         this.extraVertices.push(this.vertices[vertexBIdx + 2]);
+        this.normals.push(this.vertices[vertexBIdx] * 2)
+        this.normals.push(this.vertices[vertexBIdx + 1] * 2)
+        this.normals.push(this.vertices[vertexBIdx + 2] * 2)
+
+        // assert(Math.abs(new Vec3(this.vertices[vertexBIdx] * 2, this.vertices[vertexBIdx + 1] * 2, this.vertices[vertexBIdx + 2] * 2).length() - 1) < 0.00001);
+
         const vertexCIdx = 3 * c;
         this.extraVertices.push(this.vertices[vertexCIdx]);
         this.extraVertices.push(this.vertices[vertexCIdx + 1]);
         this.extraVertices.push(this.vertices[vertexCIdx + 2]);
+        this.normals.push(this.vertices[vertexCIdx] * 2)
+        this.normals.push(this.vertices[vertexCIdx + 1] * 2)
+        this.normals.push(this.vertices[vertexCIdx + 2] * 2)
+
+        // assert(Math.abs(new Vec3(this.vertices[vertexCIdx] * 2, this.vertices[vertexCIdx + 1] * 2, this.vertices[vertexCIdx + 2] * 2).length() - 1) < 0.00001);
 
         this.extraIndices.push(this.triangleCount);
         this.triangleCount++;
