@@ -644,6 +644,36 @@ function createSimpleTransformColorProgram(gl) {
     };
 }
 
+function createLightedTransformColorProgram(gl) {
+    const vertexShader = compileShader(gl, gl.VERTEX_SHADER, positionColorNormalTransformationVertexShaderSource);
+    const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, colorNormalLightPositionUniformFragmentShaderSource);
+
+    const glProgram = createProgram(gl, [vertexShader, fragmentShader]);
+
+    const positionLocation = gl.getAttribLocation(glProgram, 'position');
+    const colorLocation = gl.getAttribLocation(glProgram, 'color');
+    const normalLocation = gl.getAttribLocation(glProgram, 'normal');
+    const transformationLocation = gl.getUniformLocation(glProgram, 'transformation');
+    const modelTransformationLocation = gl.getUniformLocation(glProgram, 'modelTransformation');
+    const lightPositionLocation = gl.getUniformLocation(glProgram, 'uLightPosition');
+    const normalMatrixLocation = gl.getUniformLocation(glProgram, 'uNormalMatrix');
+
+    return {
+        program: glProgram,
+        locations: {
+            position: positionLocation,
+            color: colorLocation,
+            transform: transformationLocation,
+            normal: normalLocation,
+            lightPosition: lightPositionLocation,
+            normalMatrix: normalMatrixLocation,
+            modelTransformation: modelTransformationLocation,
+        },
+    };
+}
+
+
+
 function addCameraMouseControlEventListeners(camera) {
     let mouseDown = false;
     const leftMouse = 0;
@@ -725,6 +755,17 @@ function updateCamera(camera, pressedKeysSet, deltaTime) {
     camera.moveRelative(new Vec3(moveDeltaX, moveDeltaY, moveDeltaZ).scale(deltaTime * 0.01));
 }
 
+function createIndexedNormalAndColorBuffers(gl, surface) {
+    const buffers = createIndexedColorBuffers(gl, surface);
+
+    const normalBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(surface.normals), gl.STATIC_DRAW);
+
+    buffers.normal = normalBuffer;
+    return buffers;
+}
+
 function createIndexedColorBuffers(gl, surface) {
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -784,7 +825,7 @@ function simpleScene() {
     const bottomPlane = -height/2;
     const topPlane = -bottomPlane;
     const nearPlane = -1;
-    const farPlane = -20;
+    const farPlane = -50;
 
     const camera = new Camera3D();
     camera.setPosition(new Vec3(0, 0, 2));
@@ -822,6 +863,7 @@ function simpleScene() {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         updateCamera(camera, pressedKeysSet, dt);
 
+
         for (const drawThing of drawThings) {
             gl.bindBuffer(gl.ARRAY_BUFFER, drawThing.buffers.position);
             gl.vertexAttribPointer(programInfo.locations.position, 3, gl.FLOAT, false, 0, 0);
@@ -831,12 +873,137 @@ function simpleScene() {
             gl.vertexAttribPointer(programInfo.locations.color, 4, gl.FLOAT, false, 0, 0);
             gl.enableVertexAttribArray(programInfo.locations.color);    
 
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, drawThing.buffers.index);
 
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, drawThing.buffers.index);
 
             for (const transform of drawThing.transforms) {
                 transform.copyTo(transformBuffer)._then(camera.getTransformation())._then(projectionTransformation);
                 gl.uniformMatrix4fv(programInfo.locations.transform, false, transformBuffer.toFloat32Array(), 0, 0);
+                const vertexCount = drawThing.vertexCount;
+                const type = gl.UNSIGNED_SHORT;
+                const offset = 0;
+                gl.drawElements(gl.TRIANGLES, vertexCount, type, offset);
+            }
+        }
+    });
+    animationFrameRequestManager.start();
+}
+
+
+// I want to have multiple shader programs and multiple objects and some way to say say which objects I want to draw with which shader program. 
+// Given the objects to draw, I want the program to go through each shader and objects to draw such that it does not change shader and buffers back and forth unnecessarily
+// 
+function testCompactMultiple() {
+    const canvas = document.getElementById('canvas');
+    const gl = initializeWebGL(canvas);
+
+
+
+}
+
+function simpleSceneLight() {
+   // We are inside a box wth 4 walls, a floor and a ceiling.
+    // There are 2 spheres, a box, and pyramid inside
+    // There is a point light and ambient light with phong shading.
+    // We have simple camera controls. 
+    const canvas = document.getElementById('canvas');
+    const gl = initializeWebGL(canvas);
+
+    // How big is the house? 10x10x10? Sure
+    const box = new Box3D();
+    const bigBoxTransformation = Transform3D.createScale(15, 15, 15).translate(0, 7.5, 0);
+    const smallBoxTransformation = Transform3D.createScale(1, 1, 1.5).translate(2, 0.6, -3.5);
+
+    const sphere = new Sphere3D(38, 20);
+    const bigSphereTransformation = Transform3D.createScale(2, 2, 2).translate(-3.5, 5, -3);
+    const smallSphereTransformation = Transform3D.createScale(0.5, 0.5, 0.5).translate(1, 3, -2.5);
+
+    // TESTING
+    const programInfo = createLightedTransformColorProgram(gl);    
+    const boxBuffers = createIndexedNormalAndColorBuffers(gl, box);
+    const sphereBuffers = createIndexedNormalAndColorBuffers(gl, sphere);
+
+    // gl.cullFace(gl.FRONT_AND_BACK);
+    // gl.lineWidth(1.0);
+    gl.clearColor(0.4, 0.4, 0.4, 1.0); 
+    // gl.clearDepth(-0.0); 
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    const height = 1; 
+    const width = 2;
+
+    const leftPlane = -width / 2;
+    const rightPlane = -leftPlane;
+    const bottomPlane = -height/2;
+    const topPlane = -bottomPlane;
+    const nearPlane = -1;
+    const farPlane = -20;
+
+    const camera = new Camera3D();
+    camera.setPosition(new Vec3(0, 0, 2));
+
+    const pressedKeysSet = new Set();
+    addCameraMouseControlEventListeners(camera, pressedKeysSet);
+    addKeyEventListener(pressedKeysSet);
+
+    // const projectionTransformation = Transform3D.createOrthographicTransform(leftPlane, rightPlane, bottomPlane, topPlane, nearPlane, farPlane);
+    const projectionTransformation = Transform3D.createPerspectiveTransformOpenGL(leftPlane, rightPlane, bottomPlane, topPlane, nearPlane, farPlane);
+
+    const drawThings = [
+        {
+            vertexCount: sphere.indices.length,
+            buffers: sphereBuffers,
+            transforms: [
+                [smallSphereTransformation, smallSphereTransformation.getInverse()._transpose().toFloat32Array()],
+                [bigSphereTransformation, smallSphereTransformation.getInverse()._transpose().toFloat32Array()],
+            ]
+
+        },
+        {
+            vertexCount: box.indices.length,
+            buffers: boxBuffers,
+            transforms: [
+                [smallBoxTransformation, smallBoxTransformation.getInverse()._transpose().toFloat32Array()],
+                [bigBoxTransformation, bigBoxTransformation.getInverse()._transpose().toFloat32Array()]
+            ]
+        }
+    ];
+    gl.useProgram(programInfo.program);
+
+    const transformBuffer = Transform3D.createIdentity();
+    const animationFrameRequestManager = new AnimationFrameRequestManager((dt, time) => {
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        updateCamera(camera, pressedKeysSet, dt);
+
+        const lightPositionData = new Float32Array(smallBoxTransformation[12], smallBoxTransformation[13] - 1, smallBoxTransformation[14]);
+        gl.uniform3fv(programInfo.locations.lightPosition, lightPositionData);
+
+        for (const drawThing of drawThings) {
+            gl.bindBuffer(gl.ARRAY_BUFFER, drawThing.buffers.position);
+            gl.vertexAttribPointer(programInfo.locations.position, 3, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(programInfo.locations.position);    
+            
+            gl.bindBuffer(gl.ARRAY_BUFFER, drawThing.buffers.color);
+            gl.vertexAttribPointer(programInfo.locations.color, 4, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(programInfo.locations.color);    
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, drawThing.buffers.normal);
+            gl.vertexAttribPointer(programInfo.locations.normal, 3, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(programInfo.locations.normal);    
+
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, drawThing.buffers.index);
+
+            for (const transforms of drawThing.transforms) {
+                const transform = transforms[0];
+                const inverseMatrixData = transforms[1];
+                gl.uniformMatrix4fv(programInfo.locations.modelTransformation, false, transform.toFloat32Array(), 0, 0);
+
+                transform.copyTo(transformBuffer)._then(camera.getTransformation())._then(projectionTransformation);
+                gl.uniformMatrix4fv(programInfo.locations.transform, false, transformBuffer.toFloat32Array(), 0, 0);
+                gl.uniformMatrix4fv(programInfo.locations.normalMatrix, false, inverseMatrixData, 0, 0);
                 const vertexCount = drawThing.vertexCount;
                 const type = gl.UNSIGNED_SHORT;
                 const offset = 0;
@@ -1095,26 +1262,26 @@ function testLighting() {
     animationFrameRequestManager.start();
 }
 
-function DrawableBoxWrapper(gl, box, viewFromOutside = true) {
+function DrawableWrapper(gl, surface, viewFromOutside = true) {
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(box.vertices), gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(surface.vertices), gl.STATIC_DRAW);
 
     const colorBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(box.colors), gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(surface.colors), gl.STATIC_DRAW);
 
-    const normals = viewFromOutside? box.normals : box.normals.map(x => -x);
+    const normals = viewFromOutside? surface.normals : surface.normals.map(x => -x);
     const normalBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW)
 
     const indexBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(box.indices), gl.STATIC_DRAW);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(surface.indices), gl.STATIC_DRAW);
 
     return {
-        draw: function(locations, boxTransformation, cameraTransformation) {
+        draw: function(locations, transformation, cameraTransformation) {
 
             gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
             gl.vertexAttribPointer(locations.position, 3, gl.FLOAT, false, 0, 0);
@@ -1129,13 +1296,13 @@ function DrawableBoxWrapper(gl, box, viewFromOutside = true) {
             gl.enableVertexAttribArray(locations.normal);
 
 
-            gl.uniformMatrix4fv(locations.normalMatrix, false, boxTransformation.getInverse()._transpose().toFloat32Array());
-            boxTransformation._then(cameraTransformation);
-            gl.uniformMatrix4fv(locations.transformation, false, boxTransformation.toFloat32Array());
+            gl.uniformMatrix4fv(locations.normalMatrix, false, transformation.getInverse()._transpose().toFloat32Array());
+            transformation._then(cameraTransformation);
+            gl.uniformMatrix4fv(locations.transformation, false, transformation.toFloat32Array());
 
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
 
-            gl.drawElements(gl.TRIANGLES, box.indices.length, gl.UNSIGNED_SHORT, 0);
+            gl.drawElements(gl.TRIANGLES, surface.indices.length, gl.UNSIGNED_SHORT, 0);
         }
     }
 
@@ -1152,7 +1319,7 @@ function testLighting2() {
         dy: 0,
         dz: 0,
     };
-
+    const highPolySphere = new Sphere3D(72, 36);
     const sphere = new Sphere3D(18, 9);
     const sphereTransformation = Transform3D.createIdentity() ;
     const box = new Box3D();
@@ -1258,7 +1425,24 @@ function testLighting2() {
     // Drawing stuff
     const gl = initializeWebGL(canvas);
 
-    const vertexShader = compileShader(gl, gl.VERTEX_SHADER, positionColorNormalTransformationVertexShaderSource);
+    const vertexShader = compileShader(gl, gl.VERTEX_SHADER, `
+attribute vec3 position;
+attribute vec3 normal;
+attribute vec4 color;
+
+varying highp vec4 vColor;
+varying highp vec3 vNormal;
+varying highp vec3 vPosition;
+
+uniform mat4 transformation;
+
+void main() {
+    gl_Position =  transformation * vec4(position, 1);
+    vColor = color;
+    vNormal = normal;
+    vPosition = gl_Position.xyz;
+}
+`);
     const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, colorNormalLightPositionUniformFragmentShaderSource);
     const glProgram = createProgram(gl, [vertexShader, fragmentShader]);
 
@@ -1292,18 +1476,20 @@ function testLighting2() {
     gl.clearDepth(-1);
     gl.depthFunc(gl.GEQUAL); // Near things obscure far things
 
-    const drawableBox = DrawableBoxWrapper(gl, box);
+    const drawableBox = DrawableWrapper(gl, box);
+    const drawableSphere = DrawableWrapper(gl, highPolySphere);
     const animationFrameRequestManager = new AnimationFrameRequestManager((dt, time) => {
         updatePosition(dt);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         gl.useProgram(glProgram);
-        boxTransformation.reset().scale(0.5, 0.7, 1.2).rotateX(boxTransformInfo.xRotation).rotateY(boxTransformInfo.yRotation).rotateZ(boxTransformInfo.zRotation).translate(boxTransformInfo.dx, boxTransformInfo.dy, boxTransformInfo.dz);
-        // boxTransformation.reset().rotateX(boxTransformInfo.xRotation).rotateY(boxTransformInfo.yRotation).rotateZ(boxTransformInfo.zRotation).translate(boxTransformInfo.dx, boxTransformInfo.dy, boxTransformInfo.dz);
+        // boxTransformation.reset().scale(0.5, 0.7, 1.2).rotateX(boxTransformInfo.xRotation).rotateY(boxTransformInfo.yRotation).rotateZ(boxTransformInfo.zRotation).translate(boxTransformInfo.dx, boxTransformInfo.dy, boxTransformInfo.dz);
+        boxTransformation.reset().rotateX(boxTransformInfo.xRotation).rotateY(boxTransformInfo.yRotation).rotateZ(boxTransformInfo.zRotation).translate(boxTransformInfo.dx, boxTransformInfo.dy, boxTransformInfo.dz);
         
         gl.uniform3fv(locations.lightPosition, new Float32Array(lightPosition));
 
-        drawableBox.draw(locations, boxTransformation, camera.getTransformation());
+        // drawableBox.draw(locations, boxTransformation, camera.getTransformation());
+        drawableSphere.draw(locations, boxTransformation, camera.getTransformation());
 
         // lightPosition.z ranges from 1 to -1. We want it to be 0.05 or something when 1 and 0.001 when -1. What is the computation
 
@@ -1337,12 +1523,13 @@ varying highp vec3 vNormal;
 varying highp vec3 vPosition;
 
 uniform mat4 transformation;
+uniform mat4 modelTransformation;
 
 void main() {
     gl_Position =  transformation * vec4(position, 1);
     vColor = color;
     vNormal = normal;
-    vPosition = gl_Position.xyz;
+    vPosition = (modelTransformation * vec4(position, 1)).xyz;
 }
 `;
 
@@ -1386,11 +1573,12 @@ void main() {
 }`;
 
 function webgl_main() {
+    return simpleSceneLight();
+    return simpleScene();
     return testLighting2()
     return testLighting()
     return drawDiablo()
     return testMultiple();
-    return simpleScene();
     // return testCullingSphere();
     // return testCulling();
     return testPerspective()
