@@ -29,7 +29,10 @@ function initializeSlideshowState() {
             requestAnimationFrame(() => {
                 drawCurrentSlide(this, ctx)
             });
-        }
+        },
+        addSlide(slide) {
+            this.slides.push(slide);
+        },
     };
 }
 
