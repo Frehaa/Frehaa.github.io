@@ -5,6 +5,7 @@ class BreakoutGameState {
         this.hasLost = false;
         this.isInitialized = false;
         this.settings = {
+            timeStepMs: 10,
             ball: {
                 radius: 5,
                 limit: 10,
@@ -43,7 +44,7 @@ class BreakoutGameState {
         const initialSpeed = this.settings.ball.initialSpeed;
 
         const freeBallId = this.freeBallIds.pop();
-        const initialVelocity = Vector.create(1, -initialSpeed);
+        const initialVelocity = Vector.create(0, -initialSpeed);
         const gameBall = this.idToBall.get(freeBallId);
         const ballBody = gameBall.rigidBody;
         this.activeBallsSet.add(freeBallId);
@@ -267,11 +268,16 @@ class BreakoutGameState {
 
 
     }
-    moveControlBall(x) {
+    moveControlBall(newX) {
         const Body = exports.Matter.Body;
         const Vector = exports.Matter.Vector;
-        // x = clamp(x, this.controlBall.radius, this.walls.rightWall - this.controlBall.radius)
-        Body.setPosition(this.controlBall, Vector.create(x, this.controlBall.position.y));
+
+        // We want to move the control ball from current X position to the new x position. 
+        // We have a timestep of something set by the gamestate
+
+        // 10 / 1000 * 16
+
+        Body.setVelocity(this.controlBall, Vector.create(newX, 0));
     }
 }
 
@@ -512,7 +518,8 @@ function test_matter() {
 
     const gameState = new BreakoutGameState(engine);
     gameState.initialize()
-    const ball = gameState.addBall();
+    const ball = gameState.addBall(); // position and direction 
+    // const ball = gameState.addBall();
 
     // bounceBall(ball.rigidBody, Vector.create(0, -1));
     
@@ -555,11 +562,19 @@ function test_matter() {
     let lastTime = 0;
     function update(time) {
         const deltaTime = lastTime - time;
-        const timeStep = 16;
-        gameState.update(timeStep);
-        
-        Engine.update(engine, timeStep);
-        requestAnimationFrame(update);
+        const timeStep = gameState.settings.timeStepMs;
+        const gameBall = gameState.idToBall.get(1);
+        console.log(gameBall.rigidBody.position.y, gameBall.rigidBody.velocity.y);
+
+        for (let i = 0; i < 100; i++) {
+            gameState.update(timeStep);
+            Engine.update(engine, timeStep);
+            console.log(gameBall.rigidBody.position.y);
+        }
+
+        Body.setVelocity(gameState.controlBall, Vector.create(0, 0));
+
+
     }
 
     requestAnimationFrame(time => {

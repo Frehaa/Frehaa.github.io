@@ -222,3 +222,7 @@ function up_moving_ball_moves_down_after_hitting_top_wall() {
 
     return [engine, worldObjects];
 }
+
+// TODO: Write tests for interactions with the control ball. 
+// We want to make that if the control ball moves into the ball, then the ball is not stuck inside or something weird.
+// Possible fixed. (1) Disable collision for a bit. (2) move control ball using velocity. 
