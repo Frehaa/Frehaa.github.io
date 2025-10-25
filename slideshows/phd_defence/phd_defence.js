@@ -9,6 +9,7 @@ let fontColor = 'black'
 let removedRowsColor = '#BBBBBB'
 let unknownValueColor = '#BBBBBB'
 let brightDistinctColor = '#CCBB44'
+const slideTitleFont = "70px sans-serif";
 
 // ######### HELPER FUNCTIONS ######
 
@@ -375,24 +376,10 @@ function createThresholdState(min, max, initialValue) {
 }
 
 // TODO: is it a problem that, if we go back to slide 2 and 3, that the colors are drawn based on a new threshold?
-// TODO: Should the slider round to an integer value such that a blue color is highlighted? It seems quite distracting when looking. It can be fixed by removing the Math.round in the "matrixDrawSettingsDrawColoredCircledValue". Then only 1 and 100 will be colored blue
-// TODO: For the sampling slides, should we remove old samples circles when we resample, or should the be kept? If they are kept, should they be colored red if they are too big? In other words, should the visualization be a good representation of the algorithm, or just give the intuition?
 function initialize() {
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     ctx.textBaseline = 'middle'
-
-    const startTimeMs = Date.now();
-    const presentationDuration = 5 * 60 * 1000 - 10000;
-    const timerPositionX = 1800
-    const timerPositionY = 1000
-    const timer = createTimer(timerPositionX, timerPositionY, 40, presentationDuration);
-    timer.draw = function(){} // Disable visual timer 
-
-    // setTimeout(() => { // Call a function when time is up. The presentation ends with a black screen
-    //     document.body.removeChild(canvas);
-    //     document.body.style = 'background-color: black'
-    // }, presentationDuration);
 
     const slideshowState = initializeSlideshowState()
     initializeSlideshowEventListeners(canvas, slideshowState);
@@ -437,7 +424,6 @@ function initialize() {
         thresholdState.setValue(matrix.getValue(matrixX, matrixY));
     }
 
-    const slideTitleFont = "70px sans-serif";
     const slideBulletFont = "48px sans-serif";
     const slideTextDefaultX = 1100
     const slideTitleTextDefaultY = 80;
@@ -455,6 +441,14 @@ function initialize() {
     const slider = createVerticalThresholdSlider(slideshowState, thresholdState, sliderDrawSettings);
 
     // Slide 1: Introduction
+    // slideshowState.addSlide(createBienstockSlides(matrixDrawSettingsDrawNumberedOnly));
+
+    // SET COVER SLIDES
+    const setCoverSlides = createSetCoverSlide();
+    setCoverSlides.forEach(s => slideshowState.addSlide(s));
+
+    // COLUMN DELETE SLIDES
+    slideshowState.addSlide(createColumnDeleteSlide(slideshowState, matrixDrawSettingsDrawNumberedOnly));
 
     // Slide 2: Explanation
     slideshowState.slides.push(createDrawSlide(ctx => {
@@ -469,8 +463,6 @@ function initialize() {
         bulletPointWriter.startWriting();
         bulletPointWriter.writeMajorBullet("- Maximum value in its row");
         bulletPointWriter.writeMajorBullet("- Minimum value in its column");
-
-        timer.draw(ctx, Date.now() - startTimeMs);
     }));
 
 
@@ -506,8 +498,6 @@ function initialize() {
         drawCircle(1280, redCircleLegendHeight, circleRadius, ctx)
         ctx.fillStyle = fontColor;
         ctx.fillText(">", 1200, redCircleLegendHeight);
-
-        timer.draw(ctx, Date.now() - startTimeMs);
     }));
 
     // Slide 4: Motivation
@@ -527,7 +517,6 @@ function initialize() {
         bulletPointWriter.writeMinorBullet("  when values may be generated on");
         bulletPointWriter.writeMinorBullet("  demand");
 
-        timer.draw(ctx, Date.now() - startTimeMs);
     }));
 
     // Slide 5: History
@@ -547,9 +536,7 @@ function initialize() {
         bulletOffset: 75,
         bulletByBullet: false
     })[0];
-    slideshowState.slides.push(combineSlides(bulletPointSlide, createDrawSlide(ctx => {
-        timer.draw(ctx, Date.now() - startTimeMs);
-    })));
+    slideshowState.slides.push(combineSlides(bulletPointSlide, createDrawSlide(ctx => {})));
 
     // Slide 6: lower and upper bounds
     let interactiveNumberSlide = createDrawSlide(ctx => {
@@ -580,8 +567,6 @@ function initialize() {
         drawCircle(1150, redCircleLegendHeight, circleRadius, ctx)
         ctx.fillStyle = fontColor;
         ctx.fillText("> t", 1200, redCircleLegendHeight);
-
-        timer.draw(ctx, Date.now() - startTimeMs);
     });
     interactiveNumberSlide.isInteractable = true;
     interactiveNumberSlide.mouseDown = updateThresholdStateFromCanvasPosition; 
@@ -618,7 +603,6 @@ function initialize() {
         ctx.fillStyle = fontColor;
         ctx.fillText("> t", 1200, redCircleLegendHeight);
 
-        timer.draw(ctx, Date.now() - startTimeMs);
     });
     interactiveNumberSlide.isInteractable = true;
     interactiveNumberSlide.mouseDown = updateThresholdStateFromCanvasPosition;
@@ -661,7 +645,6 @@ function initialize() {
             ctx.fillStyle = fontColor;
             ctx.fillText("> t", 1200, redCircleLegendHeight);
 
-            timer.draw(ctx, Date.now() - startTimeMs);
         }));
     }));
 
@@ -696,7 +679,6 @@ function initialize() {
         ctx.fillStyle = fontColor;
         ctx.fillText("> t", 1200, redCircleLegendHeight);
 
-        timer.draw(ctx, Date.now() - startTimeMs);
     })));
 
     // Explain sampling process
@@ -741,12 +723,295 @@ function initialize() {
             ctx.fillStyle = fontColor;
             ctx.fillText(" There is a value in row > t", 1200, redCircleLegendHeight);
 
-            timer.draw(ctx, Date.now() - startTimeMs);
         }));
     }));
     slideshowState.startSlideShow(ctx);
 }
 
+function createBienstockSlides(drawMatrixSettings) {
+    const state = {
+
+    };
+    const matrix = new SaddlepointSlideMatrix(10, 10, () => [...bienstockNumbers]);
+    const draw = ctx => {
+        drawMatrix(ctx, matrix, drawMatrixSettings);
+    };
+    return createSlide(
+        draw, 
+        () => {},
+        () => {},
+        () => {},
+        () => {},
+        () => {},
+    );
+}
+
+// COLUMN DELETION SLIDES. TODO: FIND SOME BETTER NUMBERS
+function createColumnDeleteSlide(slideshowState, drawMatrixSettings) { 
+    const rowCount = 10;
+    const columnCount = 10;
+    const state = {
+        visibleNumbers: new Map(),
+        deletedRows: new Set(),
+        hoverCell: {x: -1, y: -1},
+        reset: function() {
+            state.visibleNumbers = new Map();
+            state.deletedRows = new Set()
+        }
+    };
+    const matrix = new SaddlepointSlideMatrix(rowCount, columnCount, () => [...columnAlgorithmNumbers]);
+    const draw = ctx => {
+        // We only want it to draw numbers that we have clicked on
+        // We want to "delete" rows
+        drawMatrix(ctx, matrix, {...drawMatrixSettings, 
+            drawMatrixValue: (ctx, x, y, matrix) => {
+                const rowSet = state.visibleNumbers.getOrInsert(x, new Set());
+                if (state.hoverCell.x == x && state.hoverCell.y == y) {
+                    ctx.fillStyle  = 'rgba(100, 100, 100, 0.2)'; 
+                    drawMatrixCircle(ctx, x, y, drawMatrixSettings);
+                }
+                if (state.deletedRows.has(y)) {
+                    ctx.fillStyle  = 'rgba(200, 200, 200, 1)'; 
+                    for (let rowX = 0; rowX < columnCount; rowX++) {
+                        drawMatrixSquare(ctx, rowX, y, drawMatrixSettings);
+                    }
+                }else if (rowSet.has(y)) {
+                    drawMatrixSettings.drawMatrixValue(ctx, x, y, matrix); 
+                }
+                
+            }
+        });
+    };
+    const mouseDown = e => {
+        if (e.button == 1) { // MIDDLE MOUSE BUTTON
+            state.reset()
+        } 
+    };
+    const mouseUp = e => {
+        console.log(slideshowState)
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, drawMatrixSettings);
+        const rowSet = state.visibleNumbers.getOrInsert(matrixX, new Set()); 
+        rowSet.add(matrixY);// We allow insertion of invalid values like (-1 and 11)
+        if (matrixX < 0) {
+            if (!state.deletedRows.delete(matrixY)) {
+                state.deletedRows.add(matrixY)
+            }
+        }
+    };
+    const mouseMove = () => {
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, drawMatrixSettings);
+        state.hoverCell.x = matrixX;
+        state.hoverCell.y = matrixY;
+    }
+    let resetOnRPress = event => {
+        if (event.code === 'KeyR') {
+            state.reset();
+        }
+    }
+    const slideStart = () => {
+        document.addEventListener('keyup', resetOnRPress);
+    }
+    const slideEnd = () => {
+        document.removeEventListener('keyup', resetOnRPress)
+    }
+    return createSlide(
+        draw, 
+        slideStart,
+        slideEnd,
+        mouseDown,
+        mouseUp,
+        mouseMove,
+    );
+}
+
+function createSetCoverSlide(slideshowState) {
+
+    const elementLeftX = 200;
+    const elementOffSetX = 150;
+    const elementTopY = 400;
+    const elementOffSetY = 150;
+    const drawTitleAndNumbers = ctx => {
+        ctx.textAlign = 'center'
+        ctx.font = slideTitleFont;
+        ctx.fillText("Set Cover", 1920/2, 100)
+
+        // To the left is the set cover and to the right is the matrix
+
+        ctx.fillText('1', elementLeftX, elementTopY);
+        ctx.fillText('2', elementLeftX + elementOffSetX, elementTopY);
+        ctx.fillText('3', elementLeftX + 2 * elementOffSetX, elementTopY);
+        ctx.fillText('4', elementLeftX + 3 * elementOffSetX, elementTopY);
+
+        ctx.fillText('5', elementLeftX,                      elementTopY + elementOffSetY);
+        ctx.fillText('6', elementLeftX + elementOffSetX,     elementTopY + elementOffSetY);
+        ctx.fillText('7', elementLeftX + 2 * elementOffSetX, elementTopY + elementOffSetY);
+        ctx.fillText('8', elementLeftX + 3 * elementOffSetX, elementTopY + elementOffSetY);
+        
+        ctx.fillText('9', elementLeftX,                      elementTopY + 2 * elementOffSetY);
+        ctx.fillText('10', elementLeftX + elementOffSetX,     elementTopY + 2 * elementOffSetY);
+        ctx.fillText('11', elementLeftX + 2 * elementOffSetX, elementTopY + 2 * elementOffSetY);
+        ctx.fillText('12', elementLeftX + 3 * elementOffSetX, elementTopY + 2 * elementOffSetY);
+
+        ctx.fillText('13', elementLeftX,                      elementTopY + 3 * elementOffSetY);
+        ctx.fillText('14', elementLeftX + elementOffSetX,     elementTopY + 3 * elementOffSetY);
+        ctx.fillText('15', elementLeftX + 2 * elementOffSetX, elementTopY + 3 * elementOffSetY);
+        ctx.fillText('16', elementLeftX + 3 * elementOffSetX, elementTopY + 3 * elementOffSetY);
+
+    };
+    const drawRed = ctx => {
+        const elementMargin = 50;
+        ctx.beginPath();
+        ctx.moveTo(elementLeftX + 0.5 * elementOffSetX, elementTopY - elementMargin);
+        ctx.lineTo(elementLeftX + 1.5 * elementOffSetX, elementTopY - elementMargin);
+        ctx.lineTo(elementLeftX + 1.5 * elementOffSetX, elementTopY + 1.5 * elementOffSetY);
+        ctx.lineTo(elementLeftX + 2.5 * elementOffSetX, elementTopY + 1.5 * elementOffSetY);
+        ctx.lineTo(elementLeftX + 2.5 * elementOffSetX, elementTopY + 3.56 * elementOffSetY);
+        ctx.lineTo(elementLeftX + 0.5 * elementOffSetX, elementTopY + 3.56 * elementOffSetY);
+        ctx.lineTo(elementLeftX + 0.5 * elementOffSetX, elementTopY + 1.5 * elementOffSetY);
+        ctx.lineTo(elementLeftX - elementMargin, elementTopY + 1.5 * elementOffSetY);
+        ctx.lineTo(elementLeftX - elementMargin, elementTopY + 0.5 * elementOffSetY);
+        ctx.lineTo(elementLeftX + 0.5 * elementOffSetX, elementTopY + 0.5 * elementOffSetY);
+        ctx.closePath()
+        ctx.fillStyle = 'rgba(100, 0, 0, 0.4)'
+        ctx.fill()
+        ctx.stroke();
+    };
+
+    const drawGreenDown = ctx => {
+        const elementMargin = 48;
+        ctx.beginPath();
+        ctx.moveTo(elementLeftX + 3 * elementOffSetX + elementMargin, elementTopY - elementMargin);
+        ctx.lineTo(elementLeftX + 3 * elementOffSetX + elementMargin, elementTopY + 1.55 * elementOffSetY);
+        ctx.lineTo(elementLeftX + 1.55 * elementOffSetX, elementTopY + 1.55 * elementOffSetY);
+        ctx.lineTo(elementLeftX + 1.55 * elementOffSetX, elementTopY - elementMargin );
+        ctx.closePath()
+        ctx.fillStyle = 'rgba(0, 100, 0, 0.5)'
+        ctx.fill()
+        ctx.stroke();
+    };
+    const drawBlueLeft = ctx => {
+
+        const elementMargin = 55;
+        ctx.beginPath();
+        ctx.moveTo(elementLeftX + 0 * elementOffSetX - elementMargin, elementTopY - elementMargin);
+        ctx.lineTo(elementLeftX + 0 * elementOffSetX - elementMargin, elementTopY + 3.45 * elementOffSetY);
+        ctx.lineTo(elementLeftX + 0.53 * elementOffSetX, elementTopY + 3.45 * elementOffSetY);
+        ctx.lineTo(elementLeftX + 0.53 * elementOffSetX, elementTopY - elementMargin );
+        ctx.closePath()
+        ctx.fillStyle = 'rgba(0, 0, 230, 0.4)'
+        ctx.fill()
+        ctx.stroke();
+    }
+
+    const drawBlueRight = ctx => {
+        const elementMargin = 55;
+        ctx.beginPath();
+        ctx.moveTo(elementLeftX + 3.1 * elementOffSetX + elementMargin, elementTopY - elementMargin);
+        ctx.lineTo(elementLeftX + 3.1 * elementOffSetX + elementMargin, elementTopY + 3.45 * elementOffSetY);
+        ctx.lineTo(elementLeftX + 2.52 * elementOffSetX, elementTopY + 3.45 * elementOffSetY);
+        ctx.lineTo(elementLeftX + 2.52 * elementOffSetX, elementTopY - elementMargin );
+        ctx.closePath()
+        ctx.fillStyle = 'rgba(0, 0, 100, 0.3)'
+        ctx.fill()
+        ctx.stroke();
+    };
+
+    const drawGreenSquare = ctx => {
+        const elementMargin = 50;
+        ctx.beginPath();
+        ctx.moveTo(elementLeftX + 0 * elementOffSetX - elementMargin, elementTopY + 2.45 * elementOffSetY);
+        ctx.lineTo(elementLeftX + 2.55 * elementOffSetX , elementTopY + 2.45 * elementOffSetY);
+        ctx.lineTo(elementLeftX + 2.55 * elementOffSetX , elementTopY + 3.48 * elementOffSetY);
+        ctx.lineTo(elementLeftX + 0 * elementOffSetX - elementMargin, elementTopY + 3.48 * elementOffSetY);
+        ctx.closePath()
+        ctx.fillStyle = 'rgba(0, 200, 30, 0.5)'
+        ctx.fill()
+        ctx.stroke();
+    }
+
+    const drawYellowTriangle = ctx => {
+        const elementMargin = 50;
+        ctx.beginPath();
+        ctx.moveTo(elementLeftX + 2.5 * elementOffSetX, elementTopY + 1.45 * elementOffSetY);
+        ctx.lineTo(elementLeftX + 3.5 * elementOffSetX , elementTopY + 1.45 * elementOffSetY);
+        ctx.lineTo(elementLeftX + 3.5 * elementOffSetX , elementTopY + 2.48 * elementOffSetY);
+        ctx.lineTo(elementLeftX + 1.5 * elementOffSetX, elementTopY + 2.48 * elementOffSetY);
+        ctx.lineTo(elementLeftX + 1.5 * elementOffSetX, elementTopY + 0.48 * elementOffSetY);
+        ctx.lineTo(elementLeftX + 2.5 * elementOffSetX, elementTopY + 0.48 * elementOffSetY);
+        ctx.closePath()
+        ctx.fillStyle = 'rgba(200, 200, 30, 0.3)'
+        ctx.fill()
+        ctx.stroke();
+    };
+
+    const drawOrange = ctx => {
+        const elementMargin = 50;
+        ctx.beginPath();
+        ctx.moveTo(elementLeftX - elementMargin, elementTopY - elementMargin);
+        ctx.lineTo(elementLeftX + 1.5 * elementOffSetX , elementTopY - elementMargin);
+        ctx.lineTo(elementLeftX + 1.5 * elementOffSetX , elementTopY + 0.48 * elementOffSetY);
+        ctx.lineTo(elementLeftX - elementMargin , elementTopY + 0.48 * elementOffSetY);
+        ctx.closePath()
+        ctx.fillStyle = 'rgba(199, 114, 18, 0.3)'
+        ctx.fill()
+        ctx.stroke();
+    };
+    const setCoverMatrix = new SaddlepointSlideMatrix(16, 16, () => setCoverMatrixNumbers);    
+    const setCoverMatrixDrawSettings = {
+        leftX: 1200,
+        topY: elementTopY,
+        cellWidth: 30,
+        lineWidth: 2
+    };
+    const slides = [createDrawSlide(drawTitleAndNumbers)]
+    slides.push(combineSlides(slides[0], createDrawSlide(drawOrange)));
+    slides.push(combineSlides(slides[1], createDrawSlide(drawGreenDown)));
+    slides.push(combineSlides(slides[2], createDrawSlide(drawBlueLeft)));
+    slides.push(combineSlides(slides[3], createDrawSlide(drawRed)));
+    slides.push(combineSlides(slides[4], createDrawSlide(drawGreenSquare)));
+    slides.push(combineSlides(slides[5], createDrawSlide(drawYellowTriangle)));
+    slides.push(combineSlides(slides[6], createDrawSlide(drawBlueRight)));
+    slides.push(combineSlides(slides[7], createDrawSlide(ctx => {
+        ctx.font = "132px sans-serif";
+        ctx.fillText('=', 900, 650)
+        drawMatrix(ctx, setCoverMatrix, {...setCoverMatrixDrawSettings,
+            drawMatrixValue: (ctx, x, y, matrix) => {
+                switch (x) {
+                    case 0: {
+                        ctx.fillStyle = 'rgb(252, 122, 46)';
+                    } break;
+                    case 1: {
+                        ctx.fillStyle = 'rgba(0, 0, 200, 1)';
+                    } break;
+                    case 2: {
+                        ctx.fillStyle = 'rgba(180, 20, 20, 1)';
+                    } break;
+                    case 3: {
+                        ctx.fillStyle = 'rgba(0, 100, 0, 1)';
+                    } break;
+                    case 4: {
+                        ctx.fillStyle = 'rgba(200, 200, 0, 1)';
+                    } break;
+                    case 5: {
+                        ctx.fillStyle = 'rgba(10, 100, 255, 1)';
+                    } break;
+                    case 6: {
+                        ctx.fillStyle = 'rgb(2, 107, 11)';
+                    } break;
+                    default: {
+                        ctx.fillStyle = 'rgba(0, 200, 0, 1)';
+                    } break;
+                }
+
+                const value = matrix.getValue(x, y);
+                if (value === 1) {
+                    drawMatrixCircle(ctx, x, y, setCoverMatrixDrawSettings);
+                }
+            }
+        })
+    })));
+    return slides;
+}
 
 // So what is it I want? 
 // We explain the 
@@ -756,3 +1021,38 @@ function initialize() {
 
 const goodNumberedMatrixData = [ 8, 13, 20, 31, 35, 6, 38, 49, 22, 12, 7, 33, 16, 89, 80, 65, 73, 97, 50, 91, 82, 30, 27, 83, 40, 10, 98, 88, 71, 26, 23, 29, 56, 41, 53, 4, 58, 48, 51, 32, 1, 17, 18, 25, 28, 37, 45, 46, 5, 21, 36, 19, 69, 34, 92, 59, 100, 77, 79, 78, 68, 42, 74, 95, 60, 96, 75, 72, 11, 90, 9, 44, 54, 52, 61, 93, 99, 67, 14, 43, 62, 64, 76, 3, 57, 86, 94, 63, 87, 47, 15, 66, 55, 70, 84, 39, 85, 81, 2, 24 ];
 const goodWalkMatrixData = [ 0.3369543176531483, 0.7475841645906165, 0.22148343290999106, 0.9753343279336559, 0.07171949251627063, 0.6314571742956901, 0.8597003401514846, 0.0629034883322871, 0.05602895906356853, 0.44454342270750513, 0.4184705278561023, 0.6145779386865525, 0.9755668551656638, 0.9493635274249015, 0.13300957853026052, 0.6602776306069787, 0.3131992836381994, 0.9304742495544824, 0.7536041313732724, 0.6054208181741596, 0.9883512287734862, 0.45923723786307313, 0.49024518451092647, 0.8523604383964151, 0.03494121174341802, 0.6460489972643122, 0.7294505033055466, 0.8118894000685495, 0.3841931342580417, 0.40139693178644986, 0.6348220190123802, 0.7294735091990421, 0.16118358053757686, 0.6259863451699992, 0.35517671369827164, 0.408404787066854, 0.7716057603869121, 0.7808934386362014, 0.2570749095554089, 0.516527867565138, 0.6014788355558471, 0.7791197933269675, 0.877415529911511, 0.5687084533525193, 0.6362523494315137, 0.533492944004766, 0.2899822557562578, 0.9922620938769392, 0.22703265193101685, 0.986353591320075, 0.9230195387310923, 0.5598735898812519, 0.5557787793562171, 0.06820125212862183, 0.3331005954243612, 0.8295513311472502, 0.813210928785713, 0.6798080832940311, 0.5702723428914253, 0.3826786524811153, 0.9252839819516591, 0.3336998088134061, 0.03785920896456774, 0.8065848589685845, 0.5898017431529416, 0.14765716096292725, 0.1791058942355107, 0.9582011511337313, 0.6740104441179532, 0.3129448659808334, 0.478873450953622, 0.35337879097195946, 0.42450856499053813, 0.9154926505100215, 0.4258124709947422, 0.47717785984268946, 0.09560004847962078, 0.5447580997324383, 0.30307272034335186, 0.9219955695625424, 0.38227569642461623, 0.29606372081187127, 0.8211324950805537, 0.03514764982989638, 0.7864035568633203, 0.5912839839805406, 0.8344457308228863, 0.639154180540306, 0.18071312774553416, 0.6540258249190544, 0.5732406993529225, 0.5065048468990908, 0.40370221974494214, 0.5437032181121022, 0.43694153878583464, 0.8363592625013838, 0.6121438266231511, 0.7779107840897593, 0.0723578970716997, 0.6737672430790856 ];
+
+const bienstockNumbers = [ 8, 13, 20, 31, 35, 6, 38, 49, 22, 12, 7, 33, 16, 89, 80, 65, 73, 97, 50, 91, 82, 30, 27, 83, 40, 10, 98, 88, 71, 26, 23, 29, 56, 41, 53, 4, 58, 48, 51, 32, 1, 17, 18, 25, 28, 37, 45, 46, 5, 21, 36, 19, 69, 34, 92, 59, 100, 77, 79, 78, 68, 42, 74, 95, 60, 96, 75, 72, 11, 90, 9, 44, 54, 52, 61, 93, 99, 67, 14, 43, 62, 64, 76, 3, 57, 86, 94, 63, 87, 47, 15, 66, 55, 70, 84, 39, 85, 81, 2, 24 ];
+const columnAlgorithmNumbers = 
+[ 
+    0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 
+    0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 
+    0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 
+    0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 
+    0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 
+    0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 
+    1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 
+    0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 
+    0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 
+    0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 
+]
+const setCoverMatrixNumbers = 
+[ 
+   1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+   1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+   0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+   0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+   0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+   0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+   0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+   0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+   0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+];  
+

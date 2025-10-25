@@ -102,6 +102,18 @@ const DEFAULT_SLIDE = {
     slideStart: function() {},
 }
 
+function createSlide(draw, slideStart, slideEnd, mouseDown, mouseUp, mouseMove) {
+    return {
+        draw, 
+        slideStart,
+        slideEnd,
+        mouseDown,
+        mouseUp,
+        mouseMove,
+        isInteractable: true
+    }
+}
+
 function createDrawSlide(draw) {
     return {
         ...DEFAULT_SLIDE,
