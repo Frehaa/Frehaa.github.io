@@ -254,6 +254,31 @@ class SaddlepointSlideMatrix {
     setValue(x, y, v) {
         this.data[x + y * this.columns] = v;
     }
+
+    isValidIndex(x, y) {
+        return 0 <= x && x < this.columns && 0 <= y && y < this.rows;
+    }
+    swapRows(y1, y2) {
+        if (y1 === y2) return;
+        for (let x = 0; x < this.columns; x++) {
+            this.swapEntries(x, y1, x, y2);
+            
+        }    
+
+    }
+    swapColumns(x1, x2) {
+        if (x1 === x2) return;
+
+        for (let y = 0; y < this.rows; y++) {
+            this.swapEntries(x1, y, x2, y);
+        }    
+
+    }
+    swapEntries(x1, y1, x2, y2) {
+        const tmp = this.getValue(x1, y1);
+        this.setValue(x1, y1, this.getValue(x2, y2)); 
+        this.setValue(x2, y2, tmp); 
+    }
 }
 
 function createTimer(positionX, positionY, radius, totalTimeMs) {
@@ -440,15 +465,253 @@ function initialize() {
     };
     const slider = createVerticalThresholdSlider(slideshowState, thresholdState, sliderDrawSettings);
 
+    const logStarMatrixDrawSettings = {
+        leftX: 40,
+        topY: 50,
+        cellWidth: 1000 / 70,
+        lineWidth: 0.5, 
+        drawMatrixValue: function(ctx, x, y, matrix) {
+            writeMatrixValue(ctx, x, y, matrix, this);
+        }
+    }
+    const logStarAlgSlides = createLogStarAlgSlides(slideshowState, logStarMatrixDrawSettings);
+    slideshowState.addSlide(combineSlides(logStarAlgSlides, createDrawSlide(ctx => {
+        ctx.textAlign = 'left'
+        ctx.font = slideTitleFont;
+        ctx.fillText("O(n log* n)", slideTextDefaultX, slideTitleTextDefaultY);
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet("1. Divide matrix into r-sized chunks");
+        bulletPointWriter.writeMajorBullet("(r = ⌈log(n)⌉)");
+        bulletPointWriter.writeMajorBullet("");
+        bulletPointWriter.writeMajorBullet("2. Run the sort-based algorithm");
+        bulletPointWriter.writeMajorBullet("recursively on chunks to ");
+        bulletPointWriter.writeMajorBullet("compute Pseudo saddlepoints");
+        bulletPointWriter.writeMajorBullet("");
+        bulletPointWriter.writeMajorBullet("3. Used chunk pseudo saddlepoints");
+        bulletPointWriter.writeMajorBullet("to compute pseudo saddlepoint");
+        bulletPointWriter.writeMajorBullet('value "p" of the whole matrix');
+        bulletPointWriter.writeMajorBullet("");
+        bulletPointWriter.writeMajorBullet('4. Do the walk with value "p"');
+    })));
+    slideshowState.addSlide(combineSlides(logStarAlgSlides, createDrawSlide(ctx => {
+        ctx.textAlign = 'left'
+        ctx.font = slideTitleFont;
+        ctx.fillText("O(n log* n)", slideTextDefaultX, slideTitleTextDefaultY);
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet("Construct diagonal to avoid recursive");
+        bulletPointWriter.writeMajorBullet("calls outside of overlapping diagonal");
+        bulletPointWriter.writeMajorBullet("parts");
+
+    })));
+
+    const antiDiagonalSlide = createAntiDiagonalSlides(slideshowState, matrixDrawSettingsDrawNumberedOnly)
+    slideshowState.addSlide(combineSlides(antiDiagonalSlide, createDrawSlide(ctx => {
+        ctx.textAlign = 'left'
+        ctx.font = slideTitleFont;
+        ctx.fillText("Diagonal Construction", slideTextDefaultX, slideTitleTextDefaultY);
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet("Instead of computing the diagonal");
+        bulletPointWriter.writeMajorBullet("we construct it");
+        bulletPointWriter.writeMajorBullet("1. Probe the anti-diagonal");
+        bulletPointWriter.writeMajorBullet("2. Find the median");
+        bulletPointWriter.writeMajorBullet("3. Partition elements");
+        bulletPointWriter.writeMajorBullet("4. Change upper left to median");
+        bulletPointWriter.writeMajorBullet("5. Recurse on bottom right");
+    })));
+    const bienstockSlide = createBienstockSlides(slideshowState, matrixDrawSettingsDrawNumberedOnly)
+    slideshowState.addSlide(combineSlides(bienstockSlide, createDrawSlide(ctx => {
+        ctx.textAlign = 'left'
+        ctx.font = slideTitleFont;
+        ctx.fillText("Diagonal Sort Algorithm", slideTextDefaultX, slideTitleTextDefaultY);
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet("1. Probe the diagonal");
+        bulletPointWriter.writeMajorBullet("2. Maintain min and max");
+        bulletPointWriter.writeMajorBullet("3. Probe intersection");
+        bulletPointWriter.writeMajorBullet("4. Eliminate rows and/or columns");
+        bulletPointWriter.writeMajorBullet("5. Repeat until single value");
+        bulletPointWriter.writeMajorBullet("");
+        bulletPointWriter.writeMajorBullet("(Works on non-square matrices)");
+    })));
+
     // Slide 1: Introduction
-    // slideshowState.addSlide(createBienstockSlides(matrixDrawSettingsDrawNumberedOnly));
+    const instanceOptimalIntroSlide = createBulletPointSlides("In Search of Instance Optimality", [
+        "We now have an Ω(n²) for the general non-strict saddlepoint problem",
+        "and an O(n) algorithm for the strict saddlepoint problem.",
+        "",
+        "So is there anything in-between?",
+        "And can we make an algorithm which adapts to the instance?"
+    ], {
+        titleFont: slideTitleFont,
+        titleStart: slideTitleTextDefaultY,
+        bulletFont: "48px sans-serif",
+        bullet: " ",
+        bulletStartLeft: 100,
+        bulletStartTop: slideTextBulletPointStartY,
+        bulletOffset: 80,
+        bulletByBullet: false
+    })[0];
+    slideshowState.addSlide(instanceOptimalIntroSlide)
+    slideshowState.addSlide(combineSlides(instanceOptimalIntroSlide, createDrawSlide(ctx => {
+        ctx.font = "55px bold sans-serif";
+        ctx.fillStyle = 'red'
+        ctx.fillText("Yes!", 860, 438);
+        ctx.fillText("Kind of...", 1500, 518);
+    })));
+
+    // NOTES FOR RANDOM
+    // WE WANT TO HAVE A LOWER BOUND 
+    // THE LOWER BOUND SHOULD BE LARGER THAN SOMETHING IN MANY COLUMNS
+    // WE CAN DELETE COLUMNS FROM SEARCH IF THERE IS A VALUE SMALLER THAN LOWER BOUND
+
+    
+    slideshowState.slides.push(createDrawSlide(ctx => {
+        const margin = 5;
+        const offsetX = 5;
+        const width = 12;
+        const height = 99;
+        ctx.strokeRect(defaultMatrixDrawSettings.leftX, defaultMatrixDrawSettings.topY, 1000, 1000);
+        for (let i = 0; i < 10; i++) {
+            ctx.fillRect(defaultMatrixDrawSettings.leftX + margin + i * width + i * offsetX, defaultMatrixDrawSettings.topY + margin + i * height, width, height);
+        }
+
+        ctx.textAlign = 'left'
+        ctx.font = slideTitleFont;
+        ctx.fillText("Anything in-between?", slideTextDefaultX, slideTitleTextDefaultY);
+        
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet("- White is 0s black is 1s");
+        bulletPointWriter.writeMajorBullet("- log(n) columns with 1s");
+        bulletPointWriter.writeMajorBullet("- If we consider the family of this");
+        bulletPointWriter.writeMajorBullet("type of instance, then an algorithm");
+        bulletPointWriter.writeMajorBullet("can solve it O(n log n) probes");
+        bulletPointWriter.writeMajorBullet("");
+        bulletPointWriter.writeMajorBullet("We expect a certificate as the result");
+    }));
+
+    const slideNormalizationMatrixNormalized = new SaddlepointSlideMatrix(10, 10, () => normalizationMatrixNormalized);
+    const slideNormalizationMatrix = new SaddlepointSlideMatrix(10, 10, () => normalizationMatrix);
+    slideshowState.slides.push(createDrawSlide(ctx => {
+        drawMatrix(ctx, slideNormalizationMatrix, matrixDrawSettingsDrawNumberedOnly);
+        
+        ctx.textAlign = 'left'
+        ctx.font = slideTitleFont;
+        ctx.fillText("Normalization", slideTextDefaultX, slideTitleTextDefaultY);
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet("- Instead of arbitrary values we can");
+        bulletPointWriter.writeMajorBullet(" work with just 0, +1, and -1");
+        bulletPointWriter.writeMajorBullet("- 0 is the candidate SP value");
+        bulletPointWriter.writeMajorBullet("");
+        bulletPointWriter.writeMajorBullet("");
+    }));
+
+    const normHowSlide = createDrawSlide(ctx => {
+        ctx.textAlign = 'left'
+        ctx.font = slideTitleFont;
+        ctx.fillText("Normalization: How?", slideTextDefaultX, slideTitleTextDefaultY);
+        
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet("- Find a PSP value p using O(n)");
+        bulletPointWriter.writeMajorBullet(" algorithm for SSP");
+        bulletPointWriter.writeMajorBullet("- Replace entries with: ");
+        bulletPointWriter.writeMajorBullet("    - value = p with 0");
+        bulletPointWriter.writeMajorBullet("    - value < p with -1");
+        bulletPointWriter.writeMajorBullet("    - value > v with +1");
+    });
+
+    slideshowState.slides.push(combineSlides(normHowSlide, createDrawSlide(ctx => {
+        thresholdState.setValue(52);
+        drawMatrix(ctx, slideNormalizationMatrix, matrixDrawSettingsDrawColoredCircledValue);
+    })));
+
+    const normalizedMatrixSlide = createDrawSlide(ctx => {
+        thresholdState.setValue(0);
+        drawMatrix(ctx, slideNormalizationMatrixNormalized, matrixDrawSettingsDrawColoredCircledValue);
+    });
+    slideshowState.slides.push(combineSlides(normHowSlide, normalizedMatrixSlide));
+
+    const normWhySlide = createDrawSlide(ctx => {
+        ctx.textAlign = 'left'
+        ctx.font = slideTitleFont;
+        ctx.fillText("Normalization: Why?", slideTextDefaultX, slideTitleTextDefaultY);
+        
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet("- Focuses on the hard part");
+        bulletPointWriter.writeMajorBullet("- Simplifies algorithm");
+        bulletPointWriter.writeMajorBullet("    - Find  -1: eliminate column");
+        bulletPointWriter.writeMajorBullet("    - Find +1: eliminate row");
+        bulletPointWriter.writeMajorBullet("- Split the search for +1s and -1s");
+        bulletPointWriter.writeMajorBullet("into two parallel searches.");
+    });
+    slideshowState.slides.push(combineSlides(normWhySlide, normalizedMatrixSlide));
+
+
+
+
+    // COLUMN DELETE SLIDES
+    const columnDeleteSlide =createNervousAlgSlide(slideshowState, matrixDrawSettingsDrawNumberedOnly); 
+    slideshowState.addSlide(combineSlides(columnDeleteSlide, createDrawSlide(ctx => {
+        ctx.textAlign = 'left'
+        ctx.font = slideTitleFont;
+        ctx.fillText('The "Nervous" Algorithm', slideTextDefaultX, slideTitleTextDefaultY);
+        
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet("In four steps:");
+        bulletPointWriter.writeMajorBullet("1. Randomly probe new cell for a +1");
+        bulletPointWriter.writeMajorBullet("2. Explore its column")
+        bulletPointWriter.writeMajorBullet("3. Stop searching rows with found +1")
+        bulletPointWriter.writeMajorBullet("4. Repeat until done")
+        bulletPointWriter.writeMajorBullet("")
+        bulletPointWriter.writeMajorBullet("(Search for -1s is symmetric)")
+    })));
+    slideshowState.addSlide(combineSlides(columnDeleteSlide, createDrawSlide(ctx => {
+        ctx.textAlign = 'left'
+        ctx.font = slideTitleFont;
+        ctx.fillText('Algorithm analysis', slideTextDefaultX, slideTitleTextDefaultY);
+        
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet("We can split the cost into two parts:");
+        bulletPointWriter.writeMajorBullet('1. Finding the first +1 of a column')
+        bulletPointWriter.writeMajorBullet('2. Exploring the columns')
+        bulletPointWriter.writeMajorBullet('')
+        bulletPointWriter.writeMajorBullet("For point 1, an optimal algorithm  ")
+        bulletPointWriter.writeMajorBullet('cannot generally be better than')
+        bulletPointWriter.writeMajorBullet("random guessing")
+        bulletPointWriter.writeMajorBullet('')
+        bulletPointWriter.writeMajorBullet("For point 2, on a particular family");
+        bulletPointWriter.writeMajorBullet("of instances, the optimal work");
+        bulletPointWriter.writeMajorBullet("is lower bounded by Set Cover")
+    })));
 
     // SET COVER SLIDES
     const setCoverSlides = createSetCoverSlide();
     setCoverSlides.forEach(s => slideshowState.addSlide(s));
 
-    // COLUMN DELETE SLIDES
-    slideshowState.addSlide(createColumnDeleteSlide(slideshowState, matrixDrawSettingsDrawNumberedOnly));
+
+
+    slideshowState.addSlide(createBulletPointSlides("Why relate to Set Cover?", [
+        'The Nervous Algorithm behaves a bit like a "Greedy" algorithm for Set Cover',
+        "Greedy cannot guarantee to be less than a log n factor close to optimal",
+        "This applies to the traditional Set Cover problem, but we are a bit different",
+        "The cost of picking a set (exploring a column) decreases as rows are removed",
+        "So does the log n factor remain in our setting?"
+    ], {
+        titleFont: slideTitleFont,
+        titleStart: slideTitleTextDefaultY,
+        bulletFont: "48px sans-serif",
+        bullet: "-",
+        bulletStartLeft: 100,
+        bulletStartTop: slideTextBulletPointStartY,
+        bulletOffset: 75,
+        bulletByBullet: false
+    })[0]);
+
+
+
+    
+    
+    const setCoverBarSlides = createSetCoverBarSlides();
+    setCoverBarSlides.forEach(s => slideshowState.addSlide(s));
+
 
     // Slide 2: Explanation
     slideshowState.slides.push(createDrawSlide(ctx => {
@@ -728,26 +991,460 @@ function initialize() {
     slideshowState.startSlideShow(ctx);
 }
 
-function createBienstockSlides(drawMatrixSettings) {
+function createAntiDiagonalSlides(slideshowState, drawMatrixSettings) {
+    const rowCount = 7;
+    const columnCount = 7;
     const state = {
+        visibleNumbers: new Set(),
+        deletedValues: new Set(),
+        hoverCell: {x: -1, y: -1},
+        drag: null,
+        dragDelete: false,
+        medianValue: null,
+        reset: function() {
+            state.medianValue = null,
+            state.visibleNumbers = new Set();
+            state.deletedValues = new Set()
+            state.matrix = new SaddlepointSlideMatrix(6, 6, () => [...bienstockNumbers]);
+        },
+        matrix: new SaddlepointSlideMatrix(rowCount, columnCount, () => [...bienstockNumbers])
+    };
+    const draw = ctx => {
+        drawMatrix(ctx, state.matrix, {...drawMatrixSettings, 
+            drawMatrixValue: (ctx, x, y, matrix) => {
+                const value = matrix.getValue(x, y);
+                if (state.hoverCell.x == x && state.hoverCell.y == y) {
+                    ctx.fillStyle  = 'rgba(100, 100, 100, 0.2)'; 
+                    drawMatrixCircle(ctx, x, y, drawMatrixSettings);
+                }
+                if (state.visibleNumbers.has(value)) {
+                    if (value === state.medianValue) {
+                        ctx.fillStyle  = 'rgba(0, 140, 255, 0.5)'; 
+                        drawMatrixCircle(ctx, x, y, drawMatrixSettings);
+                    }
+                    drawMatrixSettings.drawMatrixValue(ctx, x, y, matrix); 
+                }
+                
+            }
+        });
+    };
+    const mouseDown = e => {
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, drawMatrixSettings);
+
+        if (e.button === 2) {
+            state.dragDelete = true;
+            if (state.matrix.isValidIndex(matrixX, matrixY)) {
+                state.matrix.setValue(matrixX, matrixY, state.medianValue);
+            }
+            return;
+        }
+
+        if (e.button !== 0) return; // Only left click for now
+
+        if (!state.matrix.isValidIndex(matrixX, matrixY)) return;
+
+        state.drag = {
+            x: matrixX, 
+            y: matrixY
+        };
+    };
+    const mouseUp = e => {
+        if (e.button === 2) {
+            state.dragDelete = false;
+            return
+        }
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, drawMatrixSettings);
+
+        if (!state.matrix.isValidIndex(matrixX, matrixY)) return;
+        const v = state.matrix.getValue(matrixX, matrixY);
+
+        if (e.button === 1) {
+            state.medianValue = v;
+        }
+
+        if (state.drag !== null && (state.drag.x != matrixX || state.drag.y != matrixY)) {
+            state.matrix.swapColumns(matrixX, state.drag.x);
+            state.matrix.swapRows(matrixY, state.drag.y);
+        } else if (e.button === 0) {
+            state.visibleNumbers.add(v);
+        }
+
+        state.drag = null;
 
     };
-    const matrix = new SaddlepointSlideMatrix(10, 10, () => [...bienstockNumbers]);
-    const draw = ctx => {
-        drawMatrix(ctx, matrix, drawMatrixSettings);
-    };
+    const mouseMove = () => {
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, drawMatrixSettings);
+        state.hoverCell.x = matrixX;
+        state.hoverCell.y = matrixY;
+
+        if (state.dragDelete && state.matrix.isValidIndex(matrixX, matrixY)) {
+            state.matrix.setValue(matrixX, matrixY, state.medianValue);
+        }
+    }
+    let keypressEvents = event => {
+        if (event.code === 'KeyR') {
+            state.reset();
+        } else if (event.code === 'KeyM') {
+            if (state.medianValue === null) {
+                state.medianValue = 38;
+            } else if (state.medianValue == 38) {
+                state.medianValue = 32;
+            } else if (state.medianValue == 32) {
+                state.medianValue = 8;
+            }
+        }
+    }
+    const slideStart = () => {
+        document.addEventListener('keyup', keypressEvents);
+    }
+    const slideEnd = () => {
+        document.removeEventListener('keyup', keypressEvents)
+    }
     return createSlide(
         draw, 
-        () => {},
-        () => {},
-        () => {},
-        () => {},
-        () => {},
+        slideStart,
+        slideEnd,
+        mouseDown,
+        mouseUp,
+        mouseMove,
+    );
+
+}
+
+function createBienstockSlides(slideshowState, drawMatrixSettings) {
+    const rowCount = 6;
+    const columnCount = 6;
+    const state = {
+        visibleNumbers: new Set(),
+        deletedValues: new Set(),
+        hoverCell: {x: -1, y: -1},
+        drag: null,
+        dragDelete: false,
+        reset: function() {
+            state.visibleNumbers = new Set();
+            state.deletedValues = new Set()
+            state.matrix = new SaddlepointSlideMatrix(6, 6, () => [...bienstockNumbers]);
+        },
+        matrix: new SaddlepointSlideMatrix(rowCount, columnCount, () => [...bienstockNumbers])
+    };
+    const draw = ctx => {
+        drawMatrix(ctx, state.matrix, {...drawMatrixSettings, 
+            drawMatrixValue: (ctx, x, y, matrix) => {
+                const value = matrix.getValue(x, y);
+                if (state.hoverCell.x == x && state.hoverCell.y == y) {
+                    ctx.fillStyle  = 'rgba(100, 100, 100, 0.2)'; 
+                    drawMatrixCircle(ctx, x, y, drawMatrixSettings);
+                }
+                if (state.deletedValues.has(value)) {
+                    ctx.fillStyle  = 'rgba(200, 0, 0, 1)'; 
+                    drawMatrixCircle(ctx, x, y, drawMatrixSettings);
+                }else if (state.visibleNumbers.has(value)) {
+                    drawMatrixSettings.drawMatrixValue(ctx, x, y, matrix); 
+                }
+                
+            }
+        });
+    };
+    const mouseDown = e => {
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, drawMatrixSettings);
+
+        if (e.button === 2) {
+            state.dragDelete = true;
+            if (state.matrix.isValidIndex(matrixX, matrixY)) {
+                const value = state.matrix.getValue(matrixX, matrixY)
+                state.deletedValues.add(value);
+            }
+            return;
+        }
+
+        if (e.button !== 0) return; // Only left click for now
+
+        if (!state.matrix.isValidIndex(matrixX, matrixY)) return;
+
+        state.drag = {
+            x: matrixX, 
+            y: matrixY
+        };
+    };
+    const mouseUp = e => {
+        if (e.button === 2) {
+            state.dragDelete = false;
+            return
+        }
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, drawMatrixSettings);
+
+        if (!state.matrix.isValidIndex(matrixX, matrixY)) return;
+        const v = state.matrix.getValue(matrixX, matrixY);
+
+        if (e.button === 1) {
+            state.deletedValues.delete(v);
+            state.visibleNumbers.add(v);
+        }
+
+        if (state.drag !== null && (state.drag.x != matrixX || state.drag.y != matrixY)) {
+            state.matrix.swapColumns(matrixX, state.drag.x);
+            state.matrix.swapRows(matrixY, state.drag.y);
+        } else if (e.button === 0) {
+            state.visibleNumbers.add(v);
+        }
+
+        state.drag = null;
+
+
+    };
+    const mouseMove = () => {
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, drawMatrixSettings);
+        state.hoverCell.x = matrixX;
+        state.hoverCell.y = matrixY;
+
+        if (state.dragDelete && state.matrix.isValidIndex(matrixX, matrixY)) {
+            const value = state.matrix.getValue(matrixX, matrixY)
+            state.deletedValues.add(value);
+        }
+    }
+    let resetOnRPress = event => {
+        if (event.code === 'KeyR') {
+            state.reset();
+        } 
+    }
+    const slideStart = () => {
+        document.addEventListener('keyup', resetOnRPress);
+    }
+    const slideEnd = () => {
+        document.removeEventListener('keyup', resetOnRPress)
+    }
+    return createSlide(
+        draw, 
+        slideStart,
+        slideEnd,
+        mouseDown,
+        mouseUp,
+        mouseMove,
     );
 }
 
+function spAndPspSlides(drawMatrixSettings) {
+    const rowCount = 10;
+    const columnCount = 10;
+    const state = {
+        visibleNumbers: new Map(),
+        deletedRows: new Set(),
+        hoverCell: {x: -1, y: -1},
+        reset: function() {
+            state.visibleNumbers = new Map();
+            state.deletedRows = new Set()
+        }
+    };
+    const matrix = new SaddlepointSlideMatrix(rowCount, columnCount, () => [...columnAlgorithmNumbers]);
+    const draw = ctx => {
+        // We only want it to draw numbers that we have clicked on
+        // We want to "delete" rows
+        drawMatrix(ctx, matrix, {...drawMatrixSettings, 
+            drawMatrixValue: (ctx, x, y, matrix) => {
+                const rowSet = state.visibleNumbers.getOrInsert(x, new Set());
+                if (state.hoverCell.x == x && state.hoverCell.y == y) {
+                    ctx.fillStyle  = 'rgba(100, 100, 100, 0.2)'; 
+                    drawMatrixCircle(ctx, x, y, drawMatrixSettings);
+                }
+                if (state.deletedRows.has(y)) {
+                    ctx.fillStyle  = 'rgba(200, 200, 200, 1)'; 
+                    for (let rowX = 0; rowX < columnCount; rowX++) {
+                        drawMatrixSquare(ctx, rowX, y, drawMatrixSettings);
+                    }
+                }else if (rowSet.has(y)) {
+                    drawMatrixSettings.drawMatrixValue(ctx, x, y, matrix); 
+                }
+                
+            }
+        });
+    };
+    const mouseDown = e => {
+        if (e.button == 1) { // MIDDLE MOUSE BUTTON
+            state.reset()
+        } 
+    };
+    const mouseUp = e => {
+        console.log(slideshowState)
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, drawMatrixSettings);
+        const rowSet = state.visibleNumbers.getOrInsert(matrixX, new Set()); 
+        rowSet.add(matrixY);// We allow insertion of invalid values like (-1 and 11)
+        if (matrixX < 0) {
+            if (!state.deletedRows.delete(matrixY)) {
+                state.deletedRows.add(matrixY)
+            }
+        }
+    };
+    const mouseMove = () => {
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, drawMatrixSettings);
+        state.hoverCell.x = matrixX;
+        state.hoverCell.y = matrixY;
+    }
+    let resetOnRPress = event => {
+        if (event.code === 'KeyR') {
+            state.reset();
+        }
+    }
+    const slideStart = () => {
+        document.addEventListener('keyup', resetOnRPress);
+    }
+    const slideEnd = () => {
+        document.removeEventListener('keyup', resetOnRPress)
+    }
+    return createSlide(
+        draw, 
+        slideStart,
+        slideEnd,
+        mouseDown,
+        mouseUp,
+        mouseMove,
+    );
+
+}
+
+function createLogStarAlgSlides(slideshowState, drawMatrixSettings) {
+    const rowCount = 70;
+    const columnCount = 70;
+    const state = {
+        step: 0,
+        hoverCell: {x: -1, y: -1},
+        queriedSuperCells: new Set(),
+        queriedSuperCellsNonRec: new Set(),
+        reset: function() {
+            state.step = 0;
+            state.queriedSuperCells= new Set();
+
+        }
+    };
+    const matrix = new SaddlepointSlideMatrix(rowCount, columnCount, () => [...columnAlgorithmNumbers]);
+    const draw = ctx => {
+        // We only want it to draw numbers that we have clicked on
+        // We want to "delete" rows
+        drawMatrix(ctx, matrix, {...drawMatrixSettings, 
+            drawMatrixValue: (ctx, x, y, matrix) => {
+                const superX = Math.floor(x / 7);
+                const superY = Math.floor(y / 7);
+
+                const flatSuperIndex = superX + columnCount * superY;
+
+                if (state.queriedSuperCellsNonRec.has(flatSuperIndex)) {
+                    ctx.fillStyle = 'rgba(0, 200, 0, 0.8)'
+                    drawMatrixSquare(ctx, x, y, drawMatrixSettings);
+                    return
+                }
+                else if (state.queriedSuperCells.has(flatSuperIndex)) {
+                    ctx.fillStyle = 'rgba(200, 0, 0, 0.8)'
+                    drawMatrixSquare(ctx, x, y, drawMatrixSettings);
+                    return 
+                }
+                if (state.step > 0) {
+                    if (rowCount -1 - x === y) {
+                        ctx.fillStyle = 'rgba(0, 0, 200, 0.5)'
+                        drawMatrixCircle(ctx, x, y, drawMatrixSettings);
+                    }
+                }
+                if (state.step > 2) {
+                    if (rowCount -1 + 36 - x === y) {
+                        ctx.fillStyle = 'rgba(0, 0, 200, 0.5)'
+                        drawMatrixCircle(ctx, x, y, drawMatrixSettings);
+                    }
+                }
+                
+                if (state.step > 4) {
+                    if (x == y) {
+                        ctx.fillStyle = 'rgba(0, 200, 200, 0.5)'
+                        drawMatrixCircle(ctx, x, y, drawMatrixSettings);
+                    }
+                    if (rowCount -1 + 55 - x === y) {
+                        ctx.fillStyle = 'rgba(0, 0, 200, 0.5)'
+                        drawMatrixCircle(ctx, x, y, drawMatrixSettings);
+                    }
+                    if (rowCount -1 + 65 - x === y) {
+                        ctx.fillStyle = 'rgba(0, 0, 200, 0.5)'
+                        drawMatrixCircle(ctx, x, y, drawMatrixSettings);
+                    }
+                    if (rowCount -1 + 68 - x === y) {
+                        ctx.fillStyle = 'rgba(0, 0, 200, 0.5)'
+                        drawMatrixCircle(ctx, x, y, drawMatrixSettings);
+                    }
+
+
+                }
+                else if (state.step > 3) {
+                    if (x < columnCount * 0.75 && y < rowCount * 0.75 && x == y) {
+                        ctx.fillStyle = 'rgba(0, 200, 200, 0.5)'
+                        drawMatrixCircle(ctx, x, y, drawMatrixSettings);
+                    }
+                    //  Lower upper left
+                }
+                else if (state.step > 1) {
+                    if (x < columnCount / 2 && y < rowCount / 2 && x == y) {
+                        ctx.fillStyle = 'rgba(0, 200, 200, 0.5)';
+                        drawMatrixCircle(ctx, x, y, drawMatrixSettings);
+                    }
+                }
+                
+                if (matrix.isValidIndex(state.hoverCell.x, state.hoverCell.y)) {
+                    const superX = Math.floor(state.hoverCell.x / 7);
+                    const superY = Math.floor(state.hoverCell.y / 7);
+
+                    if (Math.floor(x / 7)  === superX && Math.floor(y / 7) == superY) {
+                        ctx.fillStyle = 'rgba(200, 0, 0, 0.5)'
+                        drawMatrixSquare(ctx, x, y, drawMatrixSettings);
+                    }
+                }
+            }
+        });
+    };
+    const mouseDown = e => {
+    };
+    const mouseUp = e => {
+
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, drawMatrixSettings);
+        if (!matrix.isValidIndex(matrixX, matrixY)) return false; 
+        const superX = Math.floor(state.hoverCell.x / 7);
+        const superY = Math.floor(state.hoverCell.y / 7);
+        
+        if (e.button === 0) { 
+            state.queriedSuperCells.add(superX + columnCount * superY); // Transform to flat index
+        } else if (e.button === 2) {
+            state.queriedSuperCells.delete(superX + columnCount * superY); // Transform to flat index
+            state.queriedSuperCellsNonRec.delete(superX + columnCount * superY); // Transform to flat index
+        } else if (e.button === 1) {
+            state.queriedSuperCellsNonRec.add(superX + columnCount * superY); // Transform to flat index
+        }
+    };
+    const mouseMove = () => {
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, drawMatrixSettings);
+        state.hoverCell.x = matrixX;
+        state.hoverCell.y = matrixY;
+    }
+    let resetOnRPress = event => {
+        if (event.code === 'KeyR') {
+            state.reset();
+        }
+        if (event.code === 'KeyN') {
+            state.step += event.shiftKey? -1 : 1;
+        }
+    }
+    const slideStart = () => {
+        document.addEventListener('keyup', resetOnRPress);
+    }
+    const slideEnd = () => {
+        document.removeEventListener('keyup', resetOnRPress)
+    }
+    return createSlide(
+        draw, 
+        slideStart,
+        slideEnd,
+        mouseDown,
+        mouseUp,
+        mouseMove,
+    );
+
+}
+
 // COLUMN DELETION SLIDES. TODO: FIND SOME BETTER NUMBERS
-function createColumnDeleteSlide(slideshowState, drawMatrixSettings) { 
+function createNervousAlgSlide(slideshowState, drawMatrixSettings) { 
     const rowCount = 10;
     const columnCount = 10;
     const state = {
@@ -825,7 +1522,6 @@ function createColumnDeleteSlide(slideshowState, drawMatrixSettings) {
 }
 
 function createSetCoverSlide(slideshowState) {
-
     const elementLeftX = 200;
     const elementOffSetX = 150;
     const elementTopY = 400;
@@ -833,7 +1529,7 @@ function createSetCoverSlide(slideshowState) {
     const drawTitleAndNumbers = ctx => {
         ctx.textAlign = 'center'
         ctx.font = slideTitleFont;
-        ctx.fillText("Set Cover", 1920/2, 100)
+        ctx.fillText("What is Set Cover?", 1920/2, 100)
 
         // To the left is the set cover and to the right is the matrix
 
@@ -959,8 +1655,8 @@ function createSetCoverSlide(slideshowState) {
     const setCoverMatrix = new SaddlepointSlideMatrix(16, 16, () => setCoverMatrixNumbers);    
     const setCoverMatrixDrawSettings = {
         leftX: 1200,
-        topY: elementTopY,
-        cellWidth: 30,
+        topY: elementTopY - 35,
+        cellWidth: 35,
         lineWidth: 2
     };
     const slides = [createDrawSlide(drawTitleAndNumbers)]
@@ -1013,16 +1709,190 @@ function createSetCoverSlide(slideshowState) {
     return slides;
 }
 
+function drawCurlyBracket(ctx, x, y, height, width, text, direction = 'left') {
+    //   const width = height / 4; // controls "curviness"
+    const mid = y + height / 2;
+    const dir = direction === 'left' ? -1 : 1;
+    const tipHeight = height * 0.15;
+    const tipWidth = width / 2;
+    const toTipStartHeight = ((height / 2) - tipHeight / 2);
+    const tipStart = y + toTipStartHeight
+    
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    
+    // upper curve
+    ctx.bezierCurveTo(
+        x + dir * tipWidth, y, 
+        x + dir * tipWidth, y + toTipStartHeight /4, 
+        x + dir * tipWidth, tipStart
+    );
+    ctx.lineTo(x + dir * width, mid);
+    ctx.lineTo(x + dir * tipWidth, mid + tipHeight / 2);
+    
+    // inward tip (middle point)
+    //   ctx.bezierCurveTo(
+    //     x - dir * width / 2, mid - height / 6, 
+    //     x - dir * width / 2, mid + height / 6, 
+    //     x, mid + height / 6
+    //   );
+    
+    // lower curve
+    ctx.bezierCurveTo(
+        x + dir * tipWidth, y + height - toTipStartHeight /4, 
+        x + dir * tipWidth, y + height, 
+        x, y + height
+    );
+    ctx.stroke();
+
+    ctx.font = "18px sans-serif"
+    ctx.textAlign = "left"
+    ctx.textBaseline = "middle"
+    ctx.fillText(text, x + width + 5, mid)
+}
+
+function createSetCoverBarSlides() {
+    const resultSlides = [];
+    const values = [29, 25, 20, 17, 7, 7, 3, 1, 1];
+
+    const drawSettings = {
+        topY: 400,
+        leftX: 100,
+        barHeight: 30,
+        barUnitWidth: 30
+    }
+
+    const maxValue = Math.max(...values);
+    const nextPowerOfTwoValue = 2 ** Math.ceil(Math.log2(maxValue));
+    const width = nextPowerOfTwoValue * drawSettings.barUnitWidth;
+
+    const basicBarsSlide = createDrawSlide(ctx => {
+        ctx.lineWidth = 1
+        ctx.beginPath();
+        for (let i = values.length-1; i >= 0; i--) {
+            const v = values[i];
+            const barWidth = drawSettings.barUnitWidth * v;
+            const x = drawSettings.leftX + width - barWidth;
+            const y = drawSettings.topY + drawSettings.barHeight * (values.length -1 - i);
+            ctx.rect(x, y, barWidth, drawSettings.barHeight);
+        }
+        ctx.stroke();
+        ctx.stroke();
+    });
+
+    resultSlides.push(basicBarsSlide);
+
+    const linesSlide = createDrawSlide(ctx => {
+        ctx.font = "18px sans-serif"
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        const linesToDraw = Math.round(Math.log2(nextPowerOfTwoValue));
+        let remainingWidth = width;
+        let powerOfTwoValue = nextPowerOfTwoValue;
+        ctx.beginPath();
+        for (let i = 0; i <= linesToDraw; i++) {
+            const x = drawSettings.leftX + width - remainingWidth;
+            ctx.moveTo(x, drawSettings.topY - 5);
+            ctx.lineTo(x, drawSettings.topY + drawSettings.barHeight * values.length + 5);
+            ctx.fillText(powerOfTwoValue, x, drawSettings.topY + drawSettings.barHeight * values.length + 20)
+            powerOfTwoValue = powerOfTwoValue/ 2;
+            remainingWidth = remainingWidth / 2;
+        }
+        ctx.stroke();
+        ctx.stroke();
+    });
+
+    const linedBarSlide = combineSlides(basicBarsSlide, linesSlide);
+    resultSlides.push(linedBarSlide);
+
+    const heightMarkerMarginX = 3;
+    const heightMarkerMarginY = 2;
+    const curlyBracketWidth = 15;
+    const heightsSlide = createDrawSlide(ctx => {
+        drawCurlyBracket(ctx, drawSettings.leftX + width + heightMarkerMarginX, drawSettings.topY + heightMarkerMarginY                             , drawSettings.barHeight * 2 - 2 * heightMarkerMarginY, curlyBracketWidth, "h₀ = 2", 'right');
+        drawCurlyBracket(ctx, drawSettings.leftX + width + heightMarkerMarginX, drawSettings.topY + heightMarkerMarginY + drawSettings.barHeight * 2, drawSettings.barHeight * 1 - 2 * heightMarkerMarginY, curlyBracketWidth, "h₂ = 1", 'right');
+        drawCurlyBracket(ctx, drawSettings.leftX + width + heightMarkerMarginX, drawSettings.topY + heightMarkerMarginY + drawSettings.barHeight * 3, drawSettings.barHeight * 2 - 2 * heightMarkerMarginY, curlyBracketWidth, "h₃ = 2", 'right');
+        drawCurlyBracket(ctx, drawSettings.leftX + width + heightMarkerMarginX, drawSettings.topY + heightMarkerMarginY + drawSettings.barHeight * 5, drawSettings.barHeight * 4 - 2 * heightMarkerMarginY, curlyBracketWidth, "h₅ = 4", 'right');
+        // drawCurlyBracket(ctx, 200, 50, 200, 'right')o;
+    });
+
+    const heightedBarSlide = combineSlides(linedBarSlide, heightsSlide);
+    // resultSlides.push(heightedBarSlide);
+
+    const colorsSlide = createDrawSlide(ctx => {
+        ctx.lineWidth = 1
+        ctx.beginPath();
+        for (let i = values.length-1; i >= 0; i--) {
+            const v = values[i];
+            if (v > 16) {
+                ctx.fillStyle = 'red'
+            } else if (v > 8) {
+                ctx.fillStyle = 'green'
+            } else if (v > 4) {
+                ctx.fillStyle = 'blue'
+            } else if (v > 2) {
+                ctx.fillStyle = 'pink'
+            } else {
+                ctx.fillStyle = 'black'
+            }
+            const barWidth = drawSettings.barUnitWidth * v;
+            const x = drawSettings.leftX + width - barWidth;
+            const y = drawSettings.topY + drawSettings.barHeight * (values.length -1 - i);
+            ctx.fillRect(x, y, barWidth, drawSettings.barHeight);
+        }
+        // ctx.fill()
+        // ctx.stroke();
+    });
+    const coloredBarsSlide = combineSlides(colorsSlide, heightedBarSlide);
+    resultSlides.push(coloredBarsSlide);
+
+    return resultSlides
+   
+
+    const slide = createDrawSlide(ctx => {});
+    // TODO: DRAW THE BOXES
+    // Draw the length lines
+    // Draw heights
+    // Split Greedy into phases
+    // Greedy progress lower bound based on phase
+    // Eat from left to progress. Removals per phase
+    //  Cost per removal in phase
+    // Phases * removals per phase * cost per removal in phase
+    // Transform to polynomial 
+    // Split based on sqrt 2 cases
+    // Lower bound OPT
+    return slide
+}
+
+function createNervousVsGreedySlides() {
+    // Special family
+    // Split Nervous into phases
+    // Order greedy set removals
+    // Lower bound greedy cost in phase
+    // Good vs bad sets
+    // 50 success 
+}
 // So what is it I want? 
 // We explain the 
-// I want to explain the Bernstein algorithm. 
+// I want to explain the Bienstock algorithm. 
 // This includ 
 
 
 const goodNumberedMatrixData = [ 8, 13, 20, 31, 35, 6, 38, 49, 22, 12, 7, 33, 16, 89, 80, 65, 73, 97, 50, 91, 82, 30, 27, 83, 40, 10, 98, 88, 71, 26, 23, 29, 56, 41, 53, 4, 58, 48, 51, 32, 1, 17, 18, 25, 28, 37, 45, 46, 5, 21, 36, 19, 69, 34, 92, 59, 100, 77, 79, 78, 68, 42, 74, 95, 60, 96, 75, 72, 11, 90, 9, 44, 54, 52, 61, 93, 99, 67, 14, 43, 62, 64, 76, 3, 57, 86, 94, 63, 87, 47, 15, 66, 55, 70, 84, 39, 85, 81, 2, 24 ];
 const goodWalkMatrixData = [ 0.3369543176531483, 0.7475841645906165, 0.22148343290999106, 0.9753343279336559, 0.07171949251627063, 0.6314571742956901, 0.8597003401514846, 0.0629034883322871, 0.05602895906356853, 0.44454342270750513, 0.4184705278561023, 0.6145779386865525, 0.9755668551656638, 0.9493635274249015, 0.13300957853026052, 0.6602776306069787, 0.3131992836381994, 0.9304742495544824, 0.7536041313732724, 0.6054208181741596, 0.9883512287734862, 0.45923723786307313, 0.49024518451092647, 0.8523604383964151, 0.03494121174341802, 0.6460489972643122, 0.7294505033055466, 0.8118894000685495, 0.3841931342580417, 0.40139693178644986, 0.6348220190123802, 0.7294735091990421, 0.16118358053757686, 0.6259863451699992, 0.35517671369827164, 0.408404787066854, 0.7716057603869121, 0.7808934386362014, 0.2570749095554089, 0.516527867565138, 0.6014788355558471, 0.7791197933269675, 0.877415529911511, 0.5687084533525193, 0.6362523494315137, 0.533492944004766, 0.2899822557562578, 0.9922620938769392, 0.22703265193101685, 0.986353591320075, 0.9230195387310923, 0.5598735898812519, 0.5557787793562171, 0.06820125212862183, 0.3331005954243612, 0.8295513311472502, 0.813210928785713, 0.6798080832940311, 0.5702723428914253, 0.3826786524811153, 0.9252839819516591, 0.3336998088134061, 0.03785920896456774, 0.8065848589685845, 0.5898017431529416, 0.14765716096292725, 0.1791058942355107, 0.9582011511337313, 0.6740104441179532, 0.3129448659808334, 0.478873450953622, 0.35337879097195946, 0.42450856499053813, 0.9154926505100215, 0.4258124709947422, 0.47717785984268946, 0.09560004847962078, 0.5447580997324383, 0.30307272034335186, 0.9219955695625424, 0.38227569642461623, 0.29606372081187127, 0.8211324950805537, 0.03514764982989638, 0.7864035568633203, 0.5912839839805406, 0.8344457308228863, 0.639154180540306, 0.18071312774553416, 0.6540258249190544, 0.5732406993529225, 0.5065048468990908, 0.40370221974494214, 0.5437032181121022, 0.43694153878583464, 0.8363592625013838, 0.6121438266231511, 0.7779107840897593, 0.0723578970716997, 0.6737672430790856 ];
 
-const bienstockNumbers = [ 8, 13, 20, 31, 35, 6, 38, 49, 22, 12, 7, 33, 16, 89, 80, 65, 73, 97, 50, 91, 82, 30, 27, 83, 40, 10, 98, 88, 71, 26, 23, 29, 56, 41, 53, 4, 58, 48, 51, 32, 1, 17, 18, 25, 28, 37, 45, 46, 5, 21, 36, 19, 69, 34, 92, 59, 100, 77, 79, 78, 68, 42, 74, 95, 60, 96, 75, 72, 11, 90, 9, 44, 54, 52, 61, 93, 99, 67, 14, 43, 62, 64, 76, 3, 57, 86, 94, 63, 87, 47, 15, 66, 55, 70, 84, 39, 85, 81, 2, 24 ];
+const bienstockNumbers = [ 
+    8, 13, 20, 31, 35, 6, 
+    38, 49, 22, 12, 7, 33, 
+    16, 89, 80, 65, 73, 97, 
+    50, 91, 82, 30, 27, 83, 
+    40, 10, 98, 88, 71, 26, 
+    23, 29, 3, 41, 81, 4, 
+
+    // Buffer values for antidiagonal
+    9, 14, 21, 32, 36, 11, 39, 51, 24, 15, 61, 74, 75, 28, 60, 52, 34,
+]
+
 const columnAlgorithmNumbers = 
 [ 
     0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 
@@ -1056,3 +1926,27 @@ const setCoverMatrixNumbers =
   0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ];  
 
+const normalizationMatrix = [
+94, 52, 71, 87, 59, 91, 85, 83, 45, 68, 
+ 7, 99, 80, 42, 78,  2, 62, 77, 52, 52, 
+93, 49, 56, 44, 83, 31, 73, 56, 72, 16, 
+ 9, 33, 52, 41,  8, 52, 52, 26,  4, 24, 
+50, 70, 58, 15, 65, 80, 92, 66, 22, 30, 
+84, 52, 60,  6, 68, 27, 71, 95, 63, 40, 
+18, 12, 52, 51, 41,  1, 52, 38, 24, 22, 
+14, 12, 78, 82, 56,  8, 84, 81, 26, 10, 
+61, 74, 75, 27, 60, 23, 89, 52, 38, 34, 
+52, 37, 63, 61, 73,  5, 86, 59, 95, 11, 
+];
+const normalizationMatrixNormalized = [
+ 1, 0, 1, 1, 1, 1, 1, 1,-1, 1,
+-1, 1, 1,-1, 1,-1, 1, 1, 0, 0,
+ 1,-1, 1,-1, 1,-1, 1, 1, 1,-1,
+-1,-1, 0,-1,-1, 0, 0,-1,-1,-1,
+-1, 1, 1,-1, 1, 1, 1, 1,-1,-1,
+ 1, 0, 1,-1, 1,-1, 1, 1, 1,-1,
+-1,-1, 0,-1,-1,-1, 0,-1,-1,-1,
+-1,-1, 1, 1, 1,-1, 1, 1,-1,-1,
+ 1, 1, 1,-1, 1,-1, 1, 0,-1,-1,
+ 0,-1, 1, 1, 1,-1, 1, 1, 1,-1,
+]
