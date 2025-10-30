@@ -52,7 +52,7 @@ function canvasCoordsToMatrixIndices(x, y, matrixDrawSettings) {
 // ########### DRAWING FUNCTIONS ########
 
 function drawMatrix(ctx, matrix, drawSettings) {
-    const {leftX, topY, cellWidth, lineWidth} = drawSettings;
+    const {leftX, topY, cellWidth, lineWidth, drawMatrixValue} = drawSettings;
     const width = matrix.columns * cellWidth;
     const height = matrix.rows * cellWidth;
     ctx.lineWidth = lineWidth
@@ -71,7 +71,7 @@ function drawMatrix(ctx, matrix, drawSettings) {
 
     for (let y = 0; y < matrix.rows; ++ y) {            // Values
         for (let x = 0; x < matrix.columns; ++x) {
-            drawSettings.drawMatrixValue(ctx, x, y, matrix); // Injected value-drawing method
+            drawMatrixValue(ctx, x, y, matrix); // Injected value-drawing method
         }
     }
 }
@@ -92,7 +92,7 @@ function drawMatrixSquare(ctx, x, y, drawSettings) {
 function writeMatrixValue(ctx, x, y, matrix, drawSettings) {
     const [centerX, centerY] = matrixIndicesToCanvasCoords(x, y, drawSettings);
     ctx.fillStyle = fontColor;
-    ctx.font = "32px sans-serif";
+    ctx.font = drawSettings.font? drawSettings.font : "32px sans-serif";
     ctx.textAlign = "center"
     ctx.textBaseline = "middle"
     const text = matrix.getValue(x, y).toString();
@@ -281,43 +281,20 @@ class SaddlepointSlideMatrix {
     }
 }
 
-function createTimer(positionX, positionY, radius, totalTimeMs) {
-    return {
-        draw: function(ctx, elapsedMs) {
-            ctx.save();
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.arc(positionX, positionY, radius, 0, 2 * Math.PI);
-            ctx.stroke();
-
-            const startAngle = -0.5 * Math.PI;
-            const fillAngle = startAngle + (2 * Math.PI) * elapsedMs/totalTimeMs;
-
-            ctx.fillStyle = fontColor
-            ctx.beginPath();
-            ctx.moveTo(positionX, positionY);
-            ctx.lineTo(positionX, positionY - radius);
-            ctx.arc(positionX, positionY, radius, startAngle, fillAngle, false);
-            ctx.lineTo(positionX, positionY);
-            ctx.fill();
-            ctx.restore();
-        }
-    }
-}
-
 function createBulletPointWriter(ctx, font, leftX, topY, minorOffset, majorOffset) {
     return {
         currentY: topY - majorOffset, // We assume we always start with a major bullet
         writeMajorBullet(text) {
+            ctx.font = font;
             this.currentY += majorOffset;
             ctx.fillText(text, leftX, this.currentY);
         },
         writeMinorBullet(text) {
+            ctx.font = font;
             this.currentY += minorOffset;
             ctx.fillText(text, leftX, this.currentY);
         },
         startWriting() { // Reset before writing in a new frame
-            ctx.font = font;
             this.currentY = topY - majorOffset; // We assume we always start with a major bullet
         }
     }
@@ -411,29 +388,29 @@ function initialize() {
 
     const matrix = new SaddlepointSlideMatrix(10, 10, () => goodNumberedMatrixData);
 
-    const defaultMatrixDrawSettings = {
+    const default10x10MatrixDrawSettings = {
         leftX: 40,
         topY: 50,
         cellWidth: 100,
         lineWidth: 2
     };
     const matrixDrawSettingsDrawNumberedOnly = {
-        ...defaultMatrixDrawSettings,
+        ...default10x10MatrixDrawSettings,
         drawMatrixValue: function(ctx, x, y, matrix) {
-            writeMatrixValue(ctx, x, y, matrix, this);
+            writeMatrixValue(ctx, x, y, matrix, matrixDrawSettingsDrawNumberedOnly);
         }
     };
     const matrixDrawSettingsDrawColoredCircledValue = {
-        ...defaultMatrixDrawSettings,
+        ...default10x10MatrixDrawSettings,
         drawMatrixValue: function(ctx, x, y, matrix) {
-            drawMatrixCircleByThreshold(ctx, x, y, matrix, thresholdState.value, this);
-            writeMatrixValue(ctx, x, y, matrix, this);
+            drawMatrixCircleByThreshold(ctx, x, y, matrix, thresholdState.value, matrixDrawSettingsDrawColoredCircledValue);
+            writeMatrixValue(ctx, x, y, matrix, matrixDrawSettingsDrawColoredCircledValue);
         }
     };
     const matrixDrawSettingsDrawCircleOnly = {
-        ...defaultMatrixDrawSettings,
+        ...default10x10MatrixDrawSettings,
         drawMatrixValue: function(ctx, x, y) {
-            drawMatrixCircle(ctx, x, y, this);
+            drawMatrixCircle(ctx, x, y, matrixDrawSettingsDrawCircleOnly);
         }
     };
     const thresholdX = Math.floor(matrix.columns * 0.71);
@@ -442,7 +419,7 @@ function initialize() {
     const thresholdState = createThresholdState(Math.min(...matrix.data), Math.max(...matrix.data), matrix.getValue(thresholdX, thresholdY));
     function updateThresholdStateFromCanvasPosition(e) {
         if (e.button != 0) return; // Only left click
-        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, defaultMatrixDrawSettings);
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, default10x10MatrixDrawSettings);
         if (matrixX < 0 || matrixX >= matrix.columns) return;
         if (matrixY < 0 || matrixY >= matrix.rows) return;
 
@@ -465,6 +442,207 @@ function initialize() {
     };
     const slider = createVerticalThresholdSlider(slideshowState, thresholdState, sliderDrawSettings);
 
+    const default6x6MatrixDrawSettings = {
+        leftX: 140,
+        topY: 150,
+        cellWidth: 120,
+        lineWidth: 2,
+    };
+    const saddlepointSlide = createSaddlepointSlide(slideshowState, default6x6MatrixDrawSettings);
+    slideshowState.addSlide(combineSlides(saddlepointSlide, createDrawSlide(ctx => {
+        ctx.textAlign = 'left'
+        ctx.font = slideTitleFont;
+        ctx.fillText("Saddlepoint", slideTextDefaultX, slideTitleTextDefaultY);
+
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet("An entry which is the maximum");
+        bulletPointWriter.writeMajorBullet("in its row and the minimum");
+        bulletPointWriter.writeMajorBullet("in its column");
+        bulletPointWriter.writeMajorBullet("");
+        bulletPointWriter.writeMajorBullet("Corresponds to a pure strategy");
+        bulletPointWriter.writeMajorBullet("Nash Equilibrium of a zero-sum game");
+        bulletPointWriter.writeMajorBullet("");
+        bulletPointWriter.writeMajorBullet("R = minimum of row maxima");
+        bulletPointWriter.writeMajorBullet("C = maximum of column minima");
+        bulletPointWriter.writeMajorBullet("If R = C, then we have a saddlepoint");
+        bulletPointWriter.writeMajorBullet("with equal to this value");
+    })));
+    slideshowState.addSlide(combineSlides(saddlepointSlide, createDrawSlide(ctx => {
+        ctx.textAlign = 'left'
+        ctx.font = slideTitleFont;
+        ctx.fillText("Strict Saddlepoint ", slideTextDefaultX, slideTitleTextDefaultY);
+
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet("When the saddlepoint has no ");
+        bulletPointWriter.writeMajorBullet("other element in its row or column");
+        bulletPointWriter.writeMajorBullet("with the same value (Unique)");
+        bulletPointWriter.writeMajorBullet("");
+        bulletPointWriter.writeMajorBullet("Equality makes the problem harder");
+        bulletPointWriter.writeMajorBullet("");
+        bulletPointWriter.writeMajorBullet("Saddlepoint problem has Ω(n²)");
+        bulletPointWriter.writeMajorBullet("time lower bound");
+        bulletPointWriter.writeMajorBullet("Strict saddlepoint was shown ");
+        bulletPointWriter.writeMajorBullet("computable in O(n log n) time");
+        bulletPointWriter.writeMajorBullet("in 1991");
+
+        ctx.lineWidth = 2
+        drawVerticalCurlyBracket(ctx,   
+            default6x6MatrixDrawSettings.leftX + 10 + 5 * default6x6MatrixDrawSettings.cellWidth,   // x
+            default6x6MatrixDrawSettings.topY,                                                      // y
+            5 * default6x6MatrixDrawSettings.cellWidth,                                             // height 
+            20,                                                                                     // Width 
+            "n",                                                                                    // Text 
+            'right',                                                                                // Direction 
+            "40px sans-serif"                                                                       // Font
+        )
+        drawHorizontalCurlyBracket(ctx, 
+            default6x6MatrixDrawSettings.leftX,                                                     // x 
+            default6x6MatrixDrawSettings.topY + 10 + 5 * default6x6MatrixDrawSettings.cellWidth,    // y 
+            20,                                                                                     // height 
+            5 * default6x6MatrixDrawSettings.cellWidth,                                             // Width
+            "n",                                                                                    // Text 
+            'down',                                                                                 // Direction 
+            "40px sans-serif"                                                                       // Font
+        )
+    })));
+
+
+
+    // Walking algorithm
+    const dogImage = new Image();
+    dogImage.src = "../saddlepoint/dog_shibainu_brown.png"; // Relative path
+    const walkMatrix = new SaddlepointSlideMatrix(10, 10, () => goodWalkMatrixData);
+
+    const greenCircleLegendHeight = 700;
+    const redCircleLegendHeight = 800;
+
+    const walkSlides = createWalkSlides(walkMatrix, goodWalkMatrixData[99], matrixDrawSettingsDrawCircleOnly, dogImage);
+    slideshowState.slides.push(...walkSlides.map(slide => { // Create the walk slides and then update them
+        return combineSlides(slide, createDrawSlide(ctx => {
+            ctx.fillStyle = fontColor;
+            ctx.textAlign = 'left'
+            ctx.font = slideTitleFont;
+            ctx.fillText("Why is it easier?", slideTextDefaultX, slideTitleTextDefaultY);
+            ctx.font = "40px sans-serif";
+            ctx.fillText("(linear time search)", 1150, 135);
+
+            bulletPointWriter.startWriting();
+            bulletPointWriter.writeMajorBullet('- Go for a "walk" using guess "S"');
+            bulletPointWriter.writeMajorBullet("- Walk right on green value");
+            bulletPointWriter.writeMajorBullet("- Walk down on red value");
+            bulletPointWriter.writeMajorBullet("- Either visit all columns or all rows");
+
+            const circleRadius = default10x10MatrixDrawSettings.cellWidth * 0.4
+            // First circle comparison legend
+            ctx.fillStyle = smallerThanColor;
+            drawCircle(1150, greenCircleLegendHeight, circleRadius, ctx)
+            ctx.fillStyle = fontColor;
+            ctx.fillText("< S", 1200, greenCircleLegendHeight);
+
+            // Second circle comparison legend
+            ctx.fillStyle = greaterThanColor;
+            drawCircle(1150, redCircleLegendHeight, circleRadius, ctx)
+            ctx.fillStyle = fontColor;
+            ctx.fillText("> S", 1200, redCircleLegendHeight);
+
+        }));
+    }));
+    slideshowState.addSlide(combineSlides(walkSlides[walkSlides.length-1], createDrawSlide(ctx => {
+            ctx.fillStyle = fontColor;
+            ctx.textAlign = 'left'
+            ctx.font = slideTitleFont;
+            ctx.fillText("Why is it easier?", slideTextDefaultX, slideTitleTextDefaultY);
+            ctx.font = "40px sans-serif";
+            ctx.fillText("(linear time search)", 1150, 135);
+
+            bulletPointWriter.startWriting();
+            bulletPointWriter.writeMajorBullet("To deal with equality we do two ");
+            bulletPointWriter.writeMajorBullet("searches in parallel that only differs");
+            bulletPointWriter.writeMajorBullet("in which direction to walk when");
+            bulletPointWriter.writeMajorBullet("the value is found");
+            
+            // TODO: Insert illustration with 2 paths that differ on the value
+            const doubleWalkImage = new Image();
+            doubleWalkImage.src = "double_walk.jpg"; // Relative path
+
+            const imageSize = 600;
+            ctx.drawImage(doubleWalkImage, slideTextDefaultX + 100, 450, imageSize, imageSize);
+    })));
+
+
+    const pseudoSaddlepointSlide = createPseudoSaddlepointSlide(slideshowState, default6x6MatrixDrawSettings);
+    const pseudoSaddlepointSlideText1 = combineSlides(pseudoSaddlepointSlide, createDrawSlide(ctx => {
+            ctx.fillStyle = fontColor;
+            ctx.textAlign = 'left'
+            ctx.font = slideTitleFont;
+            ctx.fillText("So which value to guess?", slideTextDefaultX, slideTitleTextDefaultY);
+
+            bulletPointWriter.startWriting();
+            bulletPointWriter.writeMajorBullet("Introducing Pseudo Saddlepoints");
+            bulletPointWriter.writeMajorBullet("");
+            bulletPointWriter.writeMajorBullet("C = maximum of column minima");
+            bulletPointWriter.writeMajorBullet("R = minimum of row maxima");
+            bulletPointWriter.writeMajorBullet("Pseudo saddlepoint in range [C, R]");
+            bulletPointWriter.writeMajorBullet("");
+            bulletPointWriter.writeMajorBullet("Recall that a saddlepoint had C = R");
+
+    }))
+    slideshowState.addSlide(pseudoSaddlepointSlideText1);
+
+    slideshowState.addSlide(combineSlides(pseudoSaddlepointSlideText1, createDrawSlide(ctx => {
+            // ctx.fillStyle = fontColor;
+            bulletPointWriter.writeMajorBullet("");
+            bulletPointWriter.writeMajorBullet("A pseudo saddlepoint value can");
+            bulletPointWriter.writeMajorBullet('be used for the "walk" to find');
+            bulletPointWriter.writeMajorBullet("the saddlepoint if it exists");
+    })));
+
+    const bienstockSlide = createBienstockSlides(slideshowState, default6x6MatrixDrawSettings)
+    slideshowState.addSlide(combineSlides(bienstockSlide, createDrawSlide(ctx => {
+        ctx.textAlign = 'left'
+        ctx.font = slideTitleFont;
+        ctx.fillText("Diagonal Sort Algorithm", slideTextDefaultX, slideTitleTextDefaultY);
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet("1. Probe the diagonal");
+        bulletPointWriter.writeMajorBullet("2. Maintain min and max");
+        bulletPointWriter.writeMajorBullet("3. Probe intersection");
+        bulletPointWriter.writeMajorBullet("4. Eliminate rows and/or columns");
+        bulletPointWriter.writeMajorBullet("5. Repeat until single value");
+        bulletPointWriter.writeMajorBullet("");
+        bulletPointWriter.writeMajorBullet("(Works on non-square matrices)");
+    })));
+
+    const pspMatrixCombineSlide = createPseudoSaddlepointCombineSlide(slideshowState, {...default10x10MatrixDrawSettings, cellWidth: 10, lineWidth: 1, drawMatrixValue: () => {}});
+    slideshowState.addSlide(combineSlides(pspMatrixCombineSlide, createDrawSlide(ctx => {
+            ctx.fillStyle = fontColor;
+            ctx.textAlign = 'left'
+            ctx.font = slideTitleFont;
+            ctx.fillText("Another useful property", slideTextDefaultX, slideTitleTextDefaultY);
+
+            bulletPointWriter.startWriting();
+            bulletPointWriter.writeMajorBullet("Pseudo saddlepoints of sub-matrices");
+            bulletPointWriter.writeMajorBullet("can be combined to find pseudo ");
+            bulletPointWriter.writeMajorBullet("saddlepoints of the whole matrix");
+    })));
+   slideshowState.addSlide(combineSlides(pspMatrixCombineSlide, createDrawSlide(ctx => {
+            ctx.fillStyle = fontColor;
+            ctx.textAlign = 'left'
+            ctx.font = slideTitleFont;
+            ctx.fillText("Another useful property", slideTextDefaultX, slideTitleTextDefaultY);
+
+            bulletPointWriter.startWriting();
+            bulletPointWriter.writeMajorBullet("Pseudo saddlepoints of sub-matrices");
+            bulletPointWriter.writeMajorBullet("can be combined to find pseudo ");
+            bulletPointWriter.writeMajorBullet("saddlepoints of the whole matrix");
+            bulletPointWriter.writeMajorBullet("");
+            bulletPointWriter.writeMajorBullet("So we can split the problem of ");
+            bulletPointWriter.writeMajorBullet("finding a pseudo saddlepoint ");
+            bulletPointWriter.writeMajorBullet("into many small sub-problems");
+    })));
+ 
+
+
+
     const logStarMatrixDrawSettings = {
         leftX: 40,
         topY: 50,
@@ -478,14 +656,14 @@ function initialize() {
     slideshowState.addSlide(combineSlides(logStarAlgSlides, createDrawSlide(ctx => {
         ctx.textAlign = 'left'
         ctx.font = slideTitleFont;
-        ctx.fillText("O(n log* n)", slideTextDefaultX, slideTitleTextDefaultY);
+        ctx.fillText("Almost O(n log* n)", slideTextDefaultX, slideTitleTextDefaultY);
         bulletPointWriter.startWriting();
         bulletPointWriter.writeMajorBullet("1. Divide matrix into r-sized chunks");
         bulletPointWriter.writeMajorBullet("(r = ⌈log(n)⌉)");
         bulletPointWriter.writeMajorBullet("");
-        bulletPointWriter.writeMajorBullet("2. Run the sort-based algorithm");
+        bulletPointWriter.writeMajorBullet("2. Run the O(n log n) algorithm");
         bulletPointWriter.writeMajorBullet("recursively on chunks to ");
-        bulletPointWriter.writeMajorBullet("compute Pseudo saddlepoints");
+        bulletPointWriter.writeMajorBullet("compute pseudo saddlepoints");
         bulletPointWriter.writeMajorBullet("");
         bulletPointWriter.writeMajorBullet("3. Used chunk pseudo saddlepoints");
         bulletPointWriter.writeMajorBullet("to compute pseudo saddlepoint");
@@ -493,16 +671,7 @@ function initialize() {
         bulletPointWriter.writeMajorBullet("");
         bulletPointWriter.writeMajorBullet('4. Do the walk with value "p"');
     })));
-    slideshowState.addSlide(combineSlides(logStarAlgSlides, createDrawSlide(ctx => {
-        ctx.textAlign = 'left'
-        ctx.font = slideTitleFont;
-        ctx.fillText("O(n log* n)", slideTextDefaultX, slideTitleTextDefaultY);
-        bulletPointWriter.startWriting();
-        bulletPointWriter.writeMajorBullet("Construct diagonal to avoid recursive");
-        bulletPointWriter.writeMajorBullet("calls outside of overlapping diagonal");
-        bulletPointWriter.writeMajorBullet("parts");
 
-    })));
 
     const antiDiagonalSlide = createAntiDiagonalSlides(slideshowState, matrixDrawSettingsDrawNumberedOnly)
     slideshowState.addSlide(combineSlides(antiDiagonalSlide, createDrawSlide(ctx => {
@@ -518,21 +687,48 @@ function initialize() {
         bulletPointWriter.writeMajorBullet("4. Change upper left to median");
         bulletPointWriter.writeMajorBullet("5. Recurse on bottom right");
     })));
-    const bienstockSlide = createBienstockSlides(slideshowState, matrixDrawSettingsDrawNumberedOnly)
-    slideshowState.addSlide(combineSlides(bienstockSlide, createDrawSlide(ctx => {
+    
+    slideshowState.addSlide(combineSlides(logStarAlgSlides, createDrawSlide(ctx => {
         ctx.textAlign = 'left'
         ctx.font = slideTitleFont;
-        ctx.fillText("Diagonal Sort Algorithm", slideTextDefaultX, slideTitleTextDefaultY);
+        ctx.fillText("O(n log* n) fixed", slideTextDefaultX, slideTitleTextDefaultY);
         bulletPointWriter.startWriting();
-        bulletPointWriter.writeMajorBullet("1. Probe the diagonal");
-        bulletPointWriter.writeMajorBullet("2. Maintain min and max");
-        bulletPointWriter.writeMajorBullet("3. Probe intersection");
-        bulletPointWriter.writeMajorBullet("4. Eliminate rows and/or columns");
-        bulletPointWriter.writeMajorBullet("5. Repeat until single value");
+        bulletPointWriter.writeMajorBullet("0. Construct diagonal to avoid ");
+        bulletPointWriter.writeMajorBullet("recursive calls outside of ");
+        bulletPointWriter.writeMajorBullet("overlapping diagonal parts");
         bulletPointWriter.writeMajorBullet("");
-        bulletPointWriter.writeMajorBullet("(Works on non-square matrices)");
+        bulletPointWriter.writeMajorBullet('A matrix with a diagonal of all ');
+        bulletPointWriter.writeMajorBullet('value "v" has a pseudo saddlepoint');
+        bulletPointWriter.writeMajorBullet('with value "v"');
+        bulletPointWriter.writeMajorBullet("");
+        bulletPointWriter.writeMajorBullet("The running time follows from the");
+        bulletPointWriter.writeMajorBullet("recurrence relation:");
+        bulletPointWriter.writeMajorBullet("T(n) ≤ cn + (⌈n/r⌉ - 1)T(r).");
+
     })));
 
+    slideshowState.addSlide(createDrawSlide(ctx => {
+        ctx.textAlign = 'center'
+        ctx.font = slideTitleFont;
+        ctx.fillText("I promise this was the hardest algorithm", canvas.width/2, canvas.height/2);
+    }));
+
+    // BONUS N LOG LOG N Algorithm as motivation?
+    // RANDOM ALGORITHM PART
+    const randomProbingAlgorithmSlide = createRandomProbingAlgorithmSlide(slideshowState, default10x10MatrixDrawSettings);
+    slideshowState.addSlide(combineSlides(randomProbingAlgorithmSlide, createDrawSlide(ctx => {
+        ctx.textAlign = 'left'
+        ctx.font = slideTitleFont;
+        ctx.fillText("Can we do better?", slideTextDefaultX, slideTitleTextDefaultY);
+
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet("Can we do better with randomness?");
+        bulletPointWriter.writeMajorBullet("");
+        bulletPointWriter.writeMajorBullet("");
+
+    })));
+
+    // INSTANCE OPTIMALITY PART
     // Slide 1: Introduction
     const instanceOptimalIntroSlide = createBulletPointSlides("In Search of Instance Optimality", [
         "We now have an Ω(n²) for the general non-strict saddlepoint problem",
@@ -563,15 +759,14 @@ function initialize() {
     // THE LOWER BOUND SHOULD BE LARGER THAN SOMETHING IN MANY COLUMNS
     // WE CAN DELETE COLUMNS FROM SEARCH IF THERE IS A VALUE SMALLER THAN LOWER BOUND
 
-    
     slideshowState.slides.push(createDrawSlide(ctx => {
         const margin = 5;
         const offsetX = 5;
         const width = 12;
         const height = 99;
-        ctx.strokeRect(defaultMatrixDrawSettings.leftX, defaultMatrixDrawSettings.topY, 1000, 1000);
+        ctx.strokeRect(default10x10MatrixDrawSettings.leftX, default10x10MatrixDrawSettings.topY, 1000, 1000);
         for (let i = 0; i < 10; i++) {
-            ctx.fillRect(defaultMatrixDrawSettings.leftX + margin + i * width + i * offsetX, defaultMatrixDrawSettings.topY + margin + i * height, width, height);
+            ctx.fillRect(default10x10MatrixDrawSettings.leftX + margin + i * width + i * offsetX, default10x10MatrixDrawSettings.topY + margin + i * height, width, height);
         }
 
         ctx.textAlign = 'left'
@@ -646,7 +841,6 @@ function initialize() {
 
 
 
-
     // COLUMN DELETE SLIDES
     const columnDeleteSlide =createNervousAlgSlide(slideshowState, matrixDrawSettingsDrawNumberedOnly); 
     slideshowState.addSlide(combineSlides(columnDeleteSlide, createDrawSlide(ctx => {
@@ -666,6 +860,25 @@ function initialize() {
     slideshowState.addSlide(combineSlides(columnDeleteSlide, createDrawSlide(ctx => {
         ctx.textAlign = 'left'
         ctx.font = slideTitleFont;
+        ctx.fillText('The "Nervous" Algorithm', slideTextDefaultX, slideTitleTextDefaultY);
+        
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet("In four steps:");
+        bulletPointWriter.writeMajorBullet("1. Randomly probe new cell for a +1");
+        bulletPointWriter.writeMajorBullet("2. Explore its column")
+        bulletPointWriter.writeMajorBullet("3. Stop searching rows with found +1")
+        bulletPointWriter.writeMajorBullet("4. Repeat until done")
+        bulletPointWriter.writeMajorBullet("")
+        bulletPointWriter.writeMajorBullet("(Search for -1s is symmetric)")
+        bulletPointWriter.writeMajorBullet("")
+        bulletPointWriter.writeMajorBullet("I told you this was the easiest")
+        bulletPointWriter.writeMajorBullet("algorithm")
+    })));
+
+
+    slideshowState.addSlide(combineSlides(columnDeleteSlide, createDrawSlide(ctx => {
+        ctx.textAlign = 'left'
+        ctx.font = slideTitleFont;
         ctx.fillText('Algorithm analysis', slideTextDefaultX, slideTitleTextDefaultY);
         
         bulletPointWriter.startWriting();
@@ -674,8 +887,8 @@ function initialize() {
         bulletPointWriter.writeMajorBullet('2. Exploring the columns')
         bulletPointWriter.writeMajorBullet('')
         bulletPointWriter.writeMajorBullet("For point 1, an optimal algorithm  ")
-        bulletPointWriter.writeMajorBullet('cannot generally be better than')
-        bulletPointWriter.writeMajorBullet("random guessing")
+        bulletPointWriter.writeMajorBullet('cannot generally do better than')
+        bulletPointWriter.writeMajorBullet("randomly guessing (kind of)")
         bulletPointWriter.writeMajorBullet('')
         bulletPointWriter.writeMajorBullet("For point 2, on a particular family");
         bulletPointWriter.writeMajorBullet("of instances, the optimal work");
@@ -685,8 +898,6 @@ function initialize() {
     // SET COVER SLIDES
     const setCoverSlides = createSetCoverSlide();
     setCoverSlides.forEach(s => slideshowState.addSlide(s));
-
-
 
     slideshowState.addSlide(createBulletPointSlides("Why relate to Set Cover?", [
         'The Nervous Algorithm behaves a bit like a "Greedy" algorithm for Set Cover',
@@ -705,289 +916,103 @@ function initialize() {
         bulletByBullet: false
     })[0]);
 
+    const setCoverBarSlide = createSetCoverBarSlides(slideshowState);
+    slideshowState.addSlide(setCoverBarSlide)
 
-
-    
-    
-    const setCoverBarSlides = createSetCoverBarSlides();
-    setCoverBarSlides.forEach(s => slideshowState.addSlide(s));
-
-
-    // Slide 2: Explanation
-    slideshowState.slides.push(createDrawSlide(ctx => {
-        ctx.fillStyle = equalToColor
-        drawMatrixCircle(ctx, thresholdX, thresholdY, defaultMatrixDrawSettings)
-        drawMatrix(ctx, matrix, matrixDrawSettingsDrawNumberedOnly);
-
+    const nervousVsGreedySlide = createNervousVsGreedySlides(slideshowState, default10x10MatrixDrawSettings);
+    slideshowState.addSlide(combineSlides(nervousVsGreedySlide, createDrawSlide(ctx => {
         ctx.textAlign = 'left'
         ctx.font = slideTitleFont;
-        ctx.fillText("What is a saddlepoint?", slideTextDefaultX, slideTitleTextDefaultY);
+        ctx.fillText('Nervous vs Greedy', slideTextDefaultX, slideTitleTextDefaultY);
         
         bulletPointWriter.startWriting();
-        bulletPointWriter.writeMajorBullet("- Maximum value in its row");
-        bulletPointWriter.writeMajorBullet("- Minimum value in its column");
-    }));
-
-
-    // Slide 3: Explanation with color
-    slideshowState.slides.push(createDrawSlide(ctx => {
-        drawMatrix(ctx, matrix, matrixDrawSettingsDrawColoredCircledValue);
-
-        ctx.textAlign = 'left'
-        ctx.font = slideTitleFont;
-        ctx.fillText("What is a saddlepoint?", slideTextDefaultX, slideTitleTextDefaultY);
-        ctx.font = "40px sans-serif";
-        ctx.fillText("(colored edition)", 1300, 135);
-
-        bulletPointWriter.startWriting();
-        bulletPointWriter.writeMajorBullet("- Surrounded by green in row");
-        bulletPointWriter.writeMajorBullet("- Surrounded by red in column");
-        bulletPointWriter.writeMajorBullet("- Does not necessarily exist");
-        bulletPointWriter.writeMajorBullet("- We are interested in the strict case");
-
-        const circleRadius = defaultMatrixDrawSettings.cellWidth * 0.4
-        // First circle comparison legend
-        ctx.fillStyle = smallerThanColor;
-        drawCircle(1150, greenCircleLegendHeight, circleRadius, ctx)
-        ctx.fillStyle = equalToColor;
-        drawCircle(1280, greenCircleLegendHeight, circleRadius, ctx)
-        ctx.fillStyle = fontColor;
-        ctx.fillText("<", 1200, greenCircleLegendHeight);
-
-        // Second circle comparison legend
-        ctx.fillStyle = greaterThanColor;
-        drawCircle(1150, redCircleLegendHeight, circleRadius, ctx)
-        ctx.fillStyle = equalToColor;
-        drawCircle(1280, redCircleLegendHeight, circleRadius, ctx)
-        ctx.fillStyle = fontColor;
-        ctx.fillText(">", 1200, redCircleLegendHeight);
-    }));
-
-    // Slide 4: Motivation
-    slideshowState.slides.push(createDrawSlide(ctx => {
-        drawMatrix(ctx, matrix, matrixDrawSettingsDrawColoredCircledValue);
-
-        ctx.textAlign = 'left'
-        ctx.font = slideTitleFont;
-        ctx.fillText("Why is a saddlepoint?", slideTextDefaultX, slideTitleTextDefaultY);
-
-        bulletPointWriter.startWriting();
-        bulletPointWriter.writeMajorBullet("- Pure strategy equilibrium");
-        bulletPointWriter.writeMinorBullet("  in a zero-sum two player game");
-        bulletPointWriter.writeMajorBullet("- In simple terms, a solution for chess");
-        bulletPointWriter.writeMinorBullet("  (though not a strict saddlepoint)");
-        bulletPointWriter.writeMajorBullet("- Fast algorithms are interesting");
-        bulletPointWriter.writeMinorBullet("  when values may be generated on");
-        bulletPointWriter.writeMinorBullet("  demand");
-
-    }));
-
-    // Slide 5: History
-    const bulletPointSlide = createBulletPointSlides("When is a saddlepoint?", [
-        "Optimal O(n^2) algorithm for non-strict saddlepoint in 1968",
-        "O(n^1.59) algorithm for strict in 1988",
-        "O(n log n) in 1991",
-        "n log n lower bound question in Dagstuhl 2023",
-        "Now: O(n log*n) deterministic & O(n) randomized sampling algorithm",
-    ], {
-        titleFont: slideTitleFont,
-        titleStart: slideTitleTextDefaultY,
-        bulletFont: "48px sans-serif",
-        bullet: "-",
-        bulletStartLeft: 100,
-        bulletStartTop: slideTextBulletPointStartY,
-        bulletOffset: 75,
-        bulletByBullet: false
-    })[0];
-    slideshowState.slides.push(combineSlides(bulletPointSlide, createDrawSlide(ctx => {})));
-
-    // Slide 6: lower and upper bounds
-    let interactiveNumberSlide = createDrawSlide(ctx => {
-        drawMatrix(ctx, matrix, matrixDrawSettingsDrawColoredCircledValue);
-
-        ctx.textAlign = 'left'
-        ctx.font = slideTitleFont;
-        ctx.fillText("How is a saddlepoint?", slideTextDefaultX, slideTitleTextDefaultY);
-        ctx.font = "40px sans-serif";
-        ctx.fillText("(rows and columns)", 1250, 135);
-
-        bulletPointWriter.startWriting();
-        bulletPointWriter.writeMajorBullet('- Guess a value "t" for saddlepoint "s"');
-        bulletPointWriter.writeMajorBullet("- t < s ⇒ there is a column of red");
-        bulletPointWriter.writeMinorBullet("  (no column of red ⇒ t >= s)");
-        bulletPointWriter.writeMajorBullet("- t > s ⇒ there is a row of green");
-        bulletPointWriter.writeMinorBullet("  (no row of green ⇒ t <= s)");
-
-        const circleRadius = defaultMatrixDrawSettings.cellWidth * 0.4
-        // First circle comparison legend
-        ctx.fillStyle = smallerThanColor;
-        drawCircle(1150, greenCircleLegendHeight, circleRadius, ctx)
-        ctx.fillStyle = fontColor;
-        ctx.fillText("< t", 1200, greenCircleLegendHeight);
-
-        // Second circle comparison legend
-        ctx.fillStyle = greaterThanColor;
-        drawCircle(1150, redCircleLegendHeight, circleRadius, ctx)
-        ctx.fillStyle = fontColor;
-        ctx.fillText("> t", 1200, redCircleLegendHeight);
-    });
-    interactiveNumberSlide.isInteractable = true;
-    interactiveNumberSlide.mouseDown = updateThresholdStateFromCanvasPosition; 
-    slideshowState.slides.push(combineSlides(slider, interactiveNumberSlide));
-
-    // Slide 7: Reducing search space
-    interactiveNumberSlide = createDrawSlide(ctx => {
-        drawMatrix(ctx, matrix, matrixDrawSettingsDrawColoredCircledValue);
-
-        ctx.textAlign = 'left'
-        ctx.font = slideTitleFont;
-        ctx.fillText("How is a saddlepoint?", slideTextDefaultX, slideTitleTextDefaultY);
-        ctx.font = "40px sans-serif";
-        ctx.fillText("(lower/upper bounds)", 1250, 135);
-
-        bulletPointWriter.startWriting();
-        bulletPointWriter.writeMajorBullet('- A lower bound means s cannot be');
-        bulletPointWriter.writeMinorBullet("  in a column with a lower value");
-        bulletPointWriter.writeMinorBullet("  (because s cannot be minimum)");
-        bulletPointWriter.writeMajorBullet('- An upper bound means s cannot be');
-        bulletPointWriter.writeMinorBullet("  in a row with a higher value");
-        bulletPointWriter.writeMinorBullet("  (because s cannot be maximum)");
-
-        const circleRadius = defaultMatrixDrawSettings.cellWidth * 0.4
-        // First circle comparison legend
-        ctx.fillStyle = smallerThanColor;
-        drawCircle(1150, greenCircleLegendHeight, circleRadius, ctx)
-        ctx.fillStyle = fontColor;
-        ctx.fillText("< t", 1200, greenCircleLegendHeight);
-
-        // Second circle comparison legend
-        ctx.fillStyle = greaterThanColor;
-        drawCircle(1150, redCircleLegendHeight, circleRadius, ctx)
-        ctx.fillStyle = fontColor;
-        ctx.fillText("> t", 1200, redCircleLegendHeight);
-
-    });
-    interactiveNumberSlide.isInteractable = true;
-    interactiveNumberSlide.mouseDown = updateThresholdStateFromCanvasPosition;
-    slideshowState.slides.push(combineSlides(slider,interactiveNumberSlide));
-
-    // Walking algorithm
-    const dogImage = new Image();
-    dogImage.src = "../saddlepoint/dog_shibainu_brown.png"; // Relative path
-    const walkMatrix = new SaddlepointSlideMatrix(10, 10, () => goodWalkMatrixData);
-
-    const greenCircleLegendHeight = 700;
-    const redCircleLegendHeight = 800;
-
-    const walkSlides = createWalkSlides(walkMatrix, goodWalkMatrixData[99], matrixDrawSettingsDrawCircleOnly, dogImage);
-    slideshowState.slides.push(...walkSlides.map(slide => { // Create the walk slides and then update them
-        return combineSlides(slide, createDrawSlide(ctx => {
-            ctx.fillStyle = fontColor;
-            ctx.textAlign = 'left'
-            ctx.font = slideTitleFont;
-            ctx.fillText("How is a saddlepoint?", slideTextDefaultX, slideTitleTextDefaultY);
-            ctx.font = "40px sans-serif";
-            ctx.fillText("(linear time reduction)", 1250, 135);
-
-            bulletPointWriter.startWriting();
-            bulletPointWriter.writeMajorBullet('- Go for a walk using guess t');
-            bulletPointWriter.writeMajorBullet("- Walk right on green value");
-            bulletPointWriter.writeMajorBullet("- Walk down on red value");
-            bulletPointWriter.writeMajorBullet("- Either visit all columns or all rows");
-
-            const circleRadius = defaultMatrixDrawSettings.cellWidth * 0.4
-            // First circle comparison legend
-            ctx.fillStyle = smallerThanColor;
-            drawCircle(1150, greenCircleLegendHeight, circleRadius, ctx)
-            ctx.fillStyle = fontColor;
-            ctx.fillText("< t", 1200, greenCircleLegendHeight);
-
-            // Second circle comparison legend
-            ctx.fillStyle = greaterThanColor;
-            drawCircle(1150, redCircleLegendHeight, circleRadius, ctx)
-            ctx.fillStyle = fontColor;
-            ctx.fillText("> t", 1200, redCircleLegendHeight);
-
-        }));
-    }));
-
-    // Explain diagonal algorithm and issue
-    slideshowState.slides.push(combineSlides(walkSlides[walkSlides.length-1], createDrawSlide(ctx => {
-        ctx.fillStyle = fontColor;
-        ctx.textAlign = 'left'
-        ctx.font = slideTitleFont;
-        ctx.fillText("How is a saddlepoint?", slideTextDefaultX, slideTitleTextDefaultY);
-        ctx.font = "40px sans-serif";
-        ctx.fillText("(linear time reduction)", 1250, 135);
-
-        bulletPointWriter.startWriting();
-        bulletPointWriter.writeMajorBullet("- Pick t greater than many columns ");
-        bulletPointWriter.writeMinorBullet("  and smaller than many rows ");
-        bulletPointWriter.writeMinorBullet("  (e.g. median of diagonal) ");
-        bulletPointWriter.writeMajorBullet("- May only remove rows or columns");
-        bulletPointWriter.writeMinorBullet("  in every iteration");
-        bulletPointWriter.writeMajorBullet("- Fine for O(n log log n) algorithm");
-        bulletPointWriter.writeMinorBullet("  with an extra trick");
-
-        const circleRadius = defaultMatrixDrawSettings.cellWidth * 0.4
-        // First circle comparison legend
-        ctx.fillStyle = smallerThanColor;
-        drawCircle(1150, greenCircleLegendHeight, circleRadius, ctx)
-        ctx.fillStyle = fontColor;
-        ctx.fillText("< t", 1200, greenCircleLegendHeight);
-
-        // Second circle comparison legend
-        ctx.fillStyle = greaterThanColor;
-        drawCircle(1150, redCircleLegendHeight, circleRadius, ctx)
-        ctx.fillStyle = fontColor;
-        ctx.fillText("> t", 1200, redCircleLegendHeight);
-
+        bulletPointWriter.writeMajorBullet("To bridge the gab between Nervous");
+        bulletPointWriter.writeMajorBullet("and Greedy, we define a special");
+        bulletPointWriter.writeMajorBullet("family where every row only has");
+        bulletPointWriter.writeMajorBullet("a single counter example");
+        bulletPointWriter.writeMajorBullet("");
+        bulletPointWriter.writeMajorBullet("(General instance optimality is");
+        bulletPointWriter.writeMajorBullet("impossible so we have to start");
+        bulletPointWriter.writeMajorBullet("somewhere else)");
     })));
 
-    // Explain sampling process
-    const samplingMatrix = new SaddlepointSlideMatrix(100, 100, (rows, columns) => randomList(rows * columns));
-    const samplingMatrixDrawSettings = {
-        ...matrixDrawSettingsDrawCircleOnly,
-        cellWidth: 1000 / samplingMatrix.columns,
-        drawMatrixValue: function() {}, // Leave values empty seems to work well for the big thing
-        lineWidth: 1
-    };
-    const samplingThresholdState = createThresholdState(0, 1, 1);
-    const samplingSlider = createVerticalThresholdSlider(slideshowState, samplingThresholdState, sliderDrawSettings);
+    slideshowState.addSlide(combineSlides(nervousVsGreedySlide, createDrawSlide(ctx => {
+        ctx.textAlign = 'left'
+        ctx.font = slideTitleFont;
+        ctx.fillText('Nervous vs Greedy', slideTextDefaultX, slideTitleTextDefaultY);
+        
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet("For this setting, Greedy picks");
+        bulletPointWriter.writeMajorBullet("columns from left to right, so ");
+        bulletPointWriter.writeMajorBullet('the question is "what does ');
+        bulletPointWriter.writeMajorBullet('Nervous do?"');
+    })));
+    
+    slideshowState.addSlide(combineSlides(nervousVsGreedySlide, createDrawSlide(ctx => {
+        ctx.textAlign = 'left'
+        ctx.font = slideTitleFont;
+        ctx.fillText('Nervous vs Greedy', slideTextDefaultX, slideTitleTextDefaultY);
+        
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet('1. We split the execution of ');
+        bulletPointWriter.writeMajorBullet('Nervous into phases');
+        bulletPointWriter.writeMinorBullet('');
+        bulletPointWriter.writeMinorBullet('   When Nervous has removed a');
+        bulletPointWriter.writeMajorBullet('   third of the remaining rows,');
+        bulletPointWriter.writeMajorBullet('   it continues to the next phase');
+        bulletPointWriter.writeMinorBullet('');
+        bulletPointWriter.writeMajorBullet('2. For a phase, we partition ');
+        bulletPointWriter.writeMajorBullet('columns into good/bad columns');
+        bulletPointWriter.writeMinorBullet('');
+        bulletPointWriter.writeMinorBullet('   A good column is one of the ');
+        bulletPointWriter.writeMajorBullet('   biggest columns which together');
+        bulletPointWriter.writeMajorBullet('   would remove two thirds of rows');
+        bulletPointWriter.writeMinorBullet('      (At the start of the phase)');
+    })));    
 
-    const sampleSlides = createSampleSlides(samplingMatrix, samplingMatrixDrawSettings);
-    slideshowState.slides.push(...sampleSlides.map(slide => {
-        return combineSlides(slide, samplingSlider, createDrawSlide(ctx => {
-            ctx.fillStyle = fontColor;
-            ctx.textAlign = 'left'
-            ctx.font = slideTitleFont;
-            ctx.fillText("How is a saddlepoint?", slideTextDefaultX, slideTitleTextDefaultY);
-            ctx.font = "40px sans-serif";
-            ctx.fillText("(randomly guessing better)", 1200, 135);
+    slideshowState.addSlide(combineSlides(nervousVsGreedySlide, createDrawSlide(ctx => {
+        ctx.textAlign = 'left'
+        ctx.font = slideTitleFont;
+        ctx.fillText('Nervous vs Greedy', slideTextDefaultX, slideTitleTextDefaultY);
+        
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet('Since good columns are more likely');
+        bulletPointWriter.writeMajorBullet('to be picked, Nervous finishes');
+        bulletPointWriter.writeMajorBullet('phases comparative to Greedy');
+        bulletPointWriter.writeMajorBullet('');
+        bulletPointWriter.writeMajorBullet('And since it remove a constant ');
+        bulletPointWriter.writeMajorBullet('fraction of rows in every phase,');
+        bulletPointWriter.writeMajorBullet('Nervous finishes in O(log n) phases');
+        bulletPointWriter.writeMajorBullet('');
+        bulletPointWriter.writeMajorBullet('So Nervous is at worst a log n ');
+        bulletPointWriter.writeMajorBullet('factor worse than Greedy');
+    })));    
 
-            bulletPointWriter.startWriting()
-            bulletPointWriter.writeMajorBullet("- Sample in every row");
-            bulletPointWriter.writeMajorBullet("- Remove some of the biggest rows");
-            bulletPointWriter.writeMajorBullet("- Repeat until few rows");
-            bulletPointWriter.writeMajorBullet("- Sample some more in remaining");
-            bulletPointWriter.writeMajorBullet("- Pick the maximum in the best row");
-            bulletPointWriter.writeMajorBullet("- All in linear time");
+    slideshowState.addSlide(combineSlides(nervousVsGreedySlide, createDrawSlide(ctx => {
+        ctx.textAlign = 'left'
+        ctx.font = slideTitleFont;
+        ctx.fillText('Nervous vs Optimal', slideTextDefaultX, slideTitleTextDefaultY);
+        
+        bulletPointWriter.startWriting();
+        bulletPointWriter.writeMajorBullet('An optimal algorithm cannot make');
+        bulletPointWriter.writeMajorBullet('progress before finding a +1 in ');
+        bulletPointWriter.writeMajorBullet('a column like Nervous');
+        bulletPointWriter.writeMinorBullet('');
+        bulletPointWriter.writeMinorBullet('An optimal algorithm has to do');
+        bulletPointWriter.writeMajorBullet('at least a constant fraction of');
+        bulletPointWriter.writeMajorBullet('probes in a column compared to ');
+        bulletPointWriter.writeMajorBullet('an optimal set cover solution');
+        bulletPointWriter.writeMinorBullet('');
+        bulletPointWriter.writeMinorBullet('The Greedy set cover algorithm is') 
+        bulletPointWriter.writeMajorBullet('at worst a constant factor worse than');
+        bulletPointWriter.writeMajorBullet('an optimal solution and Nervous is at');
+        bulletPointWriter.writeMajorBullet('worst a log factor worse than Greedy');
+    })));
 
-            const circleRadius = defaultMatrixDrawSettings.cellWidth * 0.4
-            // Second circle comparison legend
-            ctx.fillStyle = smallerThanColor;
-            drawCircle(1150, greenCircleLegendHeight, circleRadius, ctx)
-            ctx.fillStyle = fontColor;
-            ctx.fillText("< t", 1200, greenCircleLegendHeight);
+    slideshowState.addSlide(createDrawSlide(ctx => {
 
-            // Second circle comparison legend
-            ctx.fillStyle = removedRowsColor
-            drawCircle(1150, redCircleLegendHeight, circleRadius, ctx)
-            ctx.fillStyle = fontColor;
-            ctx.fillText(" There is a value in row > t", 1200, redCircleLegendHeight);
-
-        }));
     }));
+    
     slideshowState.startSlideShow(ctx);
 }
 
@@ -1005,7 +1030,7 @@ function createAntiDiagonalSlides(slideshowState, drawMatrixSettings) {
             state.medianValue = null,
             state.visibleNumbers = new Set();
             state.deletedValues = new Set()
-            state.matrix = new SaddlepointSlideMatrix(6, 6, () => [...bienstockNumbers]);
+            state.matrix = new SaddlepointSlideMatrix(rowCount, columnCount, () => [...bienstockNumbers]);
         },
         matrix: new SaddlepointSlideMatrix(rowCount, columnCount, () => [...bienstockNumbers])
     };
@@ -1139,7 +1164,9 @@ function createBienstockSlides(slideshowState, drawMatrixSettings) {
                     ctx.fillStyle  = 'rgba(200, 0, 0, 1)'; 
                     drawMatrixCircle(ctx, x, y, drawMatrixSettings);
                 }else if (state.visibleNumbers.has(value)) {
-                    drawMatrixSettings.drawMatrixValue(ctx, x, y, matrix); 
+                    writeMatrixValue(ctx, x, y, matrix, drawMatrixSettings)
+                    // drawMatrixValue(ctx, )
+                    // drawMatrixSettings.drawMatrixValue(ctx, x, y, matrix); 
                 }
                 
             }
@@ -1264,7 +1291,6 @@ function spAndPspSlides(drawMatrixSettings) {
         } 
     };
     const mouseUp = e => {
-        console.log(slideshowState)
         const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, drawMatrixSettings);
         const rowSet = state.visibleNumbers.getOrInsert(matrixX, new Set()); 
         rowSet.add(matrixY);// We allow insertion of invalid values like (-1 and 11)
@@ -1440,6 +1466,405 @@ function createLogStarAlgSlides(slideshowState, drawMatrixSettings) {
         mouseUp,
         mouseMove,
     );
+}
+
+function createPseudoSaddlepointSlide2(slideshowState, drawMatrixSettings) {
+    const rowCount = 100;
+    const columnCount = 100;
+    const state = {
+        hoverCell: {x: -1, y: -1},
+        reset: function() {
+        }
+    };
+    state.reset();
+    
+    const {leftX, topY, cellWidth} = drawMatrixSettings;
+    const matrix = new SaddlepointSlideMatrix(rowCount, columnCount, () => [...pseudoSaddlepointMatrix]);
+    const draw = ctx => {
+
+        // We only want it to draw numbers that we have clicked on
+        // We want to "delete" rows
+        drawMatrix(ctx, matrix, {...drawMatrixSettings, 
+            drawMatrixValue: (ctx, x, y, matrix) => {
+                
+            }
+        });
+    };
+    const mouseDown = e => {
+    };
+    const mouseUp = e => {
+    };
+    const mouseMove = () => {
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, drawMatrixSettings);
+        state.hoverCell.x = matrixX;
+        state.hoverCell.y = matrixY;
+    }
+    let resetOnRPress = event => {
+        if (event.code === 'KeyR') {
+            state.reset();
+        }
+    }
+    const slideStart = () => {
+        document.addEventListener('keyup', resetOnRPress);
+    }
+    const slideEnd = () => {
+        document.removeEventListener('keyup', resetOnRPress)
+    }
+    return createSlide(
+        draw, 
+        slideStart,
+        slideEnd,
+        mouseDown,
+        mouseUp,
+        mouseMove,
+    );
+}
+function createPseudoSaddlepointCombineSlide(slideshowState, drawMatrixSettings) { 
+    const rowCount = 100;
+    const columnCount = 100;
+    const state = {
+        step: 0,
+        hoverCell: {x: -1, y: -1},
+        reset: function() {
+            state.step = 0;
+        }
+    };
+    state.reset();
+    
+    const {leftX, topY, cellWidth} = drawMatrixSettings;
+    const matrix = new SaddlepointSlideMatrix(rowCount, columnCount, () => [...pseudoSaddlepointMatrix]);
+    const draw = ctx => {
+
+        drawMatrix(ctx, matrix, {...drawMatrixSettings, 
+            drawMatrixValue: (ctx, x, y, matrix) => {}});
+
+        const clearSize = cellWidth * 48;
+        ctx.font = "132px sans-serif";
+        ctx.fillStyle = fontColor;
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'center'
+        if (state.step > 0) {
+            ctx.clearRect(drawMatrixSettings.leftX + cellWidth, drawMatrixSettings.topY + cellWidth,  clearSize, clearSize)
+            ctx.fillText(4, drawMatrixSettings.leftX + 24  * cellWidth, drawMatrixSettings.topY + 24  * cellWidth);
+        } 
+        if (state.step > 1) {
+            ctx.clearRect(drawMatrixSettings.leftX + 51 * cellWidth, drawMatrixSettings.topY + cellWidth,  clearSize, clearSize)
+            if (state.step > 4) {
+                ctx.fillStyle = equalToColor;
+                ctx.beginPath();
+                ctx.arc(drawMatrixSettings.leftX + (51 + 24)  * cellWidth, drawMatrixSettings.topY + 24  * cellWidth, 12 * cellWidth, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.fillStyle = fontColor;
+            }
+            ctx.fillText(7, drawMatrixSettings.leftX + (51 + 24)  * cellWidth, drawMatrixSettings.topY + 24  * cellWidth);
+        }
+        if (state.step > 2) {
+            ctx.clearRect(drawMatrixSettings.leftX + cellWidth, drawMatrixSettings.topY + 51 * cellWidth,  clearSize, clearSize)
+            ctx.fillText(2, drawMatrixSettings.leftX + 24  * cellWidth, drawMatrixSettings.topY + (51 + 24)  * cellWidth);
+        }
+        if (state.step > 3) {
+            ctx.clearRect(drawMatrixSettings.leftX + 51 * cellWidth, drawMatrixSettings.topY + 51 * cellWidth,  clearSize, clearSize)
+            ctx.fillText(9, drawMatrixSettings.leftX + (51 + 24)  * cellWidth, drawMatrixSettings.topY + (51 + 24)  * cellWidth);
+
+        }
+    };
+    const mouseDown = e => {
+        if (e.button === 0) {
+            state.step += 1
+        }
+    };
+    const mouseUp = e => {
+
+    };
+    const mouseMove = () => {
+
+    }
+    let resetOnRPress = event => {
+        if (event.code === 'KeyN') {
+            state.step += 1
+        } 
+        else if (event.code === 'KeyR') {
+            state.reset();
+        }
+    }
+    const slideStart = () => {
+        document.addEventListener('keyup', resetOnRPress);
+    }
+    const slideEnd = () => {
+        document.removeEventListener('keyup', resetOnRPress)
+    }
+    return createSlide(
+        draw, 
+        slideStart,
+        slideEnd,
+        mouseDown,
+        mouseUp,
+        mouseMove,
+    );
+
+}
+function createPseudoSaddlepointSlide(slideshowState, drawMatrixSettings) {
+    const rowCount = 5;
+    const columnCount = 5;
+    const state = {
+        rowMax: new Map(),
+        columnMin: new Map(),
+        hoverCell: {x: -1, y: -1},
+        reset: function() {
+            state.rowMax.clear();
+            state.rowMax.set(0, 2);
+            state.rowMax.set(1, 2);
+            state.rowMax.set(2, 3);
+            state.rowMax.set(3, 4);
+            state.rowMax.set(4, 3);
+
+            state.columnMin.clear();
+            state.columnMin.set(0, 1);
+            state.columnMin.set(1, 0);
+            state.columnMin.set(2, 2);
+            state.columnMin.set(3, 0);
+            state.columnMin.set(4, 2);
+        }
+    };
+    state.reset();
+    
+    const {leftX, topY, cellWidth} = drawMatrixSettings;
+    const matrix = new SaddlepointSlideMatrix(rowCount, columnCount, () => [...pseudoSaddlepointMatrix]);
+    const draw = ctx => {
+
+        // We only want it to draw numbers that we have clicked on
+        // We want to "delete" rows
+        drawMatrix(ctx, matrix, {...drawMatrixSettings, 
+            drawMatrixValue: (ctx, x, y, matrix) => {
+                if (state.rowMax.getOrInsert(y, -1) === x) {
+                    const maxGradient = ctx.createLinearGradient(leftX + (x + 0.5) * cellWidth, topY + y * cellWidth, leftX + (x + 0.5) * cellWidth, topY + (y + 1) * cellWidth,);
+                    maxGradient.addColorStop(0, greaterThanColor);
+                    maxGradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+
+                    ctx.fillStyle = maxGradient
+                    drawMatrixSquare(ctx, x, y, drawMatrixSettings);
+                } 
+                if (state.columnMin.getOrInsert(x, -1) === y) {
+                    const minGradient = ctx.createLinearGradient(leftX + (x + 0.5) * cellWidth, topY + y * cellWidth, leftX + (x + 0.5) * cellWidth, topY + (y + 1) * cellWidth,);
+                    minGradient.addColorStop(0, "rgba(255, 255, 255, 0)");
+                    minGradient.addColorStop(1, smallerThanColor);
+
+
+                    ctx.fillStyle = minGradient
+                    drawMatrixSquare(ctx, x, y, drawMatrixSettings);
+                }
+                writeMatrixValue(ctx, x, y, matrix, drawMatrixSettings);
+            }
+        });
+    };
+    const mouseDown = e => {
+    };
+    const mouseUp = e => {
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, drawMatrixSettings);
+        if (!matrix.isValidIndex(matrixX, matrixY)) return;
+        if (e.button === 0) { // LEFT CLICK
+            state.rowMax.set(matrixY, matrixX);
+        } else if (e.button === 2) { // RIGHT CLICK
+            state.columnMin.set(matrixX, matrixY);
+        }
+    };
+    const mouseMove = () => {
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, drawMatrixSettings);
+        state.hoverCell.x = matrixX;
+        state.hoverCell.y = matrixY;
+    }
+    let resetOnRPress = event => {
+        if (event.code === 'KeyR') {
+            state.reset();
+        }
+    }
+    const slideStart = () => {
+        document.addEventListener('keyup', resetOnRPress);
+    }
+    const slideEnd = () => {
+        document.removeEventListener('keyup', resetOnRPress)
+    }
+    return createSlide(
+        draw, 
+        slideStart,
+        slideEnd,
+        mouseDown,
+        mouseUp,
+        mouseMove,
+    );
+}
+
+function createSaddlepointSlide(slideshowState, drawMatrixSettings) {
+    const rowCount = 5;
+    const columnCount = 5;
+    const state = {
+        rowMax: new Map(),
+        columnMin: new Map(),
+        hoverCell: {x: -1, y: -1},
+        reset: function() {
+            state.rowMax = new Map();
+            state.columnMin = new Map()
+        }
+    };
+    
+    const {leftX, topY, cellWidth} = drawMatrixSettings;
+    const matrix = new SaddlepointSlideMatrix(rowCount, columnCount, () => [...saddlepointMatrix]);
+    const draw = ctx => {
+
+        // We only want it to draw numbers that we have clicked on
+        // We want to "delete" rows
+        drawMatrix(ctx, matrix, {...drawMatrixSettings, 
+            drawMatrixValue: (ctx, x, y, matrix) => {
+                if (state.rowMax.getOrInsert(y, -1) === x) {
+                    const maxGradient = ctx.createLinearGradient(leftX + (x + 0.5) * cellWidth, topY + y * cellWidth, leftX + (x + 0.5) * cellWidth, topY + (y + 1) * cellWidth,);
+                    maxGradient.addColorStop(0, greaterThanColor);
+                    maxGradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+
+                    ctx.fillStyle = maxGradient
+                    drawMatrixSquare(ctx, x, y, drawMatrixSettings);
+                } 
+                if (state.columnMin.getOrInsert(x, -1) === y) {
+                    const minGradient = ctx.createLinearGradient(leftX + (x + 0.5) * cellWidth, topY + y * cellWidth, leftX + (x + 0.5) * cellWidth, topY + (y + 1) * cellWidth,);
+                    minGradient.addColorStop(0, "rgba(255, 255, 255, 0)");
+                    minGradient.addColorStop(1, smallerThanColor);
+
+
+                    ctx.fillStyle = minGradient
+                    drawMatrixSquare(ctx, x, y, drawMatrixSettings);
+                }
+                writeMatrixValue(ctx, x, y, matrix, drawMatrixSettings);
+            }
+        });
+    };
+    const mouseDown = e => {
+    };
+    const mouseUp = e => {
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, drawMatrixSettings);
+        if (!matrix.isValidIndex(matrixX, matrixY)) return;
+        if (e.button === 0) { // LEFT CLICK
+            state.rowMax.set(matrixY, matrixX);
+        } else if (e.button === 2) { // RIGHT CLICK
+            state.columnMin.set(matrixX, matrixY);
+        }
+    };
+    const mouseMove = () => {
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, drawMatrixSettings);
+        state.hoverCell.x = matrixX;
+        state.hoverCell.y = matrixY;
+    }
+    let resetOnRPress = event => {
+        if (event.code === 'KeyR') {
+            state.reset();
+        }
+    }
+    const slideStart = () => {
+        document.addEventListener('keyup', resetOnRPress);
+    }
+    const slideEnd = () => {
+        document.removeEventListener('keyup', resetOnRPress)
+    }
+    return createSlide(
+        draw, 
+        slideStart,
+        slideEnd,
+        mouseDown,
+        mouseUp,
+        mouseMove,
+    );
+ 
+}
+
+// HOW TO TELL ABOUT RANDOM PROBING
+function createRandomProbingAlgorithmSlide(slideshowState, drawMatrixSettings) {
+    const rowCount = 10;
+    const columnCount = 10;
+    const state = {
+        rowMax: new Map(),
+        columnMin: new Map(),
+        visibleNumbers: new Map(),
+        hoverCell: {x: -1, y: -1},
+        reset: function() {
+            state.rowMax = new Map();
+            state.columnMin = new Map()
+            state.visibleNumbers = new Map();
+        }
+    };
+    
+    const {leftX, topY, cellWidth} = drawMatrixSettings;
+    const matrix = new SaddlepointSlideMatrix(rowCount, columnCount, () => [...goodNumberedMatrixData]);
+    const draw = ctx => {
+
+        // We only want it to draw numbers that we have clicked on
+        // We want to "delete" rows
+        drawMatrix(ctx, matrix, {...drawMatrixSettings, 
+            drawMatrixValue: (ctx, x, y, matrix) => {
+                const columnSet = state.visibleNumbers.getOrInsert(x, new Set());
+                if (state.hoverCell.x == x && state.hoverCell.y == y) {
+                    ctx.fillStyle  = 'rgba(100, 100, 100, 0.2)'; 
+                    drawMatrixCircle(ctx, x, y, drawMatrixSettings);
+                }
+                if (columnSet.has(y)) {
+                    writeMatrixValue(ctx, x, y, matrix, drawMatrixSettings);
+                }
+
+                if (state.rowMax.getOrInsert(y, -1) === x) {
+                    const maxGradient = ctx.createLinearGradient(leftX + (x + 0.5) * cellWidth, topY + y * cellWidth, leftX + (x + 0.5) * cellWidth, topY + (y + 1) * cellWidth,);
+                    maxGradient.addColorStop(0, greaterThanColor);
+                    maxGradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+
+                    ctx.fillStyle = maxGradient
+                    drawMatrixSquare(ctx, x, y, drawMatrixSettings);
+                } 
+                if (state.columnMin.getOrInsert(x, -1) === y) {
+                    const minGradient = ctx.createLinearGradient(leftX + (x + 0.5) * cellWidth, topY + y * cellWidth, leftX + (x + 0.5) * cellWidth, topY + (y + 1) * cellWidth,);
+                    minGradient.addColorStop(0, "rgba(255, 255, 255, 0)");
+                    minGradient.addColorStop(1, smallerThanColor);
+
+
+                    ctx.fillStyle = minGradient
+                    drawMatrixSquare(ctx, x, y, drawMatrixSettings);
+                }
+            }
+        });
+    };
+    const mouseDown = e => {
+    };
+    const mouseUp = e => {
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, drawMatrixSettings);
+        if (!matrix.isValidIndex(matrixX, matrixY)) return;
+        if (e.button === 0) { // LEFT CLICK
+            const columnSet = state.visibleNumbers.getOrInsert(matrixX, new Set());
+            columnSet.add(matrixY);
+            // state.rowMax.set(matrixY, matrixX);
+        } else if (e.button === 2) { // RIGHT CLICK
+            state.columnMin.set(matrixX, matrixY);
+        }
+    };
+    const mouseMove = () => {
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, drawMatrixSettings);
+        state.hoverCell.x = matrixX;
+        state.hoverCell.y = matrixY;
+    }
+    let resetOnRPress = event => {
+        if (event.code === 'KeyR') {
+            state.reset();
+        }
+    }
+    const slideStart = () => {
+        document.addEventListener('keyup', resetOnRPress);
+    }
+    const slideEnd = () => {
+        document.removeEventListener('keyup', resetOnRPress)
+    }
+    return createSlide(
+        draw, 
+        slideStart,
+        slideEnd,
+        mouseDown,
+        mouseUp,
+        mouseMove,
+    );
+ 
 
 }
 
@@ -1485,7 +1910,6 @@ function createNervousAlgSlide(slideshowState, drawMatrixSettings) {
         } 
     };
     const mouseUp = e => {
-        console.log(slideshowState)
         const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, drawMatrixSettings);
         const rowSet = state.visibleNumbers.getOrInsert(matrixX, new Set()); 
         rowSet.add(matrixY);// We allow insertion of invalid values like (-1 and 11)
@@ -1581,7 +2005,7 @@ function createSetCoverSlide(slideshowState) {
         ctx.lineTo(elementLeftX + 1.55 * elementOffSetX, elementTopY + 1.55 * elementOffSetY);
         ctx.lineTo(elementLeftX + 1.55 * elementOffSetX, elementTopY - elementMargin );
         ctx.closePath()
-        ctx.fillStyle = 'rgba(0, 100, 0, 0.5)'
+        ctx.fillStyle = 'rgba(16, 250, 35, 0.6)';
         ctx.fill()
         ctx.stroke();
     };
@@ -1692,7 +2116,7 @@ function createSetCoverSlide(slideshowState) {
                         ctx.fillStyle = 'rgba(10, 100, 255, 1)';
                     } break;
                     case 6: {
-                        ctx.fillStyle = 'rgb(2, 107, 11)';
+                        ctx.fillStyle = 'rgba(16, 250, 35, 1)';
                     } break;
                     default: {
                         ctx.fillStyle = 'rgba(0, 200, 0, 1)';
@@ -1709,11 +2133,44 @@ function createSetCoverSlide(slideshowState) {
     return slides;
 }
 
-function drawCurlyBracket(ctx, x, y, height, width, text, direction = 'left') {
+function drawHorizontalCurlyBracket(ctx, x, y, height, width, text, direction = 'up', font = "18px sans-serif") {
+    const mid = x + width / 2;
+    const dir = direction === 'up' ? -1 : 1;
+    const tipWidth = width * 0.15;
+    const tipHeight = height / 2;
+    const toTipStartHeight = ((width / 2) - tipWidth / 2);
+    const tipStart = x + toTipStartHeight
+    
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    
+    // upper curve
+    ctx.bezierCurveTo(
+        x, y + dir * tipHeight, 
+        x + toTipStartHeight /4 , y + dir * tipHeight, 
+        tipStart, y + dir * tipHeight, 
+    );
+    ctx.lineTo(mid, y + height);
+    ctx.lineTo(mid + tipWidth / 2, y + height - tipHeight);
+    
+    // lower curve
+    ctx.bezierCurveTo(
+        x + width - toTipStartHeight /4, y + dir * tipHeight,
+        x + width, y + height,
+        x + width, y 
+    );
+    ctx.stroke();
+
+    ctx.font = font
+    ctx.textAlign = "center"
+    ctx.textBaseline = "top"
+    ctx.fillText(text, mid, y + tipHeight + 5)
+}
+function drawVerticalCurlyBracket(ctx, x, y, height, width, text, direction = 'left', font = "18px sans-serif") {
     //   const width = height / 4; // controls "curviness"
     const mid = y + height / 2;
     const dir = direction === 'left' ? -1 : 1;
-    const tipHeight = height * 0.15;
+    const tipHeight = Math.min(height * 0.15, width * 0.5);
     const tipWidth = width / 2;
     const toTipStartHeight = ((height / 2) - tipHeight / 2);
     const tipStart = y + toTipStartHeight
@@ -1730,13 +2187,6 @@ function drawCurlyBracket(ctx, x, y, height, width, text, direction = 'left') {
     ctx.lineTo(x + dir * width, mid);
     ctx.lineTo(x + dir * tipWidth, mid + tipHeight / 2);
     
-    // inward tip (middle point)
-    //   ctx.bezierCurveTo(
-    //     x - dir * width / 2, mid - height / 6, 
-    //     x - dir * width / 2, mid + height / 6, 
-    //     x, mid + height / 6
-    //   );
-    
     // lower curve
     ctx.bezierCurveTo(
         x + dir * tipWidth, y + height - toTipStartHeight /4, 
@@ -1745,132 +2195,537 @@ function drawCurlyBracket(ctx, x, y, height, width, text, direction = 'left') {
     );
     ctx.stroke();
 
-    ctx.font = "18px sans-serif"
+    ctx.font = font
     ctx.textAlign = "left"
     ctx.textBaseline = "middle"
     ctx.fillText(text, x + width + 5, mid)
 }
 
-function createSetCoverBarSlides() {
-    const resultSlides = [];
-    const values = [29, 25, 20, 17, 7, 7, 3, 1, 1];
+function createSetCoverBarSlides(slideshowState) {
+    const values = [25, 20, 17, 7, 7, 3, 1, 1];
+    const accumSum = values.scanLeft(add, 0);
+    const rowCount = accumSum[accumSum.length-1]
 
-    const drawSettings = {
-        topY: 400,
-        leftX: 100,
-        barHeight: 30,
-        barUnitWidth: 30
+    let matrix = new SaddlepointSlideMatrix(values.length, rowCount, (r, c) => {
+        const result = Array(r * c).fill('rgba(0, 0, 0, 0)');
+        return result;
+    });
+    const matrixDrawSettings = {
+        leftX: 25,
+        topY: 50,
+        cellWidth: 23,
+        lineWidth: 0.8
     }
+
+    const barsDrawSettings = {
+        topY: 400,
+        leftX: 200,
+        barHeight: 40,
+        barUnitWidth: 40
+    }
+
+
+    const barInitialColors = [
+        'rgba(211, 13, 13, 1)',
+        'rgba(14, 146, 58, 1)',
+        'rgba(22, 0, 100, 1)',
+        'rgba(161, 255, 133, 1)',
+        'rgba(255, 0, 212, 1)',
+        'rgba(95, 95, 95, 1)',
+        'rgba(126, 186, 255, 1)',
+        'rgba(0, 0, 0, 1)',
+    ]
+
+    const state = {
+        drawMatrix: true,
+        drawText: false,
+        drawLines: false,
+        drawHeights: false,
+        dragStart: false,
+        drawBarsUpperBounds: false,
+        currentColor: 'rgba(0, 0, 0, 0)',
+        hoverCell: {x: -1, y: -1},
+        reset() {
+            matrix = new SaddlepointSlideMatrix(matrix.rows, matrix.columns, () => [...fallBackMatrix.data]);
+        },
+        clearMatrix() {
+            for (let x = 0; x <= 80; x++) {
+                for (let y = 0; y <= 7; y++) {
+                    matrix.setValue(x, y, 'rgba(0, 0, 0, 0)')
+                }
+            }
+        }
+    };
 
     const maxValue = Math.max(...values);
     const nextPowerOfTwoValue = 2 ** Math.ceil(Math.log2(maxValue));
-    const width = nextPowerOfTwoValue * drawSettings.barUnitWidth;
+    const barsWidth = nextPowerOfTwoValue * barsDrawSettings.barUnitWidth;
 
-    const basicBarsSlide = createDrawSlide(ctx => {
-        ctx.lineWidth = 1
+    const boxes = [];
+    let current = 0;
+    for (let y = 0; y < values.length; y++) { 
+        const color = barInitialColors[y];
+        const barWidth = barsDrawSettings.barUnitWidth * nextPowerOfTwoValue;
+        for (let x = current; x < accumSum[y]; x++) {
+            matrix.setValue(x, values.length - 1 - y, color);
+
+            const boxX = 1 + x - current;
+            const boxY = barsDrawSettings.topY + barsDrawSettings.barHeight * (values.length -1 - y);
+            boxes.push({
+                x: barsDrawSettings.leftX + barWidth - boxX * barsDrawSettings.barUnitWidth, 
+                y: boxY,
+                width: barsDrawSettings.barUnitWidth,
+                height: barsDrawSettings.barHeight,
+                getColor() {
+                    return matrix.getValue(x, values.length - 1 - y);
+                },
+                onClick() {
+                    matrix.setValue(x, values.length - 1 - y, state.currentColor);
+                }
+            })
+        }
+        current = accumSum[y];
+    }
+
+    const fallBackMatrix = new SaddlepointSlideMatrix(matrix.rows, matrix.columns, () => [...matrix.data]);
+
+    const greedyCostImage = new Image();
+    greedyCostImage.src = "greedy_cost.png"; // Relative path
+
+    const optCostImage = new Image();
+    optCostImage.src = "opt_cost.png"; // Relative path
+
+    const draw = ctx => {
+        // We only want it to draw numbers that we have clicked on
+        // We want to "delete" rows
+        if (state.drawMatrix) {
+            drawMatrix(ctx, matrix, {...matrixDrawSettings, 
+                drawMatrixValue: (ctx, x, y, matrix) => {
+                    ctx.fillStyle = matrix.getValue(x, y);
+                    drawMatrixCircle(ctx, x, y, matrixDrawSettings);
+                }
+            });
+        }
+
+        if (state.drawBarsUpperBounds) {
+            ctx.globalAlpha = 0.5
+            let x = barsDrawSettings.leftX; 
+            let y = barsDrawSettings.topY + 5 * barsDrawSettings.barHeight;
+            ctx.fillStyle = barInitialColors[0];
+            ctx.fillRect(x, y, barsDrawSettings.barUnitWidth * 16, 3 * barsDrawSettings.barHeight);
+
+
+            x += barsDrawSettings.barUnitWidth * 16;
+            y -= barsDrawSettings.barHeight * 0;
+            ctx.fillStyle = barInitialColors[1];
+            ctx.fillRect(x, y, barsDrawSettings.barUnitWidth * 8, 3 * barsDrawSettings.barHeight);
+
+            x += barsDrawSettings.barUnitWidth * 8;
+            y -= barsDrawSettings.barHeight * 2;
+            ctx.fillStyle = barInitialColors[2];
+            ctx.fillRect(x, y, barsDrawSettings.barUnitWidth * 4, 5 * barsDrawSettings.barHeight);
+
+            x += barsDrawSettings.barUnitWidth * 4;
+            y -= barsDrawSettings.barHeight * 1;
+            ctx.fillStyle = barInitialColors[3];
+            ctx.fillRect(x, y, barsDrawSettings.barUnitWidth * 2, 6 * barsDrawSettings.barHeight);
+
+            x += barsDrawSettings.barUnitWidth * 2;
+            // y -= barsDrawSettings.barHeight * 2;
+            ctx.fillStyle = barInitialColors[4];
+            ctx.fillRect(x, y, barsDrawSettings.barUnitWidth * 1, 6 * barsDrawSettings.barHeight);
+
+            x += barsDrawSettings.barUnitWidth * 1;
+            y -= barsDrawSettings.barHeight * 2;
+            ctx.fillStyle = barInitialColors[5];
+            ctx.fillRect(x, y, barsDrawSettings.barUnitWidth * 1, 8 * barsDrawSettings.barHeight);
+
+
+            ctx.globalAlpha = 1
+        }
+
+
+        for (let i = 0; i < boxes.length; i++) {
+            const box = boxes[i]
+            ctx.fillStyle = box.getColor();
+            ctx.fillRect(box.x, box.y, box.width, box.height);
+        }
+
+        ctx.lineWidth = 2
         ctx.beginPath();
         for (let i = values.length-1; i >= 0; i--) {
             const v = values[i];
-            const barWidth = drawSettings.barUnitWidth * v;
-            const x = drawSettings.leftX + width - barWidth;
-            const y = drawSettings.topY + drawSettings.barHeight * (values.length -1 - i);
-            ctx.rect(x, y, barWidth, drawSettings.barHeight);
+            const barWidth = barsDrawSettings.barUnitWidth * v;
+            const x = barsDrawSettings.leftX + barsWidth - barWidth;
+            const y = barsDrawSettings.topY + barsDrawSettings.barHeight * (values.length -1 - i);
+            ctx.rect(x, y, barWidth, barsDrawSettings.barHeight);
         }
         ctx.stroke();
         ctx.stroke();
-    });
 
-    resultSlides.push(basicBarsSlide);
-
-    const linesSlide = createDrawSlide(ctx => {
-        ctx.font = "18px sans-serif"
-        ctx.textAlign = "center"
-        ctx.textBaseline = "middle"
-        const linesToDraw = Math.round(Math.log2(nextPowerOfTwoValue));
-        let remainingWidth = width;
-        let powerOfTwoValue = nextPowerOfTwoValue;
-        ctx.beginPath();
-        for (let i = 0; i <= linesToDraw; i++) {
-            const x = drawSettings.leftX + width - remainingWidth;
-            ctx.moveTo(x, drawSettings.topY - 5);
-            ctx.lineTo(x, drawSettings.topY + drawSettings.barHeight * values.length + 5);
-            ctx.fillText(powerOfTwoValue, x, drawSettings.topY + drawSettings.barHeight * values.length + 20)
-            powerOfTwoValue = powerOfTwoValue/ 2;
-            remainingWidth = remainingWidth / 2;
-        }
-        ctx.stroke();
-        ctx.stroke();
-    });
-
-    const linedBarSlide = combineSlides(basicBarsSlide, linesSlide);
-    resultSlides.push(linedBarSlide);
-
-    const heightMarkerMarginX = 3;
-    const heightMarkerMarginY = 2;
-    const curlyBracketWidth = 15;
-    const heightsSlide = createDrawSlide(ctx => {
-        drawCurlyBracket(ctx, drawSettings.leftX + width + heightMarkerMarginX, drawSettings.topY + heightMarkerMarginY                             , drawSettings.barHeight * 2 - 2 * heightMarkerMarginY, curlyBracketWidth, "h₀ = 2", 'right');
-        drawCurlyBracket(ctx, drawSettings.leftX + width + heightMarkerMarginX, drawSettings.topY + heightMarkerMarginY + drawSettings.barHeight * 2, drawSettings.barHeight * 1 - 2 * heightMarkerMarginY, curlyBracketWidth, "h₂ = 1", 'right');
-        drawCurlyBracket(ctx, drawSettings.leftX + width + heightMarkerMarginX, drawSettings.topY + heightMarkerMarginY + drawSettings.barHeight * 3, drawSettings.barHeight * 2 - 2 * heightMarkerMarginY, curlyBracketWidth, "h₃ = 2", 'right');
-        drawCurlyBracket(ctx, drawSettings.leftX + width + heightMarkerMarginX, drawSettings.topY + heightMarkerMarginY + drawSettings.barHeight * 5, drawSettings.barHeight * 4 - 2 * heightMarkerMarginY, curlyBracketWidth, "h₅ = 4", 'right');
-        // drawCurlyBracket(ctx, 200, 50, 200, 'right')o;
-    });
-
-    const heightedBarSlide = combineSlides(linedBarSlide, heightsSlide);
-    // resultSlides.push(heightedBarSlide);
-
-    const colorsSlide = createDrawSlide(ctx => {
-        ctx.lineWidth = 1
-        ctx.beginPath();
-        for (let i = values.length-1; i >= 0; i--) {
-            const v = values[i];
-            if (v > 16) {
-                ctx.fillStyle = 'red'
-            } else if (v > 8) {
-                ctx.fillStyle = 'green'
-            } else if (v > 4) {
-                ctx.fillStyle = 'blue'
-            } else if (v > 2) {
-                ctx.fillStyle = 'pink'
-            } else {
-                ctx.fillStyle = 'black'
+        ctx.fillStyle = fontColor
+        if (state.drawLines) {
+            ctx.font = "24px sans-serif"
+            ctx.textAlign = "center"
+            ctx.textBaseline = "middle"
+            const linesToDraw = Math.round(Math.log2(nextPowerOfTwoValue));
+            let remainingWidth = barsWidth;
+            let powerOfTwoValue = nextPowerOfTwoValue;
+            ctx.beginPath();
+            for (let i = 0; i <= linesToDraw; i++) {
+                const x = barsDrawSettings.leftX + barsWidth - remainingWidth;
+                ctx.moveTo(x, barsDrawSettings.topY - 5);
+                ctx.lineTo(x, barsDrawSettings.topY + barsDrawSettings.barHeight * values.length + 5);
+                ctx.fillText(powerOfTwoValue, x, barsDrawSettings.topY + barsDrawSettings.barHeight * values.length + 20)
+                powerOfTwoValue = powerOfTwoValue/ 2;
+                remainingWidth = remainingWidth / 2;
             }
-            const barWidth = drawSettings.barUnitWidth * v;
-            const x = drawSettings.leftX + width - barWidth;
-            const y = drawSettings.topY + drawSettings.barHeight * (values.length -1 - i);
-            ctx.fillRect(x, y, barWidth, drawSettings.barHeight);
+            ctx.stroke();
+            ctx.stroke();
         }
-        // ctx.fill()
-        // ctx.stroke();
-    });
-    const coloredBarsSlide = combineSlides(colorsSlide, heightedBarSlide);
-    resultSlides.push(coloredBarsSlide);
 
-    return resultSlides
-   
+        if (state.drawHeights) {
+            const heightMarkerMarginX = 3;
+            const heightMarkerMarginY = 2;
+            const curlyBracketWidth = 15;
+            const curlyBracketFont = "24px sans-serif";
+            drawVerticalCurlyBracket(ctx, barsDrawSettings.leftX + barsWidth + heightMarkerMarginX, barsDrawSettings.topY + heightMarkerMarginY                             , barsDrawSettings.barHeight * 2 - 2 * heightMarkerMarginY, curlyBracketWidth, "h₀ = 2", 'right', curlyBracketFont);
+            drawVerticalCurlyBracket(ctx, barsDrawSettings.leftX + barsWidth + heightMarkerMarginX, barsDrawSettings.topY + heightMarkerMarginY + barsDrawSettings.barHeight * 2, barsDrawSettings.barHeight * 1 - 2 * heightMarkerMarginY, curlyBracketWidth, "h₂ = 1", 'right', curlyBracketFont);
+            drawVerticalCurlyBracket(ctx, barsDrawSettings.leftX + barsWidth + heightMarkerMarginX, barsDrawSettings.topY + heightMarkerMarginY + barsDrawSettings.barHeight * 3, barsDrawSettings.barHeight * 2 - 2 * heightMarkerMarginY, curlyBracketWidth, "h₃ = 2", 'right', curlyBracketFont);
+            drawVerticalCurlyBracket(ctx, barsDrawSettings.leftX + barsWidth + heightMarkerMarginX, barsDrawSettings.topY + heightMarkerMarginY + barsDrawSettings.barHeight * 5, barsDrawSettings.barHeight * 3 - 2 * heightMarkerMarginY, curlyBracketWidth, "h₅ = 3", 'right', curlyBracketFont);
+        }
 
-    const slide = createDrawSlide(ctx => {});
-    // TODO: DRAW THE BOXES
-    // Draw the length lines
-    // Draw heights
-    // Split Greedy into phases
-    // Greedy progress lower bound based on phase
-    // Eat from left to progress. Removals per phase
-    //  Cost per removal in phase
-    // Phases * removals per phase * cost per removal in phase
-    // Transform to polynomial 
-    // Split based on sqrt 2 cases
-    // Lower bound OPT
-    return slide
+        if (state.drawText) {
+            ctx.drawImage(optCostImage, 200, 820, 236, 90);
+            ctx.drawImage(greedyCostImage, 600, 720, 683, 257);
+        }
+    };
+    const mouseDown = e => {
+        state.dragStart = true; 
+    };
+
+    const mouseUp = e => {
+        state.dragStart = false; 
+        const mouseX = slideshowState.mousePosition.x; 
+        const mouseY = slideshowState.mousePosition.y;
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(mouseX, mouseY, matrixDrawSettings);
+        if (matrix.isValidIndex(matrixX, matrixY)) {
+            if (e.button === 0 ) {
+                if (e.shiftKey) {
+                    matrix.setValue(matrixX, matrixY, state.currentColor)
+                }
+                else {
+                    matrix.setValue(matrixX, matrixY, barInitialColors[values.length - 1 - matrixY])
+                }
+            }
+            if (e.button === 2 ) {
+                matrix.setValue(matrixX, matrixY, 'rgba(0, 0, 0, 0)')
+            }
+        }
+
+        for (const box of boxes) {
+            if (box.x <= mouseX && mouseX <= box.x + box.width && box.y <= mouseY && mouseY <= box.y + box.height) {
+                box.onClick();
+                return;
+            }
+        }
+        
+    };
+    const mouseMove = (e) => {
+        if (state.dragStart) {
+            const mouseX = slideshowState.mousePosition.x; 
+            const mouseY = slideshowState.mousePosition.y;
+            const [matrixX, matrixY] = canvasCoordsToMatrixIndices(mouseX, mouseY, matrixDrawSettings);
+            
+            if (matrix.isValidIndex(matrixX, matrixY)) {
+                if (e.shiftKey) {
+                    matrix.setValue(matrixX, matrixY, state.currentColor)
+                }
+                else {
+                    matrix.setValue(matrixX, matrixY, barInitialColors[values.length - 1 - matrixY])
+                }
+            }
+
+            for (const box of boxes) {
+                if (box.x <= mouseX && mouseX <= box.x + box.width && box.y <= mouseY && mouseY <= box.y + box.height) {
+                    box.onClick();
+                    return;
+                }
+            }
+ 
+        }
+    }
+
+
+
+    let keydown = event => {
+        if (event.code === 'KeyR') {
+            state.reset();
+        }
+        if (event.code === 'KeyM') {
+            state.drawMatrix = !state.drawMatrix;
+        }
+        if (event.code === 'KeyH') {
+            state.drawHeights = !state.drawHeights;
+        }
+        if (event.code === 'KeyB') {
+            state.drawBarsUpperBounds = !state.drawBarsUpperBounds;
+        }
+        if (event.code === 'KeyL') {
+            state.drawLines = !state.drawLines;
+            // state.step += event.shiftKey? -1 : 1;
+        }
+        if (event.code === 'KeyX') {
+            state.clearMatrix();
+            
+        }
+        if (event.code === 'KeyU') {
+            state.clearMatrix();
+
+            for (let x = 0; x <= 15; x++) {
+                matrix.setValue(x, 7, barInitialColors[0])
+            }
+            for (let x = 0; x <= 40; x++) {
+                matrix.setValue(x, 6, barInitialColors[0])
+            }
+            for (let x = 0; x <= 60; x++) {
+                matrix.setValue(x, 5, barInitialColors[0])
+            }
+
+            for (let x = 0; x <= 65; x++) {
+                matrix.setValue(x, 4, barInitialColors[2])
+            }
+            for (let x = 0; x <= 72; x++) {
+                matrix.setValue(x, 3, barInitialColors[2])
+            }
+
+            matrix.setValue(77, 2, barInitialColors[3])
+            matrix.setValue(76, 2, barInitialColors[3])
+
+            matrix.setValue(79, 1, barInitialColors[4])
+            matrix.setValue(80, 0, barInitialColors[4])
+        }
+
+        if (event.code === 'KeyA' || event.code === 'KeyC') {
+            for (let x = 16; x <= 24; x++) {
+                matrix.setValue(x, 7, barInitialColors[0])
+            }
+            for (let x = 41; x <= 44; x++) {
+                matrix.setValue(x, 6, barInitialColors[0])
+            }
+            matrix.setValue(61, 5, barInitialColors[0])
+
+
+            for (let x = 8; x <= 15; x++) {
+                matrix.setValue(x, 7, barInitialColors[1])
+            }
+            for (let x = 33; x <= 40; x++) {
+                matrix.setValue(x, 6, barInitialColors[1])
+            }
+            for (let x = 53; x <= 60; x++) {
+                matrix.setValue(x, 5, barInitialColors[1])
+            }
+
+
+            for (let x = 4; x <= 7; x++) {
+                matrix.setValue(x, 7, barInitialColors[2])
+            }
+            for (let x = 29; x <= 32; x++) {
+                matrix.setValue(x, 6, barInitialColors[2])
+            }
+            for (let x = 49; x <= 52; x++) {
+                matrix.setValue(x, 5, barInitialColors[2])
+            }
+            for (let x = 66; x <= 68; x++) {
+                matrix.setValue(x, 4, barInitialColors[2])
+            }
+            for (let x = 73; x <= 75; x++) {
+                matrix.setValue(x, 3, barInitialColors[2])
+            }
+            
+            for (let x = 2; x <= 3; x++) {
+                matrix.setValue(x, 7, barInitialColors[3])
+            }
+            for (let x = 27; x <= 28; x++) {
+                matrix.setValue(x, 6, barInitialColors[3])
+            }
+            for (let x = 47; x <= 48; x++) {
+                matrix.setValue(x, 5, barInitialColors[3])
+            }
+            for (let x = 64; x <= 65; x++) {
+                matrix.setValue(x, 4, barInitialColors[3])
+            }
+            for (let x = 71; x <= 72; x++) {
+                matrix.setValue(x, 3, barInitialColors[3])
+            }
+            matrix.setValue(78, 2, barInitialColors[3])
+
+            matrix.setValue(1, 7, barInitialColors[4])
+            matrix.setValue(26, 6, barInitialColors[4])
+            matrix.setValue(46, 5, barInitialColors[4])
+            matrix.setValue(63, 4, barInitialColors[4])
+            matrix.setValue(70, 3, barInitialColors[4])
+            matrix.setValue(77, 2, barInitialColors[4])
+
+            matrix.setValue(0, 7, barInitialColors[5])
+            matrix.setValue(25, 6, barInitialColors[5])
+            matrix.setValue(45, 5, barInitialColors[5])
+            matrix.setValue(62, 4, barInitialColors[5])
+            matrix.setValue(69, 3, barInitialColors[5])
+            matrix.setValue(76, 2, barInitialColors[5])
+            matrix.setValue(79, 1, barInitialColors[5])
+            matrix.setValue(80, 0, barInitialColors[5])
+        }
+
+        if (event.code === 'KeyT') {
+            state.drawText = !state.drawText;
+        }
+        
+        if (event.code === 'Digit1') {
+            state.currentColor = 'rgba(0, 0, 0, 0)'
+        }
+        if (event.code === 'Digit2') {
+            state.currentColor = barInitialColors[0]
+        }
+        if (event.code === 'Digit3') {
+            state.currentColor = barInitialColors[1]
+        }
+        if (event.code === 'Digit4') {
+            state.currentColor = barInitialColors[2]
+        }
+        if (event.code === 'Digit5') {
+            state.currentColor = barInitialColors[3]
+        }
+        if (event.code === 'Digit6') {
+            state.currentColor = barInitialColors[4]
+        }
+        if (event.code === 'Digit7') {
+            state.currentColor = barInitialColors[5]
+        }
+        if (event.code === 'Digit8') {
+            state.currentColor = barInitialColors[6]
+        }
+        if (event.code === 'Digit9') {
+            state.currentColor = barInitialColors[6]
+        }
+        if (event.code === 'Digit0') {
+            state.currentColor = barInitialColors[7]
+        }
+         
+    }
+    const slideStart = () => {
+        document.addEventListener('keyup', keydown);
+    }
+    const slideEnd = () => {
+        document.removeEventListener('keyup', keydown)
+    }
+    return createSlide(
+        draw, 
+        slideStart,
+        slideEnd,
+        mouseDown,
+        mouseUp,
+        mouseMove,
+    );
 }
 
-function createNervousVsGreedySlides() {
+function createNervousVsGreedySlides(slideshowState, matrixDrawSettings) {
     // Special family
     // Split Nervous into phases
     // Order greedy set removals
     // Lower bound greedy cost in phase
     // Good vs bad sets
     // 50 success 
+    matrixDrawSettings = {
+        ...matrixDrawSettings,
+        cellWidth: 1000 / 100,
+        lineWidth: 0.5
+    }
+    const rowCount = 100;
+    const columnCount = 100;
+    const columnLengths = [16, 13, 12, 10, 8, 7, 6, 5, 4, 3, 3, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    const columnAccum = columnLengths.scanLeft(add, 0)
+    console.log(columnAccum)
+    const state = {
+        visibleNumbers: new Map(),
+        deletedRows: new Set(),
+        colorColumns: false,
+        hoverCell: {x: -1, y: -1},
+        reset: function() {
+            state.visibleNumbers = new Map();
+            state.deletedRows = new Set()
+        }
+    };
+    const columnMatrix = Array(rowCount * columnCount).fill(0);
+
+    let x = 0;
+    for (let i = 0; i < rowCount; i++) {
+        if (i >= columnAccum[x]) {
+            x += 1;
+        } 
+        if (i < rowCount * 0.66) {
+            columnMatrix[i * columnCount + x] = 2;
+        } else {
+            columnMatrix[i * columnCount + x] = 1;
+        }
+        
+    }
+    
+    const matrix = new SaddlepointSlideMatrix(rowCount, columnCount, () => [...columnMatrix]);
+    const draw = ctx => {
+        // We only want it to draw numbers that we have clicked on
+        // We want to "delete" rows
+        drawMatrix(ctx, matrix, {...matrixDrawSettings, 
+            drawMatrixValue: (ctx, x, y, matrix) => {
+                ctx.fillStyle = 'black'
+                const value = matrix.getValue(x, y,)
+                if (value > 0) {
+                    if (state.colorColumns) {
+                        if (value === 1) {
+                            ctx.fillStyle = greaterThanColor
+                        } else if (value === 2) {
+                            ctx.fillStyle = smallerThanColor
+                        }
+                    }
+                    drawMatrixSquare(ctx, x, y, matrixDrawSettings);
+                }
+                
+            }
+        });
+    };
+    const mouseDown = e => {
+    };
+    const mouseUp = e => {
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, matrixDrawSettings);
+    };
+    const mouseMove = () => {
+        const [matrixX, matrixY] = canvasCoordsToMatrixIndices(slideshowState.mousePosition.x, slideshowState.mousePosition.y, matrixDrawSettings);
+        state.hoverCell.x = matrixX;
+        state.hoverCell.y = matrixY;
+    }
+    let keyup = event => {
+        if (event.code === 'KeyR') {
+            state.reset();
+        }
+        if (event.code === 'KeyC') {
+            state.colorColumns = !state.colorColumns
+        }
+    }
+    const slideStart = () => {
+        document.addEventListener('keyup', keyup);
+    }
+    const slideEnd = () => {
+        document.removeEventListener('keyup', keyup)
+    }
+    return createSlide(
+        draw, 
+        slideStart,
+        slideEnd,
+        mouseDown,
+        mouseUp,
+        mouseMove,
+    );
+
 }
 // So what is it I want? 
 // We explain the 
@@ -1949,4 +2804,12 @@ const normalizationMatrixNormalized = [
 -1,-1, 1, 1, 1,-1, 1, 1,-1,-1,
  1, 1, 1,-1, 1,-1, 1, 0,-1,-1,
  0,-1, 1, 1, 1,-1, 1, 1, 1,-1,
+]
+
+const saddlepointMatrix = [
+8, 13, 60, 31, 35, 6, 28, 39, 32, 12, 7, 33, 50, 89, 10, 65, 73, 91, 50, 97, 82, 30, 42, 83, 40
+]
+
+const pseudoSaddlepointMatrix = [
+8, 13, 60, 31, 35, 6, 28, 39, 32, 12, 7, 33, 27, 89, 10, 65, 73, 91, 50, 97, 82, 30, 42, 83, 40
 ]

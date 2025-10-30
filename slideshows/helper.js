@@ -64,9 +64,9 @@ function combineSlides(...slides) {
                 ctx.restore()
             });
         }, 
-        mouseMove: function() {
+        mouseMove: function(e) {
             this.slides.forEach(f => {
-                if (f.mouseMove && f.isInteractable) f.mouseMove();
+                if (f.mouseMove && f.isInteractable) f.mouseMove(e);
             });
         }, 
         mouseDown: function(e) {
@@ -130,7 +130,7 @@ function initializeSlideshowEventListeners(canvas, state) {
             y: (e.pageY - e.target.offsetTop) * (canvas.height / canvas.clientHeight)
         };
         const slide = state.currentSlide();
-        if (slide.isInteractable) slide.mouseMove();
+        if (slide.isInteractable) slide.mouseMove(e);
     });
 
     canvas.addEventListener('mousedown', function(e) {

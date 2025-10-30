@@ -8,6 +8,9 @@ function clamp(v/*:number\*/, min/*:number\*/, max/*:number\*/) {
   return v;
 }
 
+function add(a, b) { return a + b}
+function subtract(a, b) { return a - b}
+
 
 function lerp(v0/*:number\*/, v1/*:number\*/, t/*:number\*/) {
   return v0 + t * (v1 - v0);

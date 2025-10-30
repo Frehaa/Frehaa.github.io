@@ -22,6 +22,17 @@ function d(...m) {
     this.splice(0, this.length);
 }
 
+Array.prototype.scanLeft = function(fn, initial) {
+    const result = [];
+    let current = initial;
+    for (let i = 0; i < this.length; i++) {
+        const value = this[i];
+        current = fn(value, current);
+        result.push(current);
+    }
+    return result;
+}
+
 ImageData.prototype.setPixel = function(x, y, r, g, b, a) {
     const idx = (x + y * this.width) * 4;
     this.data[idx + 0] = r;
