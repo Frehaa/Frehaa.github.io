@@ -716,17 +716,13 @@ function initialize() {
     // BONUS N LOG LOG N Algorithm as motivation?
     // RANDOM ALGORITHM PART
     const randomProbingAlgorithmSlide = createRandomProbingAlgorithmSlide(slideshowState, default10x10MatrixDrawSettings);
-    slideshowState.addSlide(combineSlides(randomProbingAlgorithmSlide, createDrawSlide(ctx => {
-        ctx.textAlign = 'left'
+    slideshowState.addSlide(createDrawSlide(ctx => {
+        ctx.textAlign = 'center'
         ctx.font = slideTitleFont;
-        ctx.fillText("Can we do better?", slideTextDefaultX, slideTitleTextDefaultY);
+        ctx.fillText("I promise this was the hardest algorithm", canvas.width/2, canvas.height/2);
+        ctx.fillText("But can we do better?", canvas.width/2, canvas.height/2 + 80);
 
-        bulletPointWriter.startWriting();
-        bulletPointWriter.writeMajorBullet("Can we do better with randomness?");
-        bulletPointWriter.writeMajorBullet("");
-        bulletPointWriter.writeMajorBullet("");
-
-    })));
+    }));
 
     // INSTANCE OPTIMALITY PART
     // Slide 1: Introduction
@@ -1010,7 +1006,9 @@ function initialize() {
     })));
 
     slideshowState.addSlide(createDrawSlide(ctx => {
-
+        ctx.textAlign = 'center'
+        ctx.font = slideTitleFont;
+        ctx.fillText("Time for questions?", canvas.width/2, canvas.height/2);
     }));
     
     slideshowState.startSlideShow(ctx);
