@@ -52,9 +52,9 @@ class UI {
         // TODO: Check for mouse leaving mouse event area. E.g. to guard against the case when the mouse up event is not triggered because it happened outside window
 
         // TODO?: How to toggle such that in some states the keyboard events / mouse events do not fire?
-        canvas.addEventListener('mousemove', e => this.mouseMove(e));
-        canvas.addEventListener('mousedown', e => this.mouseDown(e));
-        canvas.addEventListener('mouseup', e => this.mouseUp(e));
+        // canvas.addEventListener('mousemove', e => this.mouseMove(e));
+        // canvas.addEventListener('mousedown', e => this.mouseDown(e));
+        // canvas.addEventListener('mouseup', e => this.mouseUp(e));
     }
     add(uiElement) {
         if (!(uiElement instanceof UIElement)) { throw new Error("Element was not a UIElement."); }

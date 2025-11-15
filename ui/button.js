@@ -1,11 +1,16 @@
 class Button extends InteractableUIELement { // Requires loading the ui.js file first
-    constructor({position, size, lineWidth}) {
+    constructor({position, size, draw, ...rest}) {
         super(position, size, 5)
         this.position = position;
         this.size = size; 
-        this.lineWidth = lineWidth;
         this.hover = false;
         this.callbacks = [];
+
+        Object.assign(this, rest); 
+
+        if (draw) { // Overwrite draw
+            this.draw = draw;
+        }
     }
     draw(ctx) {
         ctx.lineWidth = this.lineWidth;

@@ -371,11 +371,64 @@ class TrainingGameManager {
 
 }
 
-function addControls() {
-    // TODO?: Move all the key and scroll events to seperate function
-}
+const Views = Object.freeze({
+    MELODY: "MelodyView",
+    START: "StartView",
+    SETTINGS: "SettingsView",
+    PRACTICE_SETUP: "PracticeSetupView",
+    MELODY_SELECT: "MelodySelectView",
+    
+})
 
 function main() {
+    const viewManager = new ViewManager();
+    const programState = new MidiProgramState(viewManager);
+    const canvas = document.getElementById('note-canvas');
+    const ctx = canvas.getContext('2d');
+
+    const startViewController = new StartScreenController(programState);
+    const settingsViewController = new SettingsViewController(programState);
+    const melodyViewController = new MelodyViewController(programState);
+    const playSettingsViewController = new PlaySettingsViewController(programState);
+    const selectPremadeMelodyViewController = new SelectPremadeMelodyViewController(programState);
+
+    const startScreenView = new StartScreenView(startViewController);
+    const fallingNotesView = new FallingNotesView();
+    const melodyView = new MelodyView(melodyViewController);
+    const settingsView = new SettingsView(settingsViewController);
+    const practiceSetupView = new PlaySettingsView(playSettingsViewController);
+    const premadeMelodyView = new SelectPremadeMelodyView(selectPremadeMelodyViewController);
+
+    viewManager.registerView(Views.START, startScreenView);
+    viewManager.registerView(Views.MELODY, melodyView);
+    viewManager.registerView(Views.SETTINGS, settingsView);
+    viewManager.registerView(Views.PRACTICE_SETUP, practiceSetupView);
+    viewManager.registerView(Views.MELODY_SELECT, premadeMelodyView);
+
+    viewManager.pushView(startScreenView);
+
+    // Setup Default view
+    // Create dropdown with a select view option
+    // create settings page
+
+    // The thing which manages mouse and keyboard inputs need to delegate them to the current view.
+
+    document.addEventListener('keydown', e => viewManager.getCurrentView().onKeyDown(e));
+    document.addEventListener('keyup', e => viewManager.getCurrentView().onKeyUp(e));
+    document.addEventListener('mousedown', e => viewManager.getCurrentView().onMouseDown(e));
+    document.addEventListener('mouseup', e => viewManager.getCurrentView().onMouseUp(e));
+    document.addEventListener('mousemove', e => viewManager.getCurrentView().onMouseMove(e));
+    document.addEventListener('wheel', e => viewManager.getCurrentView().onMouseWheel(e));
+
+    const animationFrameRequestManager = new AnimationFrameRequestManager((deltaTime, time) => {
+        const currentView = viewManager.getCurrentView();
+        
+        currentView.update(deltaTime);
+        ctx.clear();
+        currentView.draw(ctx);
+    });
+
+    return animationFrameRequestManager.start();
 
     // doStuffWithParsedMidiFile();return
 
@@ -473,7 +526,7 @@ function main() {
             }
         }
 
-        const ui = new UI(canvas);
+        const ui = new UI();
         const elapsedTimeSlider = new VerticalSlider({ // TODO?: Do the slider as a mini-view of the melody? Similar to VS Code
             position: {x: 910, y: 70},
             size: {width: 30, height: 360},
@@ -493,7 +546,7 @@ function main() {
             fallingNotesView.setElapsedTimeMs(elapsedTime);
         })
         ui.add(elapsedTimeSlider);
-        const fallingNotesView = new FallingNotesView({x: 100, y: 50}, {width: 800, height: 500}, notesToPlay, customNoteFill, customKeyFill,{windowX: 500});
+        const fallingNotesView = new FallingNotesView({x: 0, y: 0}, {width: 1920, height: 1080}, notesToPlay, customNoteFill, customKeyFill,{windowX: 500});
 
         fallingNotesView.setElapsedTimeMs(trainingGameManager.elapsedTimeMs);
 

@@ -7,12 +7,15 @@ function doesRectanglesOverlap(a, b) {
     return !(a.rightX < b.leftX || b.rightX < a.leftX || a.bottomY < b.topY || b.bottomY < a.topY);
 }
 
-class FallingNotesView extends InteractableUIELement { 
-    constructor(position, size, fallingNotes, customDrawNote, customDrawKey, drawSettings) {
-        super(position, size, 0)
+class FallingNotesView { 
+    constructor(fallingNotes, customDrawNote, customDrawKey, drawSettings) {
+    // constructor(fallingNotes, customDrawNote, customDrawKey, drawSettings) {
+        this.position = {x: 0, y: 0};
+        this.size = {width: 1920, height: 1080};
+        // super(position, size, 0)
         this.elapsedTimeMs = 0;
-        this.position = position;
-        this.size = size;
+        // this.position = position;
+        // this.size = size;
 
         this.drawSettings = { // This view consists of a bottom UI and a note view. 
             bottomAreaHeight: 120,
