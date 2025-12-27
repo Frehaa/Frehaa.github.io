@@ -39,6 +39,8 @@ class FallingNotesView {
         this.customKeyFill = customDrawKey || (_ => false); 
         this.customNoteFill = customDrawNote || (_ => {});
 
+        this.ui = new UI();
+
         this.shiftKeyDown = false;
     }
     getNoteType(note) {
@@ -111,7 +113,12 @@ class FallingNotesView {
         ctx.fillRect(noteLeft, noteTop, noteWidth, noteHeight);
     }
 
+    onMouseWheel(e) {
+
+    }
+
     mouseMove(e) { 
+        this.ui.mouseMove(e);
         this.hoverNote = null;
         const mousePosition = this.ui.mousePosition;
         if (this.dragStartPosition !== null) {
@@ -152,14 +159,14 @@ class FallingNotesView {
         this.drawNotes(ctx);
         this.drawSelectionBox(ctx);
         this.drawBottomArea(ctx);
-        this.bufferedBoundingBox.draw(ctx);
+        // this.bufferedBoundingBox.draw(ctx);
 
         ctx.lineWidth = 3;
         ctx.strokeStyle = 'black';
 
-        const {leftX, topY, width, height} = this._getRect();
-        ctx.strokeRect(leftX, topY, width, height);
-        ctx.strokeRect(leftX, topY, width, height); // Double draw make the lines sharper
+        // const {leftX, topY, width, height} = this._getRect();
+        // ctx.strokeRect(leftX, topY, width, height);
+        // ctx.strokeRect(leftX, topY, width, height); // Double draw make the lines sharper
     }
     isPositionInNotesView(position) {
         const {leftX, topY, width, height} = this._getRect();
@@ -169,9 +176,7 @@ class FallingNotesView {
 
     // TODO: If the user clicks directly on a unit, should it be selected without boxing, or should we still initiate box if we are dragging? Maybe we can do both?
     mouseDown(e) { 
-        if (!this.bufferedBoundingBox.contains(this.ui.mousePosition)) return;
-
-        
+        if (this.ui.mouseDown(e)) { return; }
         
         // Boxing functionality 
         if (e.button === LEFT_MOUSE_BUTTON && this.isPositionInNotesView(this.ui.mousePosition)) {
@@ -182,6 +187,7 @@ class FallingNotesView {
     }
     
     mouseUp(e) { // TODO?: Right now we don't recalculate the boxed elements based on the mouse position of the mouseUp event, but rely on the last mouseMove event instead. This can in theory result in inaccuracies if the mouseUp event is performed between two mouseMove events. Should we recalculate the boxedElements for the mouseUp event?
+        if (this.ui.mouseUp(e)) { return; }
         // Boxing functionality
         if (e.button !== LEFT_MOUSE_BUTTON) return false;
         if (this.dragStartPosition !== null) {
@@ -291,6 +297,7 @@ class FallingNotesView {
 
     // TODO: Give an update function to be called each frame. This is necessary to do scrolling view with selection box 
     update(dt) {
+        // this.ui.update(dt);
         if (this.dragStartPosition !== null) {
             if (this.ui.mousePosition.x < this.position.x) {
                 this.drawSettings.windowX -= this.dragScrollSpeedX * dt / 1000;

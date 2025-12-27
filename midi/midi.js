@@ -377,6 +377,7 @@ const Views = Object.freeze({
     SETTINGS: "SettingsView",
     PRACTICE_SETUP: "PracticeSetupView",
     MELODY_SELECT: "MelodySelectView",
+    FALLING_NOTES: "FallingNotesView"
     
 })
 
@@ -394,7 +395,7 @@ function main() {
 
     const startScreenView = new StartScreenView(startViewController);
     const fallingNotesView = new FallingNotesView();
-    const melodyView = new MelodyView(melodyViewController);
+    const melodyView = new MelodyView(melodyViewController, programState);
     const settingsView = new SettingsView(settingsViewController);
     const practiceSetupView = new PlaySettingsView(playSettingsViewController);
     const premadeMelodyView = new SelectPremadeMelodyView(selectPremadeMelodyViewController);
@@ -404,8 +405,16 @@ function main() {
     viewManager.registerView(Views.SETTINGS, settingsView);
     viewManager.registerView(Views.PRACTICE_SETUP, practiceSetupView);
     viewManager.registerView(Views.MELODY_SELECT, premadeMelodyView);
+    viewManager.registerView(Views.FALLING_NOTES, fallingNotesView);
 
     viewManager.pushView(startScreenView);
+
+    programState.setMelodyView(fallingNotesView);
+    console.log(programState);
+    
+
+    const notesToPlay = debugCreateNotesToPlay();
+    fallingNotesView.notes = notesToPlay;
 
     // Setup Default view
     // Create dropdown with a select view option

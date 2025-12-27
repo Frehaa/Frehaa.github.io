@@ -3,6 +3,32 @@ class SelectPremadeMelodyView {
     constructor(controller) {
         this.controller = controller;
         this.ui = new UI();
+
+        const customStartScreenViewButtonDraw = function(ctx) {
+            ctx.lineWidth = this.lineWidth;
+            if (this.hover) {
+                ctx.strokeStyle = 'red';
+            } else {
+                ctx.strokeStyle = 'blue';
+            }
+            ctx.strokeRect(this.position.x, this.position.y, this.size.width, this.size.height);
+            ctx.textAlign = 'center';
+            ctx.baseline = 'middle';
+            ctx.font = "15px Arial";
+            ctx.fillText(this.text, this.position.x + this.size.width/2, this.position.y + this.size.height/2);
+        }
+        this.backButton = new Button({
+            position: {x: 100, y: 20},
+            size: {width: 100, height: 50},
+            lineWidth: 3,
+            text: 'Back',
+            draw: customStartScreenViewButtonDraw
+        });
+        this.backButton.addCallback(() => {
+            controller.returnToPreviousView();
+        });
+
+        this.ui.add(this.backButton);
     }
 
     draw(ctx) {
