@@ -19,7 +19,7 @@ class StartScreenController extends BaseController {
         })
         this.filePicker = fileInput;
     }
-    selectFileFromFilePicker(callback, error) {
+    selectFileFromFilePicker(callback, error) { // Returns an arrayBuffer of the file content
         this.loadCallback = callback;
         this.errorCallback = error;
         this.filePicker.click();

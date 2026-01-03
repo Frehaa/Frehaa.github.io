@@ -89,10 +89,17 @@ function parseVariableLengthValue(dataView, offset) {
     } 
     return [value, offset + length]
 }
+function parseMidiFile(buffer) {
+    const chunks = parseMidiFileToChunks(buffer);
+    console.log('midi chunks', chunks);
+    
+    // TODO: Handle the chunks
+    return chunks[1].events;
+}
 
 // Expects an ArrayBuffer since this is what the DataView can handle
 // TODO: Make a promise do the workparse this?
-function parseMidiFile(buffer) {
+function parseMidiFileToChunks(buffer) {
     const dataView = new DataView(buffer);
     let [chunk, offset] = parseChunk(dataView, 0, 0)
     const header = chunk;

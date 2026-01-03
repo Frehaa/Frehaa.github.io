@@ -507,6 +507,36 @@ function main() {
 // We have a view which takes a note and draws it. The view calculates how the notes are seen. 
 // We have some settings. Simple setting is selection. We want to use the mouse to select. 
 
+class Melody {
+    constructor(notes) {
+        this.notes = notes;
+        this.timeSignature = null; // TODO
+        this.keySignature = null; // TODO
+        this.startTimeMs = 0;
+    }
+
+    static fromMidiFile(arrayBuffer) {
+        const parseResult = parseMidiFile(arrayBuffer);
+        console.log(parseResult);
+        
+        function debugCreateNotesToPlay() {
+            const startTime = 1000;
+            const noteDuration = 250;
+            const notes = [];
+            for (let i = 0; i < 190; i++) {
+                notes.push(
+                    new Note(60, startTime + i * 3 * noteDuration, noteDuration),
+                    new Note(64, startTime + noteDuration + i * 3 * noteDuration, noteDuration),
+                    new Note(67, startTime + 2 * noteDuration + i * 3 * noteDuration, noteDuration),
+                )
+            }
+            return notes;
+        }
+        const notes = debugCreateNotesToPlay();
+        const result = new Melody(notes);
+        return result;
+    }
+}
 class Note {
     // TODO: Maybe record original time values and have something to convert to time
     constructor(value, startMs, durationMs) {

@@ -87,31 +87,14 @@ class StartScreenView {
             draw
         });
         button.addCallback(() => {
-            this.controller.selectFileFromFilePicker(file => {
-                const result = file; // PARSE FILE
-                console.log(file);
-                
-                if (result) { // If successfully selected file
-                    function debugCreateNotesToPlay() {
-                        const startTime = 1000;
-                        const noteDuration = 250;
-                        const notes = [];
-                        for (let i = 0; i < 190; i++) {
-                            notes.push(
-                                new Note(60, startTime + i * 3 * noteDuration, noteDuration),
-                                new Note(64, startTime + noteDuration + i * 3 * noteDuration, noteDuration),
-                                new Note(67, startTime + 2 * noteDuration + i * 3 * noteDuration, noteDuration),
-                            )
-                        }
-                        return notes;
-                    }
-                    const melody = {
-                        notes: debugCreateNotesToPlay()
-                    }
-                    console.log("Ignoring file and creating test melody.");
-                    
+            this.controller.selectFileFromFilePicker(arrayBuffer => {
+                try {
+                    const melody = Melody.fromMidiFile(arrayBuffer); 
                     this.controller.setMelody(melody);
                     this.controller.goToView(Views.MELODY);
+                } catch (error) {
+                    console.log('Error', error);
+                    alert('failed to parse file. Make sure it is a properly formatted MIDI file.');
                 }
             }, error => {
                 console.log(error);
