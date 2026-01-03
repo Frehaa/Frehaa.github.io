@@ -76,4 +76,5 @@ class MelodyView {
         if (this.ui.mouseMove(event)) { return; }
         this.programState.settings.currentMelodyView.mouseMove(event);
     }
+    
 }

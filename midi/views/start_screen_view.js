@@ -92,7 +92,25 @@ class StartScreenView {
                 console.log(file);
                 
                 if (result) { // If successfully selected file
-                    this.controller.setMelody(result);
+                    function debugCreateNotesToPlay() {
+                        const startTime = 1000;
+                        const noteDuration = 250;
+                        const notes = [];
+                        for (let i = 0; i < 190; i++) {
+                            notes.push(
+                                new Note(60, startTime + i * 3 * noteDuration, noteDuration),
+                                new Note(64, startTime + noteDuration + i * 3 * noteDuration, noteDuration),
+                                new Note(67, startTime + 2 * noteDuration + i * 3 * noteDuration, noteDuration),
+                            )
+                        }
+                        return notes;
+                    }
+                    const melody = {
+                        notes: debugCreateNotesToPlay()
+                    }
+                    console.log("Ignoring file and creating test melody.");
+                    
+                    this.controller.setMelody(melody);
                     this.controller.goToView(Views.MELODY);
                 }
             }, error => {

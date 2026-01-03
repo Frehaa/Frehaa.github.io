@@ -24,14 +24,22 @@ class StartScreenController extends BaseController {
         this.errorCallback = error;
         this.filePicker.click();
     }
+
     setMelody(melody) {
         console.log("Set melody", melody);
-        
+
+        // Make sure the given melody does not have notes overlapping with control notes in the settings
+        const noteValues = melody.notes.map(n => n.value);
+        const notes = new Set(noteValues);
+        // TODO: Have an error case to take care of this
+        assert(notes.intersection(this.programState.settings.controlNotes).size === 0, "There should be no overlap in notes to play and control notes.");
+
         this.programState.setMelody(melody);
     } 
     changeToMelodyView() {
         const viewManager = this.programState.getViewManager();
         const melodyView = viewManager.getView(Views.MELODY);
+        assert(this.programState.melody !== null, "Should not change to melody view with no melody.");
         viewManager.pushView(melodyView);
     } 
     changeToPremadeMelodyView() {

@@ -52,6 +52,9 @@ class SettingsView {
 
     // RIGHT NOW THERE IS AN ISSUE WHERE WHEN I CREATE A NEW UI IT WILL AUTOMATICALLY ADD EVENT LISTENERS I MAY NOT WANT. 
     // 
+    onKeyDown(event) {
+
+    }
 
     onKeyDown(event) {
         // this.ui.onKeyDown(event);
