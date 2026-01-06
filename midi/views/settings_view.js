@@ -11,8 +11,10 @@ class SettingsView {
                 ctx.strokeStyle = 'blue';
             }
             ctx.strokeRect(this.position.x, this.position.y, this.size.width, this.size.height);
-            // TODO: Center text 
-            ctx.fillText(this.text, this.position.x, this.position.y);
+            ctx.textAlign = 'center';
+            ctx.baseline = 'middle';
+            ctx.font = "15px Arial";
+            ctx.fillText(this.text, this.position.x + this.size.width/2, this.position.y + this.size.height/2);
         }
 
         this.backButton = new Button({
@@ -50,6 +52,9 @@ class SettingsView {
 
     // RIGHT NOW THERE IS AN ISSUE WHERE WHEN I CREATE A NEW UI IT WILL AUTOMATICALLY ADD EVENT LISTENERS I MAY NOT WANT. 
     // 
+    onKeyDown(event) {
+
+    }
 
     onKeyDown(event) {
         // this.ui.onKeyDown(event);

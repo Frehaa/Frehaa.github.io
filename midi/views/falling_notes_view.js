@@ -8,14 +8,17 @@ function doesRectanglesOverlap(a, b) {
 }
 
 class FallingNotesView { 
-    constructor(fallingNotes, customDrawNote, customDrawKey, drawSettings) {
-    // constructor(fallingNotes, customDrawNote, customDrawKey, drawSettings) {
+    constructor(melodyController, programState, settings) {
+        this.controller = melodyController;
+        this.settings = { // TODO
+            mouseScrollSpeed: 250,
+            ...settings,
+        };
+        this.programState = programState;
+
         this.position = {x: 0, y: 0};
         this.size = {width: 1920, height: 1080};
-        // super(position, size, 0)
         this.elapsedTimeMs = 0;
-        // this.position = position;
-        // this.size = size;
 
         this.drawSettings = { // This view consists of a bottom UI and a note view. 
             bottomAreaHeight: 120,
@@ -25,9 +28,7 @@ class FallingNotesView {
             whiteKeyWidth: 24,   // Correct values found in documentation for white keys = 23.5 mm
             blackKeyWidth: 13,   // Correct values found in documentation for black keys = 9-14 mm
             defaultNoteFill: 'black',
-            ...drawSettings, // For overwriting defaults
         };
-
         this.dragScrollSpeedX = 100;
         this.dragScrollSpeedY = 50;
 
@@ -35,9 +36,32 @@ class FallingNotesView {
         this.dragStartPosition = null;
         this.selectedElements = [];
         this.boxedElements = [];
-        this.notes = fallingNotes || [];
-        this.customKeyFill = customDrawKey || (_ => false); 
-        this.customNoteFill = customDrawNote || (_ => {});
+        this.customKeyFill = settings.customDrawKey || (_ => false); 
+        this.customNoteFill = settings.customDrawNote || (_ => {});
+
+        const trainingGameManager = programState.getTrainingGameManager();
+
+        this.ui = new UI();
+        const elapsedTimeSlider = new VerticalSlider({ // TODO?: Do the slider as a mini-view of the melody? Similar to VS Code. This issue is that the melody can be very wide, so how wide should the slider then have to be? This can be calculated.
+            position: {x: 1880, y: 10},
+            size: {width: 30, height: 940},
+            lineWidth: 3,
+            initialSliderMarkerRatio: 0.0,
+            inverseSliderMarkerPosition: true
+        });
+        // When the game manager is paused we disable the slider and re-enable it when it is back.
+        trainingGameManager.addCallback("pause", paused => {
+            elapsedTimeSlider.enabled = paused; // Maybe this eevnt should not be on the manager but on the state?
+        });
+
+        elapsedTimeSlider.addCallback(value => {
+            const maxTime = programState.getTrainingGameManager().getMaxTime();
+            const minTime = programState.getTrainingGameManager().resetTime;
+            const elapsedTime = lerp(minTime, maxTime, value);
+
+            this.setElapsedTimeMs(elapsedTime);
+        })
+        this.ui.add(elapsedTimeSlider);
 
         this.shiftKeyDown = false;
     }
@@ -55,6 +79,8 @@ class FallingNotesView {
 
     setElapsedTimeMs(elapsedTimeMs) {
         this.elapsedTimeMs = elapsedTimeMs; // TODO: Figure out where to put clamping logic. Is it supposed to be the view or the outside the view?
+
+        // TODO: Create event to make sure the slider also updates if the time is set from elsewhere.
 
         // A bit of a hack to handle hover when changing time
         if (!this.enabled) { 
@@ -111,7 +137,16 @@ class FallingNotesView {
         ctx.fillRect(noteLeft, noteTop, noteWidth, noteHeight);
     }
 
+    onMouseWheel(e) {
+        const trainingGameManager = this.programState.getTrainingGameManager();
+        if (!trainingGameManager.isPaused()) { return false; }
+
+        const newElapsedTimeMs = this.elapsedTimeMs + Math.sign(e.deltaY) * this.settings.mouseScrollSpeed;
+        this.setElapsedTimeMs(newElapsedTimeMs);
+    }
+
     mouseMove(e) { 
+        this.ui.mouseMove(e);
         this.hoverNote = null;
         const mousePosition = this.ui.mousePosition;
         if (this.dragStartPosition !== null) {
@@ -123,7 +158,7 @@ class FallingNotesView {
             }
 
             this.boxedElements = this.selectElementsInRectangle( // TODO? (Premature Optimization): Right now we do a complete recomputation, would it be better to somehow reuse the previous result?
-                this.notes,
+                this.programState.melody.notes,
                 boxingArea.leftX,
                 boxingArea.rightX,
                 boxingArea.topY,
@@ -137,7 +172,7 @@ class FallingNotesView {
     
     // Returns first note with bounding box around position or null
     findHoverNote(position) {
-        for (const note of this.notes) {
+        for (const note of this.programState.melody.notes) {
             const rect = this.calculateNoteRectangle(note);
             if (isPointInRectangle(position, rect)) {
                 return note;
@@ -152,14 +187,16 @@ class FallingNotesView {
         this.drawNotes(ctx);
         this.drawSelectionBox(ctx);
         this.drawBottomArea(ctx);
-        this.bufferedBoundingBox.draw(ctx);
+
+        this.ui.draw(ctx);
+        // this.bufferedBoundingBox.draw(ctx);
 
         ctx.lineWidth = 3;
         ctx.strokeStyle = 'black';
 
-        const {leftX, topY, width, height} = this._getRect();
-        ctx.strokeRect(leftX, topY, width, height);
-        ctx.strokeRect(leftX, topY, width, height); // Double draw make the lines sharper
+        // const {leftX, topY, width, height} = this._getRect();
+        // ctx.strokeRect(leftX, topY, width, height);
+        // ctx.strokeRect(leftX, topY, width, height); // Double draw make the lines sharper
     }
     isPositionInNotesView(position) {
         const {leftX, topY, width, height} = this._getRect();
@@ -169,9 +206,7 @@ class FallingNotesView {
 
     // TODO: If the user clicks directly on a unit, should it be selected without boxing, or should we still initiate box if we are dragging? Maybe we can do both?
     mouseDown(e) { 
-        if (!this.bufferedBoundingBox.contains(this.ui.mousePosition)) return;
-
-        
+        if (this.ui.mouseDown(e)) { return; }
         
         // Boxing functionality 
         if (e.button === LEFT_MOUSE_BUTTON && this.isPositionInNotesView(this.ui.mousePosition)) {
@@ -182,6 +217,7 @@ class FallingNotesView {
     }
     
     mouseUp(e) { // TODO?: Right now we don't recalculate the boxed elements based on the mouse position of the mouseUp event, but rely on the last mouseMove event instead. This can in theory result in inaccuracies if the mouseUp event is performed between two mouseMove events. Should we recalculate the boxedElements for the mouseUp event?
+        if (this.ui.mouseUp(e)) { return; }
         // Boxing functionality
         if (e.button !== LEFT_MOUSE_BUTTON) return false;
         if (this.dragStartPosition !== null) {
@@ -291,6 +327,7 @@ class FallingNotesView {
 
     // TODO: Give an update function to be called each frame. This is necessary to do scrolling view with selection box 
     update(dt) {
+        // this.ui.update(dt);
         if (this.dragStartPosition !== null) {
             if (this.ui.mousePosition.x < this.position.x) {
                 this.drawSettings.windowX -= this.dragScrollSpeedX * dt / 1000;
@@ -304,6 +341,13 @@ class FallingNotesView {
                 this.setElapsedTimeMs(this.elapsedTimeMs - this.dragScrollSpeedY * dt / 1000);
             }
         }
+    }
+
+    onNoteOn(noteValue) {
+
+    }
+    onNoteOff(noteValue) {
+
     }
 
     drawBottomArea(ctx) { 
@@ -443,7 +487,7 @@ class FallingNotesView {
     }
 
     drawNotes(ctx) {
-        for (const note of this.notes) {
+        for (const note of this.programState.melody.notes) {
             this.drawNote(ctx, note);
         }
     }

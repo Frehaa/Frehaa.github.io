@@ -11,16 +11,18 @@ class StartScreenView {
                 ctx.strokeStyle = 'blue';
             }
             ctx.strokeRect(this.position.x, this.position.y, this.size.width, this.size.height);
-            // TODO: Center text 
-            ctx.fillText(this.text, this.position.x, this.position.y);
+            ctx.textAlign = 'center';
+            ctx.baseline = 'middle';
+            ctx.font = "15px Arial";
+            ctx.fillText(this.text, this.position.x + this.size.width/2, this.position.y + this.size.height/2);
         }
 
-        this.continueButton = this._createContinueButton(customStartScreenViewButtonDraw)
+        // this.continueButton = this._createContinueButton(customStartScreenViewButtonDraw)
         this.selectFileButton = this._createSelectFileButton(customStartScreenViewButtonDraw);
         this.usePremadeMelodyButton = this._createSelectPremadeButton(customStartScreenViewButtonDraw);
         this.settingsButton = this._createSettingsButton(customStartScreenViewButtonDraw);
 
-        this.ui.add(this.continueButton);
+        // this.ui.add(this.continueButton);
         this.ui.add(this.selectFileButton);
         this.ui.add(this.usePremadeMelodyButton);
         this.ui.add(this.settingsButton);
@@ -63,8 +65,8 @@ class StartScreenView {
 
     _createContinueButton(draw) {
         const button = new Button({
-            position: {x: 100, y: 20},
-            size: {width: 100, height: 50},
+            position: {x: 200, y: 20},
+            size: {width: 200, height: 150},
             lineWidth: 3,
             text: 'Continue',
             draw // TODO: If no melody is selected then it is disabled and grayed out. So this UI element should be a listener on the melody changed event
@@ -78,20 +80,21 @@ class StartScreenView {
 
     _createSelectFileButton(draw) {
         const button = new Button({
-            position: {x: 100, y: 100},
-            size: {width: 100, height: 50},
+            position: {x: 200, y: 20},
+            size: {width: 200, height: 150},
             lineWidth: 3,
             text: 'Select File',
             draw
         });
         button.addCallback(() => {
-            this.controller.selectFileFromFilePicker(file => {
-                const result = file; // PARSE FILE
-                console.log(file);
-                
-                if (result) { // If successfully selected file
-                    this.controller.setMelody(result);
-                    this.controller.changeToMelodyView();
+            this.controller.selectFileFromFilePicker(arrayBuffer => {
+                try {
+                    const melody = Melody.fromMidiFile(arrayBuffer); 
+                    this.controller.setMelody(melody);
+                    this.controller.goToView(Views.MELODY);
+                } catch (error) {
+                    console.log('Error', error);
+                    alert('failed to parse file. Make sure it is a properly formatted MIDI file.');
                 }
             }, error => {
                 console.log(error);
@@ -104,8 +107,8 @@ class StartScreenView {
     } 
     _createSelectPremadeButton(draw) {
         const button = new Button({
-            position: {x: 100, y: 200},
-            size: {width: 100, height: 50},
+            position: {x: 500, y: 20},
+            size: {width: 200, height: 150},
             lineWidth: 3, 
             text: 'Use Existing Melody',
             draw
@@ -118,8 +121,8 @@ class StartScreenView {
 
     _createSettingsButton(draw) {
         const button = new Button({
-            position: {x: 100, y: 300},
-            size: {width: 100, height: 50},
+            position: {x: 200, y: 300},
+            size: {width: 200, height: 150},
             lineWidth: 3, 
             text: 'Settings',
             draw

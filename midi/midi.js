@@ -224,163 +224,17 @@ class MidiListener {
     } 
 }
 
-class TrainingGameManager {
-    togglePause() { 
-        this.settings.paused = !this.settings.paused; 
-        this.callbacks['pause'].forEach(c => (c(this.settings.paused)));
-    }
-    _getEarliestNoteTime(notes) {
-        return Math.min(...notes.map(n => n.startMs));
-    }
-    reset() { 
-        this.elapsedTimeMs = this.resetTime; 
-        this.successNotes.clear();
-        this.failedNotes.clear();
-        this.failedPressCount = 0;
-    }
-    // TODO: Make speed ups and downs in a set interval
-    speedUp() { 
-        this.settings.speedMultiplier = Math.min(5, this.settings.speedMultiplier + this.settings.speedIncrement); 
-    } 
-    speedDown() { 
-        this.settings.speedMultiplier = Math.max(0.1, this.settings.speedMultiplier - this.settings.speedIncrement); 
-    } 
-
-    setSavePoint() {
-        this.resetTime = this.elapsedTimeMs;
-    } 
-    static CONTROL_KEYS = { // TODO: Let these be set somewhere else? LOW PRIORITY
-        21: m => m.togglePause(),
-        23: m => m.reset(), 
-        25: m => m.speedDown(),
-        27: m => m.speedUp(),
-        108: m => m.setSavePoint(),
-    }
-    constructor(midiAccess, notesToPlay) {
-        this.notesToPlay = new Set();
-        this.pressedKeys = new Set();
-        this.successNotes = new Set();
-        this.failedNotes = new Set();
-        this.controlKeys = new Set(Object.keys(TrainingGameManager.CONTROL_KEYS).map(v => Number(v))); // Set of piano keys reserved for controlling the game
-        this.settings = {
-            startWaitMs: 500, // TODO: Base this off of the tact to play in i.e. wait one octave in the speed of the song 
-            speedMultiplier: 1,
-            speedIncrement: 0.1,
-            paused: true
-        }
-        this.resetTime = 0;
-        this.elapsedTimeMs = 0;
-        this.endTime = 0;
-
-        this.midiListener = new MidiListener(midiAccess);
-        this.midiListener.addEventListener(MIDI_EVENT.NOTE_ON, (noteValue) => {this.pressedKeys.add(noteValue)});
-        this.midiListener.addEventListener(MIDI_EVENT.NOTE_OFF, (noteValue) => {this.pressedKeys.delete(noteValue)});
-        this.midiListener.addEventListener(MIDI_EVENT.NOTE_ON, noteValue => this.handleKeyPress(noteValue));
-
-        this.failedPressCount = 0;
-
-        this.callbacks = {
-            "pause": []
-        }
-        this.setNotesToPlay(notesToPlay);
-    }
-
-    getMaxTime() {
-        return this.endTime; 
-    }
-
-    addCallback(type, callback) {
-        this.callbacks[type].push(callback);
-    }
-
-    setNotesToPlay(notesToPlay) {
-        this.notesToPlay = new Set(notesToPlay);
-        assert(this.controlKeys.intersection(this.notesToPlay).size === 0, "There should be no overlap in notes to play and control keys");
-        this.endTime = Math.max(...notesToPlay.map(n => n.startMs + n.durationMs));
-        this.successNotes = new Set();
-        this.failedNotes = new Set();
-        this.resetTime = this._getEarliestNoteTime(notesToPlay) - this.settings.startWaitMs;
-        this.reset(this);
-    }
-
-    incrementElapsedTime(deltaTimeMs) {
-        if (this.settings.paused) { return; }
-        this.elapsedTimeMs += deltaTimeMs * this.settings.speedMultiplier;
-    }
-
-    getNoteType(note) {
-        if (this.successNotes.has(note)) {
-            return "success"
-        } else if (this.failedNotes.has(note)) {
-            return "failed"
-        } else if (this.notesToPlay.has(note)) {
-            return "play"
-        } else {
-            return "unknown"
-        }
-    }
-
-    isKeyPressed(noteValue) {
-        return this.pressedKeys.has(noteValue);
-    }
-
-    handleKeyPress(noteValue) {
-        l('Pressed:', noteValue)
-        if (this.controlKeys.has(noteValue)) {
-            this.handleControlKeyPress(noteValue);
-        } else {
-            this.handleGameKeyPress(noteValue);
-        }
-    }
-
-    handleControlKeyPress(noteValue) {
-        l(noteValue)
-        TrainingGameManager.CONTROL_KEYS[noteValue](this);
-    }
-
-    handleGameKeyPress(noteValue) {
-        const timeMarginMs = 100; // How many milliseconds can be before or after a note should be pressed to the press
-
-        let success = false;
-        for (const note of this.notesToPlay) {
-            // If our note press matches a note in notes for the given elapsed time, then success, otherwise failure
-            if (note.value === noteValue && note.startMs - timeMarginMs <= this.elapsedTimeMs && this.elapsedTimeMs <= note.startMs + timeMarginMs) {
-                this.successNotes.add(note);
-                this.failedNotes.delete(note);
-                success = true;
-                break;
-            }
-        }
-
-        if (!success) {
-            this.failedPressCount += 1
-        }
-    }
-
-    checkForFailedNotes() {
-        if (this.settings.paused) { return; } 
-        for (const note of this.notesToPlay) {
-            if (this.successNotes.has(note) || this.failedNotes.has(note) || this.elapsedTimeMs < note.startMs) { continue } ;
-            this.failedNotes.add(note);
-        }
-    }
-
-    getFailedNotesCount() {
-        return this.failedPressCount + this.failedNotes.size;
-    }
-
-}
-
 const Views = Object.freeze({
     MELODY: "MelodyView",
     START: "StartView",
     SETTINGS: "SettingsView",
     PRACTICE_SETUP: "PracticeSetupView",
     MELODY_SELECT: "MelodySelectView",
+    FALLING_NOTES: "FallingNotesView"
     
 })
 
-function main() {
+function start(midiAccess) {
     const viewManager = new ViewManager();
     const programState = new MidiProgramState(viewManager);
     const canvas = document.getElementById('note-canvas');
@@ -393,8 +247,8 @@ function main() {
     const selectPremadeMelodyViewController = new SelectPremadeMelodyViewController(programState);
 
     const startScreenView = new StartScreenView(startViewController);
-    const fallingNotesView = new FallingNotesView();
-    const melodyView = new MelodyView(melodyViewController);
+    const fallingNotesView = new FallingNotesView(melodyViewController, programState, {});
+    const melodyView = new MelodyView(melodyViewController, programState);
     const settingsView = new SettingsView(settingsViewController);
     const practiceSetupView = new PlaySettingsView(playSettingsViewController);
     const premadeMelodyView = new SelectPremadeMelodyView(selectPremadeMelodyViewController);
@@ -404,79 +258,55 @@ function main() {
     viewManager.registerView(Views.SETTINGS, settingsView);
     viewManager.registerView(Views.PRACTICE_SETUP, practiceSetupView);
     viewManager.registerView(Views.MELODY_SELECT, premadeMelodyView);
+    viewManager.registerView(Views.FALLING_NOTES, fallingNotesView);
 
     viewManager.pushView(startScreenView);
 
-    // Setup Default view
-    // Create dropdown with a select view option
-    // create settings page
+    const defaultMelodyView = fallingNotesView;
+    programState.setMelodyView(defaultMelodyView);
 
-    // The thing which manages mouse and keyboard inputs need to delegate them to the current view.
 
+    // The thing which manages mouse, keyboard, and MIDI inputs need to delegate them to the current view.
+    const midiListener = new MidiListener(midiAccess);
+    midiListener.addEventListener(MIDI_EVENT.NOTE_ON, (noteValue) => {
+        const currentView = viewManager.getCurrentView();
+        if (currentView.onNoteOn) { currentView.onNoteOn(noteValue); }
+    });
+    midiListener.addEventListener(MIDI_EVENT.NOTE_OFF, (noteValue) => {
+        const currentView = viewManager.getCurrentView();
+        if (currentView.onNoteOff) { currentView.onNoteOff(noteValue); }
+    });
     document.addEventListener('keydown', e => viewManager.getCurrentView().onKeyDown(e));
     document.addEventListener('keyup', e => viewManager.getCurrentView().onKeyUp(e));
     document.addEventListener('mousedown', e => viewManager.getCurrentView().onMouseDown(e));
     document.addEventListener('mouseup', e => viewManager.getCurrentView().onMouseUp(e));
     document.addEventListener('mousemove', e => viewManager.getCurrentView().onMouseMove(e));
     document.addEventListener('wheel', e => viewManager.getCurrentView().onMouseWheel(e));
+    
 
-    const animationFrameRequestManager = new AnimationFrameRequestManager((deltaTime, time) => {
+    const animationFrameRequestManager = new AnimationFrameRequestManager((deltaTimeMs, time) => {
         const currentView = viewManager.getCurrentView();
         
-        currentView.update(deltaTime);
+        currentView.update(deltaTimeMs);
         ctx.clear();
         currentView.draw(ctx);
     });
 
     return animationFrameRequestManager.start();
+}
 
-    // doStuffWithParsedMidiFile();return
+function main() {
+    requestMidiAccess(midiAccess => {
+        console.log(midiAccess);
+        start(midiAccess);
+    }, error => {
+        console.log(error);
+    });
 
-    // TODO: Make the experience of opening the page less annoying with the constant popup. There should be some better flow. We only ask for access when you want to start practicing. Maybe we can use a default song even, so you don't have to find a MIDI file. 
-
-    // const canvas = document.getElementById('note-canvas');
-    // const filepicker = document.getElementById('file-input');
-    // function handleFileLoad(arrayBuffer) {
-    //     // const parsedData = parseMidiFile(arrayBuffer);
-    //     l(arrayBuffer);
-    // }
-    // TODO?: Should this be a class with state that we manage? 
-    // initializeDataTransferInterface(filepicker, canvas, handleFileLoad, errorEvent => l('An error occured trying to handle file loading', errorEvent)) // // TODO: Implement error handling
+    return;
     
-
-    // const midiState = {
-    //     chunks: null,
-    //     inputs: emptyMap,
-    //     outputs: emptyMap,
-    //     currentInput: emptyIO,
-    //     currentOutput: emptyIO,
-    //     pause: false,
-    //     speedMultiplier: 1
-    // };
-
     // TODO: Interface for selecting section. This requires selection box to work and to have a scroll of the view when paused. 
 
-    startTrainingGame({inputs: []}) // TODO: Make this less annoying
-
-    // requestMidiAccess(midiAccess => { 
-    //     startTrainingGame(midiAccess)
-    // } , error => { l(error); alert("This browser does not seem to support the MIDI Web API used by this page. Error: " + error.toString()); })
-
-    // Debugging function for creating some notes to display and play before we properly read them. It is kind of a standin for a dependency injection
-    function debugCreateNotesToPlay() {
-        const startTime = 1000;
-        const noteDuration = 250;
-        const notes = [];
-        for (let i = 0; i < 190; i++) {
-            notes.push(
-                new Note(60, startTime + i * 3 * noteDuration, noteDuration),
-                new Note(64, startTime + noteDuration + i * 3 * noteDuration, noteDuration),
-                new Note(67, startTime + 2 * noteDuration + i * 3 * noteDuration, noteDuration),
-            )
-        }
-        return notes;
-    }
-    
     function startTrainingGame(midiAccess) {
         const notesToPlay = debugCreateNotesToPlay();
         const trainingGameManager = new TrainingGameManager(midiAccess, notesToPlay);
@@ -525,6 +355,7 @@ function main() {
                 return true;
             }
         }
+
 
         const ui = new UI();
         const elapsedTimeSlider = new VerticalSlider({ // TODO?: Do the slider as a mini-view of the melody? Similar to VS Code
@@ -630,8 +461,6 @@ function main() {
         });
     }
 
-    return ;
-
     runTests();
     // Various initializations
     const state = initializeState(); 
@@ -678,6 +507,36 @@ function main() {
 // We have a view which takes a note and draws it. The view calculates how the notes are seen. 
 // We have some settings. Simple setting is selection. We want to use the mouse to select. 
 
+class Melody {
+    constructor(notes) {
+        this.notes = notes;
+        this.timeSignature = null; // TODO
+        this.keySignature = null; // TODO
+        this.startTimeMs = 0;
+    }
+
+    static fromMidiFile(arrayBuffer) {
+        const parseResult = parseMidiFile(arrayBuffer);
+        console.log(parseResult);
+        
+        function debugCreateNotesToPlay() {
+            const startTime = 1000;
+            const noteDuration = 250;
+            const notes = [];
+            for (let i = 0; i < 190; i++) {
+                notes.push(
+                    new Note(60, startTime + i * 3 * noteDuration, noteDuration),
+                    new Note(64, startTime + noteDuration + i * 3 * noteDuration, noteDuration),
+                    new Note(67, startTime + 2 * noteDuration + i * 3 * noteDuration, noteDuration),
+                )
+            }
+            return notes;
+        }
+        const notes = debugCreateNotesToPlay();
+        const result = new Melody(notes);
+        return result;
+    }
+}
 class Note {
     // TODO: Maybe record original time values and have something to convert to time
     constructor(value, startMs, durationMs) {
