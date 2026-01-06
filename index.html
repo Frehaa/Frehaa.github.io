@@ -95,10 +95,245 @@ h1 {
 
     <h1>Various Projects</h1>
         <div id="projects-container">
+            
+            <div id="other-projects-container">
+                <h2>Miscellaneous Projects</h2>
+                <p> 
+                    These are the various other projects I have worked. Based on
+                    this page, I think one of my next projects should be to
+                    figure out how to display all of this in a more beautiful
+                    manner and make this page not so pre-2000.
+                </p>
+                <div id="other-projects">
+                    <a href="3d/3d.html">
+                        <div class="project-block">
+                            <h4>3D Graphics</h4>
+                            <img src="img/3d_thumbnail.jpg">
+                            <p>
+                                Project on learning about 3D graphics. The project 
+                                contains many different sub-projects for learning about 
+                                different ways of doing 3D graphics. The most recent 
+                                stuff is about using WebGL.
+                            </p>
+                        </div>
+                    </a>
+                    <a href="midi/midi.html">
+                        <div class="project-block">
+                            <h4>MIDI</h4>
+                            <img src="img/midi_thumbnail.jpg">
+                            <p>
+                                Project on making a tool for practicing piano using MIDI
+                                files. The goal is to allow a user to practice sections 
+                                and parts in a focused manner. Some standard practice 
+                                exercises would also be ideal.  Initially inspired by
+                                https://chaomoon.com/musicreading/
+                            </p>
+                        </div>
+                    </a>
+                    <a href="binary/binary.html">
+                        <div class="project-block">
+                            <h4>Binary file visualizer</h4>
+                            <img src="img/binary_visualizer_thumbnail.jpg">
+                            <p>
+                                I worked on this when I made a MIDI parser. It was very useful 
+                                to see the content of a MIDI file byte-by-byte. I could have 
+                                used an existing visualizer, but making my own seemed both 
+                                trivial and fun. Having my own visualizer also allows to make 
+                                any kind of extension that I would want. 
+                            </p>
+                        </div>
+                    </a>
+                    <a href="bezier/bezier.html">
+                        <div class="project-block">
+                            <h4>Bezier Curves</h4>
+                            <img src="img/bezier_curve_thumbnail.jpg">
+                            <p>
+                                Here I wanted to understand how bezier curves worked. 
+                                The page shows a single curve with 6 control points 
+                                which are all used to calculate the points of the curve.
+                                The curve can be drawn at many intermediate steps using 
+                                the bottom slider. There is also code for drawing a 
+                                qubic spline, though the draw call is commented out on line 365. 
+                            </p>
+                        </div>
+                    </a>
+
+                    <a href="noise/noise.html">
+                        <div class="project-block">
+                            <h4>Noise</h4>
+                            <img src="img/blue_noise_thumbnail.png">
+                            <p>
+                                This project was about visualizing noise and different 
+                                generators of noise. The most simple being white noise 
+                                and a naive blue noise generator. I never got to
+                                implementing other noise generators for the page, but
+                                have experience implementing some for a Ray Tracer
+                                project in F#. The page also uses a custom linear
+                                congruential generator since I wanted control over the
+                                randomness. A user of the page can write a different
+                                random generator or change the parameters to see how it
+                                affects the generated points. Though the blue noise
+                                generator only updates previously generated points when
+                                the seed is changed. And a bad generator may cause the
+                                page to freeze since it cannot generate a point for the
+                                blue noise generator.
+                            </p>
+                        </div>
+                    </a>
+                    <a href="graph_coloring/graph_coloring.html">
+                        <div class="project-block">
+                            <h4>Graph Coloring</h4>
+                            <img src="img/graph_coloring_thumbnail.jpg">
+                            <p>
+                                This project was for generating graphs for the
+                                3-coloring problem.  The goal was for the graphs to be
+                                printable and colorable such that e.g. kids could try to
+                                solve them. Besides some work on the presentation, the
+                                only thing it really needs is random generation, some
+                                suggested graphs, and automatically made solutions to
+                                verify against.
+                            </p>
+                        </div>
+                    </a>
+                    <a href="animation/animation.html">
+                        <div class="project-block">
+                            <h4>Animation</h4>
+                            <img src="img/animation_thumbnail.jpg">
+                            <p>
+                                This project was an attempt at understanding how to create 
+                                an animation framework like Manim. It has some simple functionality 
+                                like drawing a circle, moving it, and fading it, but nothing fancy.
+                                The most interesting part is how to parse the instructions into 
+                                something which can be animated. 
+                            </p>
+                        </div>
+                    </a>
+                    <a href="teaching_algorithms/01.html">
+                        <div class="project-block">
+                            <h4>Teaching Algorithms</h4>
+                            <img src="img/teaching_algorithms_thumbnail.jpg">
+                            <p>
+                                Work on creating an online course for teaching 
+                                algorithms in a semi-choose your own adventure style.
+                                The goal is to have interactive lessons, e.g. like 
+                                brilliant.org, but all free. Figuring out how to
+                                structure and teach everything has been the biggest
+                                roadblock for progress here.
+                            </p>
+                        </div>
+                    </a>
+                    <a href="procedural_generation/procedural_generation.html">
+                        <div class="project-block">
+                            <h4>Procedural Generation</h4>
+                            <img src="img/procedural_generation_thumbnail.jpg">
+                            <p>
+                                Project on procedural generation e.g. using wave
+                                collapse technique. 
+                            </p>
+                        </div>
+                    </a>
+                    <a href="barycentric_coordinates/barycentric_coordinates.html">
+                        <div class="project-block">
+                            <h4>Barycentric coordinates</h4>
+                            <img src="img/barycentric_coordinates_thumbnail.jpg">
+                            <p>
+                                Project for learning about the barycentric coordinate
+                                system. Really useful to know for 3D graphics.
+                            </p>
+                        </div>
+                    </a>
+                    <a href="collision_detection/collision_detection.html">
+                        <div class="project-block">
+                            <h4>Collision Detection</h4>
+                            <img src="img/collision_detection_thumbnail.jpg">
+                            <p>
+                                A seperate project to focus on just collision 
+                                detection of elements. So far it only has a 
+                                naive collision detection algorithm for circles. 
+                            </p>
+                        </div>
+                    </a>
+                    <a href="breakout/breakout.html">
+                        <div class="project-block">
+                            <h4>Breakout Game</h4>
+                            <!-- <img src="img/blue_noise_thumbnail.jpg"> -->
+                            <p>
+                                A very simple game for trying to make something 
+                                which works with a physics engine. The goal is for this 
+                                to work with tablets and maybe other devices in the
+                                future.  Right now it is still very much work in
+                                progress.
+                            </p>
+                        </div>
+                    </a>
+                    <a href="draw/draw.html">
+                        <div class="project-block">
+                            <h4>Drawing</h4>
+                            <img src="img/drawing_thumbnail.jpg">
+                            <p>
+                                This project was an early excursion into graphics programming. 
+                                I wanted to know how simple drawing algorithms like Bresenham
+                                actually works and how to extend it to thicker lines. 
+                            </p>
+                        </div>
+                    </a>            
+
+                    <a href="fft/fft.html">
+                        <div class="project-block">
+                            <h4>Butterfly Networks (FFT Graphs)</h4>
+                            <img src="img/fft_thumbnail.jpg">
+                            <p>
+                                Completely abandoned project on visualizing butterfly
+                                networks (FFT Graphs). 
+                            </p>
+                        </div>
+                    </a>            
+
+                    <a href="rrts/rrts.html">
+                        <div class="project-block">
+                            <h4>Rogue-like RTS</h4>
+                            <img src="img/rrts_thumbnail.jpg">
+                            <p>
+                                Ambitious work on making a rogue-like RTS game.  Making
+                                pathfinding and collision detection properly work has
+                                been the biggest issue for progress here.
+                            </p>
+                        </div>
+                    </a>            
+
+
+                    <a href="physics/physics.html">
+                        <div class="project-block">
+                            <h4>Physics</h4>
+                            <img src="img/physics_thumbnail.jpg">
+                            <p>
+                                Project on how to do physics simulation of 2D objects.
+                                This was mostly based off of the tutorial 
+                                https://www.chrishecker.com/Rigid_Body_Dynamics
+                            </p>
+                        </div>
+                    </a>            
+
+                    <a href="glyphs/glyph.html">
+                        <div class="project-block">
+                            <h4>Glyphs</h4>
+                            <img src="img/glyphs_thumbnail.jpg">
+                            <p>
+                                A fun little work in progress project on creating an
+                                alternative alphabet for hiragana which uses some base
+                                shapes for the vowel sounds and combines with other
+                                shapes for consonant sound. 
+                            </p>
+                        </div>
+                    </a>            
+
+                    
+                </div>
+            </div>
             <div id="slideshow-projects-container">
                 <h2>Slideshows</h2>
                 <p>
-The most finished projects here are the slideshows I made for various 
+    The most finished projects here are the slideshows I made for various 
                     occasions. These are developed in Javascript, instead of something like 
                     Powerpoint, because I wanted to have more control, and a more interactive 
                     experience, than what static slides can provide. I believe this also 
@@ -143,232 +378,6 @@ The most finished projects here are the slideshows I made for various
                                 my Ph.d. presentation and the slideshow
                                 framework was also used for the Bitonic Merge
                                 Sort presentation. 
-                            </p>
-                        </div>
-                    </a>
-                </div>
-            </div>
-            <div id="other-projects-container">
-                <h2>Miscellaneous Projects</h2>
-                <p> 
-                    These are the various other projects I have worked. Based on
-                    this page, I think one of my next projects should be to
-                    figure out how to display all of this in a more beautiful
-                    manner and make this page not so pre-2000.
-                </p>
-                <div id="other-projects">
-                    <a href="bezier/bezier.html">
-                        <div class="project-block">
-                            <h4>Bezier Curves</h4>
-                            <img src="img/bezier_curve_thumbnail.jpg">
-                            <p>
-                                Here I wanted to understand how bezier curves worked. 
-                                The page shows a single curve with 6 control points 
-                                which are all used to calculate the points of the curve.
-                                The curve can be drawn at many intermediate steps using 
-                                the bottom slider. There is also code for drawing a 
-                                qubic spline, though the draw call is commented out on line 365. 
-                            </p>
-                        </div>
-                    </a>
-                    <a href="noise/noise.html">
-                        <div class="project-block">
-                            <h4>Noise</h4>
-                            <img src="img/blue_noise_thumbnail.png">
-                            <p>
-                                This project was about visualizing noise and different 
-                                generators of noise. The most simple being white noise 
-                                and a naive blue noise generator. I never got to
-                                implementing other noise generators for the page, but
-                                have experience implementing some for a Ray Tracer
-                                project in F#. The page also uses a custom linear
-                                congruential generator since I wanted control over the
-                                randomness. A user of the page can write a different
-                                random generator or change the parameters to see how it
-                                affects the generated points. Though the blue noise
-                                generator only updates previously generated points when
-                                the seed is changed. And a bad generator may cause the
-                                page to freeze since it cannot generate a point for the
-                                blue noise generator.
-                            </p>
-                        </div>
-                    </a>
-                    <a href="animation/animation.html">
-                        <div class="project-block">
-                            <h4>Animation</h4>
-                            <img src="img/animation_thumbnail.jpg">
-                            <p>
-                                This project was an attempt at understanding how to create 
-                                an animation framework like Manim. It has some simple functionality 
-                                like drawing a circle, moving it, and fading it, but nothing fancy.
-                                The most interesting part is how to parse the instructions into 
-                                something which can be animated. 
-                            </p>
-                        </div>
-                    </a>
-                    <a href="graph_coloring/graph_coloring.html">
-                        <div class="project-block">
-                            <h4>Graph Coloring</h4>
-                            <img src="img/graph_coloring_thumbnail.jpg">
-                            <p>
-                                This project was for generating graphs for the
-                                3-coloring problem.  The goal was for the graphs to be
-                                printable and colorable such that e.g. kids could try to
-                                solve them. Besides some work on the presentation, the
-                                only thing it really needs is random generation, some
-                                suggested graphs, and automatically made solutions to
-                                verify against.
-                            </p>
-                        </div>
-                    </a>            
-                    <a href="breakout/breakout.html">
-                        <div class="project-block">
-                            <h4>Breakout Game</h4>
-                            <!-- <img src="img/blue_noise_thumbnail.jpg"> -->
-                            <p>
-                                A very simple game for trying to make something 
-                                which works with a physics engine. The goal is for this 
-                                to work with tablets and maybe other devices in the
-                                future.  Right now it is still very much work in
-                                progress.
-                            </p>
-                        </div>
-                    </a>            
-                    <a href="draw/draw.html">
-                        <div class="project-block">
-                            <h4>Drawing</h4>
-                            <img src="img/drawing_thumbnail.jpg">
-                            <p>
-                                This project was an early excursion into graphics programming. 
-                                I wanted to know how simple drawing algorithms like Bresenham
-                                actually works and how to extend it to thicker lines. 
-                            </p>
-                        </div>
-                    </a>            
-                    <a href="binary/binary.html">
-                        <div class="project-block">
-                            <h4>Binary file visualizer</h4>
-                            <img src="img/binary_visualizer_thumbnail.jpg">
-                            <p>
-                                I worked on this when I made a MIDI parser. It was very useful 
-                                to see the content of a MIDI file byte-by-byte. I could have 
-                                used an existing visualizer, but making my own seemed both 
-                                trivial and fun. Having my own visualizer also allows to make 
-                                any kind of extension that I would want. 
-                            </p>
-                        </div>
-                    </a>            
-                    <a href="fft/fft.html">
-                        <div class="project-block">
-                            <h4>Butterfly Networks (FFT Graphs)</h4>
-                            <img src="img/fft_thumbnail.jpg">
-                            <p>
-                                Completely abandoned project on visualizing butterfly
-                                networks (FFT Graphs). 
-                            </p>
-                        </div>
-                    </a>            
-                    <a href="procedural_generation/procedural_generation.html">
-                        <div class="project-block">
-                            <h4>Procedural Generation</h4>
-                            <img src="img/procedural_generation_thumbnail.jpg">
-                            <p>
-                                Project on procedural generation e.g. using wave
-                                collapse technique. 
-                            </p>
-                        </div>
-                    </a>            
-                    <a href="rrts/rrts.html">
-                        <div class="project-block">
-                            <h4>Rogue-like RTS</h4>
-                            <img src="img/rrts_thumbnail.jpg">
-                            <p>
-                                Ambitious work on making a rogue-like RTS game.  Making
-                                pathfinding and collision detection properly work has
-                                been the biggest issue for progress here.
-                            </p>
-                        </div>
-                    </a>            
-                    <a href="teaching_algorithms/01.html">
-                        <div class="project-block">
-                            <h4>Teaching Algorithms</h4>
-                            <img src="img/teaching_algorithms_thumbnail.jpg">
-                            <p>
-                                Work on creating an online course for teaching 
-                                algorithms in a semi-choose your own adventure style.
-                                The goal is to have interactive lessons, e.g. like 
-                                brilliant.org, but all free. Figuring out how to
-                                structure and teach everything has been the biggest
-                                roadblock for progress here.
-                            </p>
-                        </div>
-                    </a>            
-                    <a href="collision_detection/collision_detection.html">
-                        <div class="project-block">
-                            <h4>Collision Detection</h4>
-                            <img src="img/collision_detection_thumbnail.jpg">
-                            <p>
-                                A seperate project to focus on just collision 
-                                detection of elements. So far it only has a 
-                                naive collision detection algorithm for circles. 
-                            </p>
-                        </div>
-                    </a>            
-                    <a href="physics/physics.html">
-                        <div class="project-block">
-                            <h4>Physics</h4>
-                            <img src="img/physics_thumbnail.jpg">
-                            <p>
-                                Project on how to do physics simulation of 2D objects.
-                                This was mostly based off of the tutorial 
-                                https://www.chrishecker.com/Rigid_Body_Dynamics
-                            </p>
-                        </div>
-                    </a>            
-                    <a href="midi/midi.html">
-                        <div class="project-block">
-                            <h4>MIDI</h4>
-                            <img src="img/midi_thumbnail.jpg">
-                            <p>
-                                Project on making a tool for practicing piano using MIDI
-                                files. The goal is to allow a user to practice sections 
-                                and parts in a focused manner. Some standard practice 
-                                exercises would also be ideal.  Initially inspired by
-                                https://chaomoon.com/musicreading/
-                            </p>
-                        </div>
-                    </a>            
-                    <a href="glyphs/glyph.html">
-                        <div class="project-block">
-                            <h4>Glyphs</h4>
-                            <img src="img/glyphs_thumbnail.jpg">
-                            <p>
-                                A fun little work in progress project on creating an
-                                alternative alphabet for hiragana which uses some base
-                                shapes for the vowel sounds and combines with other
-                                shapes for consonant sound. 
-                            </p>
-                        </div>
-                    </a>            
-                    <a href="barycentric_coordinates/barycentric_coordinates.html">
-                        <div class="project-block">
-                            <h4>Barycentric coordinates</h4>
-                            <img src="img/barycentric_coordinates_thumbnail.jpg">
-                            <p>
-                                Project for learning about the barycentric coordinate
-                                system. Really useful to know for 3D graphics.
-                            </p>
-                        </div>
-                    </a>            
-                    <a href="3d/3d.html">
-                        <div class="project-block">
-                            <h4>3D Graphics</h4>
-                            <img src="img/3d_thumbnail.jpg">
-                            <p>
-                                Project on learning about 3D graphics. The project 
-                                contains many different sub-projects for learning about 
-                                different ways of doing 3D graphics. The most recent 
-                                stuff is about using WebGL.
                             </p>
                         </div>
                     </a>
